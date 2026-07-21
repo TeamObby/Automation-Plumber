@@ -1,0 +1,458 @@
+{
+  "name": "Email Sent -> Move To Sent Stage",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/subsequence/remove",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $('Build Logs + Route').item.json.instantly_lead_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        992,
+        1456
+      ],
+      "id": "1a62a412-862e-46a2-9294-cc995d09ab79",
+      "name": "Instantly: Remove from Subsequence",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email_sent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        1264
+      ],
+      "id": "86401a1f-a07c-47bd-9e6b-96b826fbaff2",
+      "name": "Webhook (Email Sent)",
+      "webhookId": "campaign-completed-0001"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = ($json && $json.body) ? $json.body : $json;\nreturn { json: {\n  lead_email:        String(b.lead_email || b.email || '').trim(),\n  campaign_id:       String(b.campaign_id || '').trim(),\n  campaign_name:     String(b.campaign_name || b.campaign || '').trim(),\n  instantly_lead_id: String(b.lead_id || b.leadId || b.instantly_lead_id || '').trim(),\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        1264
+      ],
+      "id": "a0991c3a-3863-46c2-aaf2-744a5ab53567",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ locationId: 'rzaMhqeo2apNI1p6DG5z', pageLimit: 1, filters: [{ field: 'email', operator: 'eq', value: $('Normalize').item.json.lead_email }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        320,
+        1264
+      ],
+      "id": "ee9d56a6-1b56-4a59-9716-4e4348755deb",
+      "name": "GHL: Search Contact by Email",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.instantly.ai/api/v2/emails?lead={{ encodeURIComponent($('Normalize').item.json.lead_email) }}&campaign_id={{ $('Normalize').item.json.campaign_id }}&sort_order=desc&limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        1264
+      ],
+      "id": "63a5add2-be49-4fb4-918e-4258923b0d99",
+      "name": "Instantly: Get Email",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// contact from the GHL search (explicit ref; order-independent)\nconst r = $('GHL: Search Contact by Email').item.json;\nconst c = (r.contacts && r.contacts[0]) ? r.contacts[0] : (r.contact || r);\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\n\nconst NOTE_ID='4Ysr9E6CKC2vZK9m6MNm', EVENTLOGS_ID='7D9N71mEDfipN90zfV0j', EMAILHIST_ID='TcdjZt3fwFSZTgY6ngeE', CALLHIST_ID='ZVeEoK85i5EOhWt1HO1F', EMAIL_STEP_NAME_ID='WtFfl1nEbMupk2oR4m9e';\n\n// pick email (newest in the campaign-scoped fetch)\nconst resp  = ($('Instantly: Get Email').item && $('Instantly: Get Email').item.json) ? $('Instantly: Get Email').item.json : {};\nconst items = Array.isArray(resp.items) ? resp.items : (Array.isArray(resp) ? resp : []);\nconst em = items[0] || {};\nconst emailId  = String((em && em.id) || '').trim();\nconst bodyHtml = (em && em.body && (em.body.html || em.body.text)) ? String(em.body.html || em.body.text) : '';\n\n// strip HTML -> clean text for the summariser (fewer tokens, cleaner input)\nconst body_clean = bodyHtml\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;/gi, \"'\").replace(/&quot;/gi, '\"')\n  .replace(/\\s+/g, ' ').trim();\n\nconst oppList = Array.isArray(c.opportunities) ? c.opportunities : [];\n\n// ---- Route: email_step_name decides the target \"Cold Email N Sent\" stage -----------\n// email_step_name is written by the senders as 'cold email 1'..'cold email 4'\n// (also 'missed call email N' -> no cold step -> no move; the filter drops it).\nconst email_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim();\n\nconst EMAIL_PIPELINE_ID = '1A1RkYaL93s2rqbQ3Opi';\nconst SENT_STAGE = {\n  1: '41849471-6f42-4f40-9692-bbd4d3713d17',   // Cold Email 1 Sent\n  2: 'fdd4f9a4-a626-4866-a904-5053e626306f',   // Cold Email 2 Sent\n  3: '2f599547-4a2b-4ba4-850d-0feb7fcc976c',   // Cold Email 3 Sent\n  4: '39a20e88-ce88-46c6-9e95-8134aa9f269d'    // Cold Email 4 Sent\n};\nconst coldStep = (email_step_name.toLowerCase().match(/^cold email (\\d+)$/) || [])[1] || '';\nconst target_sent_stage_id = coldStep ? (SENT_STAGE[Number(coldStep)] || '') : '';\n\nconst emailOpp = oppList.find(o => o && o.pipelineId === EMAIL_PIPELINE_ID) || {};\nconst email_opp_id = String(emailOpp.id || '');\n\nconst now = DateTime.now().setZone('America/Los_Angeles');\nconst stampNote = now.toFormat('yyyy-MM-dd HH:mm');\nconst stampRun  = now.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)';\nlet stampEmail = stampRun;\nconst tsRaw = String((em && (em.timestamp_email || em.timestamp_created)) || '').trim();\nif (tsRaw) { const dt = DateTime.fromISO(tsRaw).setZone('America/Los_Angeles'); if (dt.isValid) stampEmail = dt.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)'; }\n\nconst step_label = email_step_name || 'email';\n\n// note + event_logs (no AI needed)\nconst noteBase  = String(cf(NOTE_ID) || '').trim();\nconst noteEntry = '[' + stampNote + ' | EMAIL_SENT] Cold Email';\nconst updated_note = noteBase ? (noteBase + '\\n' + noteEntry) : noteEntry;\nconst elBase  = String(cf(EVENTLOGS_ID) || '').trim();\nconst elEntry = '[' + stampRun + '] ' + step_label + ' sent';\nconst updated_event_logs = elBase ? (elBase + '\\n' + elEntry) : elEntry;\n\nconst ehBase = String(cf(EMAILHIST_ID) || '').trim();              // base email_history (appended in logging branch)\nconst call_history = String(cf(CALLHIST_ID) || '').trim();\nconst instantly_lead_id = String($('Normalize').item.json.instantly_lead_id || '').trim();\n\nreturn { json: {\n  contact_id: c.id, email_id: emailId,\n  body_clean,\n  email_step_name, step_label, stampEmail,\n  eh_base: ehBase, call_history,\n  updated_note, updated_event_logs,\n  instantly_lead_id,\n  target_sent_stage_id,\n  email_opp_id\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        1264
+      ],
+      "id": "d5722392-dc1d-4e1d-b67d-cd06cff06352",
+      "name": "Build Logs + Route"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 150, messages: [ { role: 'system', content: 'You write a one or two sentence factual summary of a single outbound sales email sent by Kevin (a sales rep at WaterLine, an AI receptionist for plumbing businesses) to a prospect. Capture the core offer or ask. Output only the summary - no preamble, labels, or quotation marks.' }, { role: 'user', content: ($('Build Logs + Route').item.json.body_clean || '(empty email)') } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        992,
+        1072
+      ],
+      "id": "af2ad8ae-87f8-486f-9f43-80c7ff0d1875",
+      "name": "AI: Summarize Email",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "openAiApi": {
+          "id": "B4xA6dDfoOhHJMOo",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p = $('Build Logs + Route').item.json;\nconst ai = $json || {};\nlet summary = '';\ntry { summary = String(ai.choices[0].message.content || '').trim(); } catch (e) { summary = ''; }\nif (!summary) summary = p.step_label + ' sent';   // fallback if the summariser errored / returned empty\n\nconst ehBase  = String(p.eh_base || '').trim();\nconst ehEntry = '[' + p.email_id + ' | ' + p.stampEmail + ' | Kevin | ' + p.step_label + '] ' + summary;\nconst updated_email_history = ehBase ? (ehBase + '\\n' + ehEntry) : ehEntry;\n\nreturn { json: {\n  contact_id: p.contact_id,\n  updated_note: p.updated_note, updated_event_logs: p.updated_event_logs,\n  updated_email_history, call_history: p.call_history,\n  email_summary: summary, instantly_lead_id: p.instantly_lead_id\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        1072
+      ],
+      "id": "e3bee96c-fdc6-4138-9507-031b0d34bf1e",
+      "name": "Build email_history"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.2, max_tokens: 220, messages: [ { role: 'system', content: 'You maintain a concise rolling summary (2-3 sentences) of the entire interaction between Kevin (a sales rep at WaterLine, an AI receptionist for plumbing businesses) and a prospect, based on their email history and call history. State where things stand: what was offered, the prospect responses or objections, call outcomes, and the apparent next step. Be factual and specific, no fluff. Output only the summary.' }, { role: 'user', content: ('EMAIL HISTORY:\\n' + ($('Build email_history').item.json.updated_email_history || '(none)') + '\\n\\nCALL HISTORY:\\n' + ($('Build email_history').item.json.call_history || '(none)')) } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1440,
+        1072
+      ],
+      "id": "6a75400c-ae43-4cb6-8de1-c02328c35eb6",
+      "name": "AI: Interaction Summary",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "openAiApi": {
+          "id": "B4xA6dDfoOhHJMOo",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const e  = $('Build email_history').item.json;\nconst ai = $json || {};\nlet interaction = '';\ntry { interaction = String(ai.choices[0].message.content || '').trim(); } catch (err) { interaction = ''; }\n\nconst NOTE_ID='4Ysr9E6CKC2vZK9m6MNm', EVENTLOGS_ID='7D9N71mEDfipN90zfV0j', EMAILHIST_ID='TcdjZt3fwFSZTgY6ngeE', LEADID_ID='TWLomDBX0XInU1IKrG8L', INTERACTION_ID='AH3JqyYEPzPX4wXKoX1V';\n\nconst customFields = [\n  { id: NOTE_ID,      value: e.updated_note },\n  { id: EVENTLOGS_ID, value: e.updated_event_logs },\n  { id: EMAILHIST_ID, value: e.updated_email_history },\n];\n// Interaction Summary is OVERWRITE (rolling snapshot). Only write if the AI produced one,\n// so a model hiccup never blanks an existing summary.\nif (interaction) customFields.push({ id: INTERACTION_ID, value: interaction });\nconst lead_id = String(e.instantly_lead_id || '').trim();\nif (lead_id) customFields.push({ id: LEADID_ID, value: lead_id });\n\nreturn { json: { contact_id: e.contact_id, customFields, interaction_summary: interaction } };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        1072
+      ],
+      "id": "79522767-17b1-4a01-8d6e-ad45c86daebe",
+      "name": "Build customFields"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: $json.customFields }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1888,
+        1072
+      ],
+      "id": "f0a8a016-1ecc-48cf-b328-b752c1351559",
+      "name": "GHL: Write Logs + Lead ID",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Build Logs + Route').item.json.target_sent_stage_id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "id": "6dc1f1f0-c304-4358-baf0-9a72cae767bc"
+            },
+            {
+              "id": "9e7af23b-d060-401d-b911-555cf2ca7d43",
+              "leftValue": "={{ $('Build Logs + Route').item.json.email_opp_id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        1264
+      ],
+      "id": "8a50c6e0-2bca-47b1-bb61-b69c483ef59a",
+      "name": "Is cold email (move stage)"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $('Build Logs + Route').item.json.email_opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: '1A1RkYaL93s2rqbQ3Opi', pipelineStageId: $('Build Logs + Route').item.json.target_sent_stage_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1216,
+        1264
+      ],
+      "id": "0adaf760-ce06-495f-9732-16ae1fe5cfd4",
+      "name": "GHL: Move Opp -> Sent Cold Email N",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (Email Sent)": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "GHL: Search Contact by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Search Contact by Email": {
+      "main": [
+        [
+          {
+            "node": "Instantly: Get Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instantly: Get Email": {
+      "main": [
+        [
+          {
+            "node": "Build Logs + Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Logs + Route": {
+      "main": [
+        [
+          {
+            "node": "AI: Summarize Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is cold email (move stage)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instantly: Remove from Subsequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Summarize Email": {
+      "main": [
+        [
+          {
+            "node": "Build email_history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build email_history": {
+      "main": [
+        [
+          {
+            "node": "AI: Interaction Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Interaction Summary": {
+      "main": [
+        [
+          {
+            "node": "Build customFields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build customFields": {
+      "main": [
+        [
+          {
+            "node": "GHL: Write Logs + Lead ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is cold email (move stage)": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move Opp -> Sent Cold Email N",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "6717181a-8980-4f62-8285-bb14117f2845",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "CDdLps7wfOjyM9Lx",
+  "tags": []
+}

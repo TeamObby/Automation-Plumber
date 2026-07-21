@@ -1,0 +1,620 @@
+{
+  "name": "Sent Cold Email to Caller Stages (4:30AM)",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "opportunities",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        5536,
+        1648
+      ],
+      "id": "2672e243-3419-4d4c-bc1b-10fc7d3ec1d2",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const o = $json;\nconst SENT_TO_N = {\n  '41849471-6f42-4f40-9692-bbd4d3713d17': 1,\n  'fdd4f9a4-a626-4866-a904-5053e626306f': 2,\n  '2f599547-4a2b-4ba4-850d-0feb7fcc976c': 3\n};\nconst stage = String(o.pipelineStageId || '').trim();\nconst N = SENT_TO_N[stage] || 0;\nconst contact_id = String((o.contact && o.contact.id) || o.contactId || '').trim();\nreturn { json: {\n  email_opp_id: String(o.id || '').trim(),\n  contact_id,\n  N,\n  routable: (N >= 1 && N <= 3) && !!contact_id\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5760,
+        1648
+      ],
+      "id": "e7bc5bf0-3344-4f01-b2ab-a0578447f102",
+      "name": "Detect Pre"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.routable }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "routable-guard-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        5984,
+        1648
+      ],
+      "id": "9fa0bf18-bec5-403a-9da3-d9fb14246945",
+      "name": "Is routable?"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "T4Mz1k2fYwCwzp7D",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/T4Mz1k2fYwCwzp7D",
+          "cachedResultName": "Personalize Call Context (SUB)"
+        },
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        6880,
+        1584
+      ],
+      "id": "39a47f1d-a09b-4ece-835d-b61297270ce8",
+      "name": "Personalize Call Context (SUB)"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Build Route + SUB').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'sLGmbbrcmzdlGONFYDSC', value: $('Personalize Call Context (SUB)').item.json.call_context }, { id: 'AH3JqyYEPzPX4wXKoX1V', value: $('Personalize Call Context (SUB)').item.json.interaction_summary } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7104,
+        1584
+      ],
+      "id": "8bdd492e-0099-4593-a61b-5796d5ed554a",
+      "name": "GHL: Write Call Context + Interaction Summary",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $('Build Route + SUB').item.json.email_opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: '9E6y34DlG1Imr8FV42RV', pipelineStageId: $('Build Route + SUB').item.json.target_stage_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7552,
+        1584
+      ],
+      "id": "2add58ea-7b02-42c4-bfd0-a6d2d4248a03",
+      "name": "GHL: Move Opp -> Cold Call Stage",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Model A: moves the single opp into the Caller pipeline (9E6y34DlG1Imr8FV42RV) at the chosen Cold Call stage."
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        6208,
+        1648
+      ],
+      "id": "1479b1d9-3dce-4f70-b5d1-9c3e2078ca7d",
+      "name": "Loop (batch 10)"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        7776,
+        1648
+      ],
+      "id": "68e931ee-bbb4-45bf-9bd0-aba6747da304",
+      "name": "Wait 2s",
+      "webhookId": "f958e6e1-434f-4b4b-a9cd-85841590b936"
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=1A1RkYaL93s2rqbQ3Opi&pipeline_stage_id=41849471-6f42-4f40-9692-bbd4d3713d17&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        5088,
+        1456
+      ],
+      "id": "acb6573a-4731-4fc5-a746-c5ac10587334",
+      "name": "Pull Sent Cold Email 1",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=1A1RkYaL93s2rqbQ3Opi&pipeline_stage_id=fdd4f9a4-a626-4866-a904-5053e626306f&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        5088,
+        1648
+      ],
+      "id": "65b72659-cdb0-470a-92fa-dc8905ea524b",
+      "name": "Pull Sent Cold Email 2",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=1A1RkYaL93s2rqbQ3Opi&pipeline_stage_id=2f599547-4a2b-4ba4-850d-0feb7fcc976c&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        5088,
+        1840
+      ],
+      "id": "6fa3ab5f-6d3e-46c7-8d2d-7afefc843920",
+      "name": "Pull Sent Cold Email 3",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5312,
+        1632
+      ],
+      "id": "8bbd878c-ab3f-4ff8-8174-1a824508db22",
+      "name": "Combine"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        6432,
+        1584
+      ],
+      "id": "46eb5a2a-4fac-4f87-8ba1-13dae03290d9",
+      "name": "GHL: Get Contact",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cr = $json;\nconst c = cr.contact ? cr.contact : cr;\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\n\nconst pre = $('Detect Pre').item.json;\nconst N = pre.N;                     // 1|2|3 = which \"Cold Email N Sent\" stage the lead came from\nconst email_opp_id = pre.email_opp_id;\n\n// ---- routing axes (independent) --------------------------------------------\n// is_missed: the last call went unanswered (tag set by the missed-call flow)\nconst tags = Array.isArray(c.tags) ? c.tags : [];\nconst isMissed = tags.some(t => t === 'last_call_missed');\n// is_mgr: MGR = \"missed call Google review\" lead -> 'Missed Call Review' custom field is non-empty\nconst MGR_ID = 'u9UymBEMP3f7IZqDTwVd';\nconst isMGR = String(cf(MGR_ID) || '').trim() !== '';\n\n// ---- target stage (Cold Outbound Call Pipeline 9E6y34DlG1Imr8FV42RV) -------\n// N=1 has NO missed-call variant: the lead has not been called yet.\nconst S = (id, name) => ({ id, name });\nconst STAGE = {\n  1: {\n    plain:  { normal: S('060f44a8-4cd8-4561-8c84-7150bfd57498', 'Day 1 Call A'),\n              mgr:    S('04ccf8e0-383f-4c17-9268-51020233d08b', 'Day 1 Call A (MGR)') }\n  },\n  2: {\n    plain:  { normal: S('4b1d7a88-87c0-422b-90e4-b48d16430900', 'Day 2 Call'),\n              mgr:    S('4b3023aa-515b-40f8-ad82-292ca685562e', 'Day 2 Call (MGR)') },\n    missed: { normal: S('40bdc040-8e97-4654-ae52-51e458c7f882', 'Day 2 Call (missed call)'),\n              mgr:    S('59069dd4-8071-45e2-820c-df565ab17132', 'Day 2 Call MGR (missed call)') }\n  },\n  3: {\n    plain:  { normal: S('f8407fb8-f94c-4443-baf9-b7d1c6f50d34', 'Day 3 Call'),\n              mgr:    S('5bfcb041-6abb-48d2-a60d-511af1af807f', 'Day 3 Call (MGR)') },\n    missed: { normal: S('b50e0792-a88c-4d0a-9e44-2d5cebfdef18', 'Day 3 Call (missed call)'),\n              mgr:    S('21b772e5-385d-47b7-8234-3138bd312a26', 'Day 3 Call MGR (missed call)') }\n  }\n};\nconst byN = STAGE[N] || {};\nconst bucket = (isMissed && byN.missed) ? byN.missed : byN.plain;   // N=1 -> always plain\nconst target = bucket ? bucket[isMGR ? 'mgr' : 'normal'] : null;\nconst target_stage_id = target ? target.id : '';\nconst target_stage_name = target ? target.name : '';\n\nconst EVENTLOGS_ID='7D9N71mEDfipN90zfV0j', EMAILHIST_ID='TcdjZt3fwFSZTgY6ngeE', CALLSUM_ID='ZVeEoK85i5EOhWt1HO1F', STARS_ID='E7XjZUePJBrJ99LnCD6e', REVIEWS_ID='kDel5db3cRFrNjqOwdNp';\nconst t = id => String(cf(id) || '').trim();\n\nreturn { json: {\n  contact_id: c.id,\n  email_opp_id,\n  target_stage_id,\n  target_stage_name,\n  is_missed: isMissed,\n  is_mgr: isMGR,\n  N,\n  // ---- Personalize Call Context (SUB) input contract ----\n  company_name: String(c.companyName || c.contactName || '').trim(),\n  contact_city: String(c.city || '').trim(),\n  stage: target_stage_name,\n  event_logs: t(EVENTLOGS_ID),\n  email_history: t(EMAILHIST_ID),\n  call_summary: t(CALLSUM_ID),\n  googlestars: cf(STARS_ID),\n  googlereviewscount: cf(REVIEWS_ID)\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6656,
+        1584
+      ],
+      "id": "c97c7c93-caf8-4b4a-b9ae-a9a58dc1c78b",
+      "name": "Build Route + SUB"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 4,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        4864,
+        1648
+      ],
+      "id": "6caf80e4-b28d-4147-926e-3d15c4a066f6",
+      "name": "Schedule 4:30AM"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Build Route + SUB').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'YxGIrvPl5tfLeYoc7Ldr', value: '' }, { id: 'kVU8T6Swsh9sF4TWC81U', value: '' } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        7328,
+        1584
+      ],
+      "id": "clear-disp-notes",
+      "name": "GHL: Clear Disposition + Notes",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Empties Call Disposition (YxGIrvPl5tfLeYoc7Ldr) + Call Notes (kVU8T6Swsh9sF4TWC81U) before the opp moves to the caller stage, so the next call cycle starts clean. Partial PUT — leaves Call Context / Call Router Context / Call Processing State / Interaction Summary untouched. Non-blocking (onError continue) so a cleanup hiccup never strands the move."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Pull Sent Cold Email 1": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Sent Cold Email 2": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Pull Sent Cold Email 3": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Combine": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Detect Pre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Pre": {
+      "main": [
+        [
+          {
+            "node": "Is routable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is routable?": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop (batch 10)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Build Route + SUB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Route + SUB": {
+      "main": [
+        [
+          {
+            "node": "Personalize Call Context (SUB)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Personalize Call Context (SUB)": {
+      "main": [
+        [
+          {
+            "node": "GHL: Write Call Context + Interaction Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Write Call Context + Interaction Summary": {
+      "main": [
+        [
+          {
+            "node": "GHL: Clear Disposition + Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Move Opp -> Cold Call Stage": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule 4:30AM": {
+      "main": [
+        [
+          {
+            "node": "Pull Sent Cold Email 2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Sent Cold Email 3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Sent Cold Email 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Clear Disposition + Notes": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move Opp -> Cold Call Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "d4e6a796-69cc-4906-b2c2-94638444c6e1",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "IIyYJxvDyeCmYdur",
+  "tags": []
+}

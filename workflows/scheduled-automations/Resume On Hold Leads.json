@@ -1,0 +1,451 @@
+{
+  "name": "Resume On Hold Leads",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0,30 8-21 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 0 22 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -640,
+        48
+      ],
+      "id": "sched-resume-onhold-0001",
+      "name": "Every 30m (8am-10pm PT)",
+      "notes": "Runs :00 and :30 from 08:00 to 22:00 PT (workflow timezone = America/Los_Angeles)."
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=O7LMZpDOFM2SYO65twC5&pipeline_stage_id=54994e3f-1643-46f4-8eeb-ade43712ae2d&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -416,
+        -48
+      ],
+      "id": "pull-cold-on-hold",
+      "name": "Pull Cold-On-Hold",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=O7LMZpDOFM2SYO65twC5&pipeline_stage_id=175c5765-fd68-48d5-a319-8bcc77487703&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -416,
+        144
+      ],
+      "id": "pull-conv-on-hold",
+      "name": "Pull Conv-On-Hold",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -192,
+        48
+      ],
+      "id": "combine-onhold-opps",
+      "name": "Combine"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "opportunities",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        32,
+        48
+      ],
+      "id": "split-out-opps",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// one opportunity per item (from Split Out) -> normalize the ids we need\nconst o = $json;\nconst contact_id = String((o.contact && o.contact.id) || o.contactId || '').trim();\nreturn { json: {\n  opp_id: String(o.id || '').trim(),\n  contact_id: contact_id,\n  current_stage_id: String(o.pipelineStageId || '').trim()\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        48
+      ],
+      "id": "extract-opp",
+      "name": "Extract Opp",
+      "notes": "opp_id + contact_id per opportunity."
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        480,
+        48
+      ],
+      "id": "loop-batch-10",
+      "name": "Loop (batch 10)"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        704,
+        144
+      ],
+      "id": "ghl-get-contact-resume",
+      "name": "GHL: Get Contact",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Reads Resume Call At + Next Caller Stage custom fields."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// contact from the immediate predecessor (GHL: Get Contact)\nconst contact = ($json && $json.contact) ? $json.contact : ($json || {});\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\nconst RESUME = 'u5VC5C59UlFZJDYOuw7N', NEXT = 'Tj0yopYbErXbwsTYTsCX';\n\nconst o = $('Extract Opp').item.json;                  // paired opportunity\nconst opp_id = String(o.opp_id || '').trim();\n\nconst raw = String(cf(RESUME) || '').trim().replace('T', ' ');\nconst next_stage = String(cf(NEXT) || '').trim().toLowerCase();\n\n// next_caller_stage slug -> target pipeline + stage (ids from AGENTS.md)\nconst STAGE_MAP = {\n  'cold_call_1':     { pipeline: '9E6y34DlG1Imr8FV42RV', stage: '060f44a8-4cd8-4561-8c84-7150bfd57498' },\n  'cold_call_2':     { pipeline: '9E6y34DlG1Imr8FV42RV', stage: '4cb90aaa-b8c3-40a8-b1e6-6585213b258c' },\n  'cold_call_3':     { pipeline: '9E6y34DlG1Imr8FV42RV', stage: '4b1d7a88-87c0-422b-90e4-b48d16430900' },\n  'day_1_attempt_1': { pipeline: 'TwW6o0JdPXUlcwvX0EvI', stage: '74c3e036-2d2f-4138-8806-b337973ccad5' }\n};\nconst target = STAGE_MAP[next_stage] || null;\n\n// resume gate (America/Los_Angeles). date-only -> due when the date is reached; with time -> due when date+time passed.\nconst now = DateTime.now().setZone('America/Los_Angeles');\nlet due = false, resume_kind = 'none';\nif (raw) {\n  const hasTime = /^\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}/.test(raw);\n  if (hasTime) {\n    const dt = DateTime.fromFormat(raw.slice(0, 16), 'yyyy-MM-dd HH:mm', { zone: 'America/Los_Angeles' });\n    due = dt.isValid && now >= dt;\n    resume_kind = 'datetime';\n  } else {\n    const d = DateTime.fromFormat(raw.slice(0, 10), 'yyyy-MM-dd', { zone: 'America/Los_Angeles' });\n    due = d.isValid && now.startOf('day') >= d.startOf('day');\n    resume_kind = 'date';\n  }\n}\n\nconst can_move = !!(opp_id && target && due);\nreturn { json: {\n  opp_id: opp_id,\n  contact_id: String(o.contact_id || '').trim(),\n  resume_call_at: raw,\n  resume_kind: resume_kind,\n  next_caller_stage: next_stage,\n  due: due,\n  can_move: can_move,\n  target_pipeline_id: target ? target.pipeline : '',\n  target_stage_id: target ? target.stage : ''\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        144
+      ],
+      "id": "evaluate-resume",
+      "name": "Evaluate Resume",
+      "notes": "Parses Resume Call At (date/date-time, PT); maps Next Caller Stage -> target pipeline/stage; sets can_move."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.can_move }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "can-move-guard-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1152,
+        144
+      ],
+      "id": "if-can-move",
+      "name": "Can move?"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $json.opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: $json.target_pipeline_id, pipelineStageId: $json.target_stage_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1376,
+        48
+      ],
+      "id": "ghl-move-opp-resume",
+      "name": "GHL: Move Opp -> Caller Stage",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "PUT-moves the opp out of on-hold into its saved next caller stage."
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        144
+      ],
+      "id": "wait-2s-batch",
+      "name": "Wait 2s",
+      "webhookId": "resume-onhold-wait-2s"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 30m (8am-10pm PT)": {
+      "main": [
+        [
+          {
+            "node": "Pull Cold-On-Hold",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Conv-On-Hold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Cold-On-Hold": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Conv-On-Hold": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Extract Opp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Opp": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop (batch 10)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Resume": {
+      "main": [
+        [
+          {
+            "node": "Can move?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can move?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move Opp -> Caller Stage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Move Opp -> Caller Stage": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Los_Angeles"
+  },
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "tags": []
+}

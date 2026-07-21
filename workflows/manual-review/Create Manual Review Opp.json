@@ -1,0 +1,421 @@
+{
+  "name": "Create Manual Review Opp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manual-review-opp",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1000,
+        0
+      ],
+      "id": "wh-manual-review",
+      "name": "Webhook (Manual Review)",
+      "webhookId": "manual-review-opp",
+      "notes": "Called by the GHL workflow that fires when Manual Review Items is updated & not empty. Must send contact_id."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = ($json && $json.body) ? $json.body : $json;\nconst cd = b.customData || {};\nreturn { json: { contact_id: String(b.contact_id || cd.contact_id || b.id || '').trim() } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -780,
+        0
+      ],
+      "id": "normalize",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -560,
+        0
+      ],
+      "id": "ghl-get-contact",
+      "name": "GHL: Get Contact",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Reads Manual Review Items + contact name."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const resp = $json || {};\nconst c = resp.contact || resp || {};\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\nconst REVIEW = 'tYhhupx5TalZqdNsiwCs';\nconst review_items = String(cf(REVIEW) || '').trim();\nconst name = [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || String(c.contactName || c.name || c.email || 'Manual Review').trim();\nreturn { json: {\n  contact_id: $('Normalize').item.json.contact_id,\n  review_items: review_items,\n  has_review: review_items.length > 0,\n  opp_name: name\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        0
+      ],
+      "id": "check-review-field",
+      "name": "Check Review Field",
+      "notes": "Reads Manual Review Items (tYhhupx5TalZqdNsiwCs); has_review guard + opp name."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_review }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "has-review-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -120,
+        0
+      ],
+      "id": "filter-has-review",
+      "name": "Filter: has review items",
+      "notes": "Defensive: only proceed if Manual Review Items is non-empty."
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&contact_id={{ $json.contact_id }}&pipeline_id=OOu5TjgalfGZElEIoSbq&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        100,
+        0
+      ],
+      "id": "ghl-fetch-manual-review-opps",
+      "name": "GHL: Fetch Manual-Review Opps",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Existing opps for this lead in Manual Review Needed pipeline."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const resp = $json || {};\nconst opps = Array.isArray(resp.opportunities) ? resp.opportunities : [];\nconst ids = opps.map(o => String(o.id || '').trim()).filter(Boolean);\nconst exists = ids.length > 0;\nconst b = $('Check Review Field').item.json;\nreturn { json: {\n  contact_id: b.contact_id,\n  opp_name: b.opp_name,\n  exists: exists,\n  keep_id: exists ? ids[0] : '',\n  delete_ids: exists ? ids.slice(1) : []\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        0
+      ],
+      "id": "plan-dedup",
+      "name": "Plan Dedup",
+      "notes": "exists? keep first opp, mark extras for deletion."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.exists }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "opp-exists-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        540,
+        0
+      ],
+      "id": "if-opp-exists",
+      "name": "IF: opp exists?"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $json.keep_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: 'OOu5TjgalfGZElEIoSbq', pipelineStageId: 'd800d3ec-5263-42e7-b383-f66e5e187bed' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        760,
+        -96
+      ],
+      "id": "ghl-update-opp---pending-review",
+      "name": "GHL: Update Opp -> Pending Review",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Re-open the existing opp into Pending Review (keeps id/history)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ids = $('Plan Dedup').item.json.delete_ids || [];\nreturn ids.map(id => ({ json: { opp_id: String(id).trim() } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -96
+      ],
+      "id": "extras-to-delete",
+      "name": "Extras to delete",
+      "notes": "Emits extra opp ids (usually none)."
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $json.opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        -96
+      ],
+      "id": "ghl-delete-extra-opp",
+      "name": "GHL: Delete Extra Opp",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Deletes duplicate opps so only one remains."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/opportunities/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: 'OOu5TjgalfGZElEIoSbq', locationId: 'rzaMhqeo2apNI1p6DG5z', pipelineStageId: 'd800d3ec-5263-42e7-b383-f66e5e187bed', contactId: $json.contact_id, name: $json.opp_name, status: 'open' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        760,
+        96
+      ],
+      "id": "ghl-create-opp",
+      "name": "GHL: Create Opp",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Creates one opp in Pending Review for this lead."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (Manual Review)": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Check Review Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Review Field": {
+      "main": [
+        [
+          {
+            "node": "Filter: has review items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: has review items": {
+      "main": [
+        [
+          {
+            "node": "GHL: Fetch Manual-Review Opps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Fetch Manual-Review Opps": {
+      "main": [
+        [
+          {
+            "node": "Plan Dedup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Dedup": {
+      "main": [
+        [
+          {
+            "node": "IF: opp exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: opp exists?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Update Opp -> Pending Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GHL: Create Opp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Update Opp -> Pending Review": {
+      "main": [
+        [
+          {
+            "node": "Extras to delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extras to delete": {
+      "main": [
+        [
+          {
+            "node": "GHL: Delete Extra Opp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Los_Angeles"
+  },
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "tags": []
+}

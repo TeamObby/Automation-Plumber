@@ -1,0 +1,670 @@
+{
+  "name": "Send Cold Email 2/3/4 (4AM)",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "opportunities",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        240,
+        48
+      ],
+      "id": "97cf8a19-579d-4640-8ffd-44fbbb6806fe",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const o = $json;\nconst SEND_TO_N = {\n  'e4b13f51-2229-4d47-aa3e-12381a31a8c1': 2,\n  '342b193f-9456-4bcc-a2a7-cb81973500c9': 3,\n  'f3ea4cd2-daf2-4ca2-baaa-301f807d697c': 4\n};\nconst stage = String(o.pipelineStageId || '').trim();\nconst N = SEND_TO_N[stage] || 0;\nconst contact_id = String((o.contact && o.contact.id) || o.contactId || '').trim();\nreturn { json: {\n  email_opp_id: String(o.id || '').trim(),\n  contact_id,\n  N,\n  routable: (N >= 2 && N <= 4) && !!contact_id\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        48
+      ],
+      "id": "54fd601c-d67e-4df5-a856-f2c46a076a5e",
+      "name": "Detect N"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.routable }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "routable-guard-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        48
+      ],
+      "id": "9b8b7be7-c393-4b9c-b897-7f959f48a07a",
+      "name": "Is routable?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/update-interest-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_email: $('Build').item.json.email, interest_value: $('Build').item.json.interest_value }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2256,
+        -96
+      ],
+      "id": "f7c9091f-dd50-43f9-8860-5286f58eaf7f",
+      "name": "Set interest (cold email N)",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        912,
+        48
+      ],
+      "id": "d78a32ab-e719-459b-83b6-86d1500bb365",
+      "name": "Loop (batch 10)"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2704,
+        48
+      ],
+      "id": "fd492be0-6901-4562-a157-8aa829e6c8c5",
+      "name": "Wait 2s",
+      "webhookId": "4242627e-e106-400d-bc5e-4a99667f60ab"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -432,
+        48
+      ],
+      "id": "e082fb22-ced9-414c-ac32-544d7dd4e3b9",
+      "name": "Schedule 4AM"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.instantly.ai/api/v2/leads/{{ $('Build').item.json.instantly_lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ custom_variables: { hi_firstname: ($('Build').item.json.first_name ? `Hi ${$('Build').item.json.first_name}\\n\\n` : '') } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1808,
+        -96
+      ],
+      "id": "76243248-8d34-460c-bbf3-89bbd042f1df",
+      "name": "Instantly: Update hi_firstname",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=1A1RkYaL93s2rqbQ3Opi&pipeline_stage_id=e4b13f51-2229-4d47-aa3e-12381a31a8c1&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -208,
+        -144
+      ],
+      "id": "b746d591-cf7a-4077-aa12-d11b205c2c71",
+      "name": "Pull Send Cold Email 2",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=1A1RkYaL93s2rqbQ3Opi&pipeline_stage_id=342b193f-9456-4bcc-a2a7-cb81973500c9&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -208,
+        48
+      ],
+      "id": "8120d428-6c41-4d86-b229-fb6ad7981b73",
+      "name": "Pull Send Cold Email 3",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=1A1RkYaL93s2rqbQ3Opi&pipeline_stage_id=f3ea4cd2-daf2-4ca2-baaa-301f807d697c&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -208,
+        240
+      ],
+      "id": "74a8e066-4189-43f0-91c3-eed8b8ed8257",
+      "name": "Pull Send Cold Email 4",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        16,
+        32
+      ],
+      "id": "f268174f-eff3-44f9-b74b-9642f53d6aae",
+      "name": "Combine"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1136,
+        -32
+      ],
+      "id": "9353dc82-49f5-45fb-9eed-861ccd407977",
+      "name": "GHL: Get Contact",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cr = $json;\nconst c = cr.contact ? cr.contact : cr;\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\nconst N = $('Detect N').item.json.N;\nconst INTEREST = { 2:-29995, 3:-29994, 4:-29993 };\nconst EMAIL_STEP_NAME_ID = 'WtFfl1nEbMupk2oR4m9e';\n\nconst step_name = 'cold email ' + N;                                      // target value for this step\nconst current_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim().toLowerCase();\n\nreturn { json: {\n  contact_id: c.id,\n  email: String(c.email || '').trim(),\n  instantly_lead_id: String(cf('TWLomDBX0XInU1IKrG8L') || '').trim(),\n  first_name: String(c.firstName || '').trim(),\n  N,\n  interest_value: INTEREST[N] || 0,\n  step_name,\n  already_sent: current_step_name === step_name\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -32
+      ],
+      "id": "6774b162-3d2c-47b6-a307-416250e8b154",
+      "name": "Build"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Build').item.json.already_sent }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              },
+              "id": "notsent-guard-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1584,
+        -32
+      ],
+      "id": "fd4459a6-0a6e-4431-9a5c-701aad2fadd3",
+      "name": "Not sent yet?"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Build').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'WtFfl1nEbMupk2oR4m9e', value: $('Build').item.json.step_name } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2480,
+        -96
+      ],
+      "id": "e50951fc-9892-46cb-a5de-54671966be2a",
+      "name": "GHL: Set email_step_name",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/subsequence/remove",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $('Build').item.json.instantly_lead_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2032,
+        -96
+      ],
+      "id": "47c42de0-2647-4624-bdd3-88461f8c1173",
+      "name": "Instantly: Remove from Subsequence",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule 4AM": {
+      "main": [
+        [
+          {
+            "node": "Pull Send Cold Email 2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Send Cold Email 3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Send Cold Email 4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Send Cold Email 2": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Send Cold Email 3": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Pull Send Cold Email 4": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Combine": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Detect N",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect N": {
+      "main": [
+        [
+          {
+            "node": "Is routable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is routable?": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop (batch 10)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Build",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build": {
+      "main": [
+        [
+          {
+            "node": "Not sent yet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not sent yet?": {
+      "main": [
+        [
+          {
+            "node": "Instantly: Update hi_firstname",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instantly: Update hi_firstname": {
+      "main": [
+        [
+          {
+            "node": "Instantly: Remove from Subsequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set interest (cold email N)": {
+      "main": [
+        [
+          {
+            "node": "GHL: Set email_step_name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instantly: Remove from Subsequence": {
+      "main": [
+        [
+          {
+            "node": "Set interest (cold email N)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Set email_step_name": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "c3670974-91ad-4b4d-86eb-9e9086b6b43a",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "0iXr4fHGqptYGJpg",
+  "tags": []
+}

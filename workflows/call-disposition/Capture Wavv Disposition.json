@@ -1,0 +1,385 @@
+{
+  "name": "Capture Wavv Disposition",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "capture-wavv-disposition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "fbb131fe-8d09-410a-8674-e97b72c74ac8",
+      "name": "Webhook (WAVV Note)",
+      "webhookId": "9383aedc-6186-4e9c-b781-8a766b8dd093",
+      "notes": "GHL fires this when a WAVV disposition note is added. Payload carries contact_id + the note text under customData.note."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Objective: pull contact_id + the raw note text from the webhook customData.\n// The 'note' field is the full WAVV note string (same text we used to read from contact notes).\nconst b = ($json && $json.body) ? $json.body : $json;\nconst cd = b.customData || {};\nreturn { json: {\n  contact_id: String(b.contact_id || cd.contact_id || '').trim(),\n  note_raw:   String(cd.note || b.note || '').trim()\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "24665d09-46ca-4a95-9d24-59c1069e03cb",
+      "name": "Normalize",
+      "notes": "Get contact_id + the raw note text (customData.note)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const n = $('Normalize').item.json;\nconst raw = String(n.note_raw || '');\n\n// known dispositions (slugs) — same list the Dispatcher / Cold Handler use\nconst KNOWN = ['cold-good','cold-bad','cold-on-hold','gatekeeper-good','gatekeeper-bad','gatekeeper-on-hold','conversation-active','conversation-active-on-hold','appointment-booked','sales-call','not-interested-right-now-good','not-interested-right-now-bad','do-not-contact','voicemail','call-center'];\n\n// Flag: only WAVV-format notes carry a disposition. Notes look like:\n//   [ WAVV: <uuid> ] To: ... From: ... Duration: ... Disposition: <text> Tag: <tag> Note: <note>\n// Other note types are ignored.\nconst is_wavv = /\\[\\s*WAVV:\\s*[^\\]]+\\]/i.test(raw);   // marker present, any id format\n\nlet disposition = '', note = '', is_missed = false;\nif (is_wavv) {\n  // Disposition: <text> Tag:   (Tag always follows a present Disposition)\n  const dm = raw.match(/Disposition:\\s*([\\s\\S]*?)\\s*Tag:/i);\n  const dispText = dm ? dm[1].trim() : '';\n\n  // Missed-call awareness: a 'No Answer' / 'Canceled' WAVV disposition means the call never\n  // connected -> treat as a missed call and DON'T touch the Call Disposition / Call Notes fields\n  // (the missed-call automation owns that lead). Matches 'no answer', 'canceled', 'cancelled'.\n  is_missed = /(no[\\s-]*answer|cancell?ed)/i.test(dispText);\n\n  const dispSlug = dispText.toLowerCase().replace(/\\s+/g, '-');\n  disposition = (KNOWN.indexOf(dispSlug) >= 0) ? dispSlug : '';   // keep only if recognised\n\n  // Note: <text>  (to end of line)\n  const nm = raw.match(/Note:\\s*([\\s\\S]*)$/i);\n  const noteVal = nm ? nm[1].trim() : '';\n  note = (!noteVal || noteVal.toLowerCase() === 'auto-disposition') ? '' : noteVal;\n}\n\n// Write the fields only for a real WAVV disposition that isn't a missed call.\nconst should_update = is_wavv && !is_missed;\n\nreturn { json: { contact_id: n.contact_id, is_wavv: is_wavv, is_missed: is_missed, should_update: should_update, disposition: disposition, note: note } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "parse-disp-note",
+      "name": "Parse Disposition + Note",
+      "notes": "WAVV-flagged notes only. Skips missed calls (disposition contains 'No Answer'/'Canceled' -> is_missed). Parses Disposition (kept only if in KNOWN, else '') and Note (empty if absent or 'Auto-disposition'). should_update = is_wavv AND not missed."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.should_update }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "wavv-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "if-wavv",
+      "name": "IF: update fields?",
+      "notes": "TRUE only for a real WAVV disposition that isn't a missed call -> write the fields. FALSE (non-WAVV note OR a 'No Answer'/'Canceled' missed call) -> skip, so unrelated/missed-call notes never clear the fields."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Parse Disposition + Note').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'YxGIrvPl5tfLeYoc7Ldr', value: $('Parse Disposition + Note').item.json.disposition }, { id: 'kVU8T6Swsh9sF4TWC81U', value: $('Parse Disposition + Note').item.json.note } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        -100
+      ],
+      "id": "set-call-fields",
+      "name": "GHL: Set Call Fields",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Writes Call Disposition + Call Notes (even if empty). The field change triggers the Dispatcher (Automation 2)."
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        896,
+        100
+      ],
+      "id": "skipped-not-wavv",
+      "name": "Skipped (non-WAVV / missed call)"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Parse Disposition + Note').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        300
+      ],
+      "id": "get-contact-tags",
+      "name": "GHL: Get Contact (tags)",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Reads the contact's current tags so we can find any starting with 'wavv-'."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const gc = $json || {};\nconst contact = gc.contact || gc || {};\nconst tags = Array.isArray(contact.tags) ? contact.tags : [];\n// keep only the auto-added WAVV tags (any tag starting with 'wavv-', case-insensitive)\nconst wavv_tags = tags.filter(t => String(t).toLowerCase().startsWith('wavv-'));\nreturn { json: {\n  contact_id: String($('Parse Disposition + Note').item.json.contact_id || '').trim(),\n  wavv_tags: wavv_tags,\n  has_wavv_tags: wavv_tags.length > 0\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ],
+      "id": "filter-wavv-tags",
+      "name": "Filter wavv- Tags",
+      "notes": "Keeps only tags starting with 'wavv-' (case-insensitive). has_wavv_tags drives the delete."
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Filter wavv- Tags').item.json.contact_id }}/tags",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tags: $('Filter wavv- Tags').item.json.wavv_tags }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1568,
+        300
+      ],
+      "id": "remove-wavv-tags",
+      "name": "GHL: Remove wavv- Tags",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "DELETE /contacts/{id}/tags with the collected wavv- tags -> removes the auto-added wavv-<disposition> tag(s)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_wavv }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "gate-wavv-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        300
+      ],
+      "id": "gate-wavv",
+      "name": "Gate: WAVV note?",
+      "notes": "Passes only WAVV notes (any, incl. No Answer/Canceled missed calls) on to tag cleanup; other notes drop here."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_wavv_tags }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "gate-has-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        300
+      ],
+      "id": "gate-has-wavv",
+      "name": "Gate: has wavv- tags?",
+      "notes": "Passes only when the contact actually has wavv- tags, so the DELETE never fires on an empty set."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (WAVV Note)": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Parse Disposition + Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Disposition + Note": {
+      "main": [
+        [
+          {
+            "node": "IF: update fields?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gate: WAVV note?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: update fields?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Set Call Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped (non-WAVV / missed call)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact (tags)": {
+      "main": [
+        [
+          {
+            "node": "Filter wavv- Tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter wavv- Tags": {
+      "main": [
+        [
+          {
+            "node": "Gate: has wavv- tags?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: WAVV note?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact (tags)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: has wavv- tags?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Remove wavv- Tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e2fa95b8-2816-4400-9ed7-7af762c2b774",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "zSOjEBiz3e7gbeBp",
+  "tags": []
+}

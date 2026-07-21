@@ -1,0 +1,350 @@
+{
+  "name": "Dispatcher",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call_no_answer",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        1152
+      ],
+      "id": "f719f605-caa1-4c85-9ede-781f3f3c0e89",
+      "name": "Webhook (Missed Call)",
+      "webhookId": "c6c2f54b-8fa2-4f2a-9eb5-4d3735703684"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = ($json && $json.body) ? $json.body : $json;\nconsole.log({b});\nreturn { json: {\n  contact_id: String(b.contact_id || '').trim(),\n  instantly_lead_id: String(b['Instantly Lead Id'] || b.instantly_lead_id || '').trim(),\n  email: String(b.email || '').trim(),\n  outcome: 'no answer'\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        1152
+      ],
+      "id": "cafd129a-7147-413c-8798-0940c6e41f0c",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&contact_id={{ $('Normalize').item.json.contact_id }}&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        128,
+        1152
+      ],
+      "id": "f8bdb324-e014-4508-9cf5-817d4277aa18",
+      "name": "GHL: Fetch Opps",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// priority order: rebooking > conversation > cold\n// Pipeline IDs inlined (previously read from the GHL Pipeline Stages sub-workflow)\nconst CALL_PIPES = [\n  { key: 'rebooking',    id: 'smoNRUaagZYOElKFLwtp' },   // Rebooking Call\n  { key: 'conversation', id: 'TwW6o0JdPXUlcwvX0EvI' },   // Active Conversation Call\n  { key: 'cold',         id: '9E6y34DlG1Imr8FV42RV' },   // Cold Outbound Call\n];\n\nconst resp = $json || {};\nconst opps = Array.isArray(resp.opportunities) ? resp.opportunities : (Array.isArray(resp) ? resp : []);\nconst pipeOf  = o => String((o && (o.pipelineId || o.pipeline_id)) || '').trim();\nconst stageOf = o => String((o && (o.pipelineStageId || o.pipeline_stage_id)) || '').trim();\n\n// which call pipelines does the lead currently hold an opp in?\nconst found = CALL_PIPES.filter(cp => cp.id && opps.some(o => pipeOf(o) === cp.id));\nconst distinctCount = found.length;\n\n// tiebreaker: highest-priority call pipeline that has an opp\nconst chosen = found.length ? found[0] : null;\nconst matchedOpp = chosen ? opps.find(o => pipeOf(o) === chosen.id) : null;\n\nlet anomaly = '';\nif (distinctCount === 0) anomaly = 'none';\nelse if (distinctCount > 1) anomaly = 'multiple';\n\nconst n = $('Normalize').item.json;\nreturn { json: {\n  route: chosen ? chosen.key : 'none',\n  matched_opp_id:      matchedOpp ? String(matchedOpp.id) : '',\n  matched_pipeline_id: chosen ? chosen.id : '',\n  matched_stage_id:    matchedOpp ? stageOf(matchedOpp) : '',\n  call_pipelines_found: distinctCount,\n  found_keys: found.map(f => f.key).join(',') || 'none',\n  anomaly,\n  contact_id: String(n.contact_id || ''),\n  instantly_lead_id: String(n.instantly_lead_id || ''),\n  email: String(n.email || ''),\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        1152
+      ],
+      "id": "924961e9-8040-4da1-ada6-b71a0ea418b1",
+      "name": "Route: Determine Call Pipeline"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "cold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a767ca48-379a-412d-b610-d0b67e86dd65"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cold"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b4144756-0483-4e11-93a0-498502b5fa19"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "conversation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "rebooking",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "852bd89b-408e-4e1e-955c-71cadc6dd78d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rebooking"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        576,
+        1024
+      ],
+      "id": "4b4d2ced-362d-435c-85d9-965c83ab5ee5",
+      "name": "Switch: route"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.anomaly }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "id": "ca13e0f3-074e-4284-9f59-70ca30615158"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        1248
+      ],
+      "id": "e13d8b7f-2d61-4f87-a963-e80363362dc6",
+      "name": "Filter: anomaly?"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MKj1ck6WAwvPZWFz",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MKj1ck6WAwvPZWFz",
+          "cachedResultName": "Missed Call - Cold Handler"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        848
+      ],
+      "id": "58438571-598c-480d-9fd8-baeee66a87c4",
+      "name": "-> Missed Call Cold Handler"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Missed Call - Conversation Handler"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        1040
+      ],
+      "id": "06112a82-1b39-4bf2-aed3-14794a003380",
+      "name": "-> Missed Call Conversation Handler",
+      "disabled": true,
+      "notes": "Build this handler, then select it here."
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Missed Call - Rebooking Handler"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        1232
+      ],
+      "id": "04bfc06e-3b87-4056-9688-57c590f6e2ef",
+      "name": "-> Missed Call Rebooking Handler",
+      "disabled": true,
+      "notes": "Build this handler, then select it here."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (Missed Call)": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "GHL: Fetch Opps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Fetch Opps": {
+      "main": [
+        [
+          {
+            "node": "Route: Determine Call Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Determine Call Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Switch: route",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter: anomaly?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: route": {
+      "main": [
+        [
+          {
+            "node": "-> Missed Call Cold Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> Missed Call Conversation Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> Missed Call Rebooking Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "272ae993-c509-4a60-8211-abee6b2e5bbd",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "WRvTiZWThJTQAU8P",
+  "tags": []
+}

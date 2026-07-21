@@ -1,0 +1,202 @@
+{
+  "name": "New to Cold Email 1 Stage (3AM)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -112,
+        592
+      ],
+      "id": "cffccb75-5ab1-4480-b367-be24222e24dd",
+      "name": "Schedule 3:00AM"
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=O7LMZpDOFM2SYO65twC5&pipeline_stage_id=f6aa7e0f-6b83-4a7b-b8b9-620753554b3a&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        112,
+        592
+      ],
+      "id": "53d597fb-bc94-41d3-a5d8-81b740640948",
+      "name": "Pull New (max 100)",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "opportunities",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        336,
+        592
+      ],
+      "id": "3c419771-8794-4b1b-abe7-1c4ffe325b66",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        528,
+        592
+      ],
+      "id": "5209ef44-91a3-447a-8d75-3011c6c4be4b",
+      "name": "Loop (batch 10)"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: '1A1RkYaL93s2rqbQ3Opi', pipelineStageId: 'f9bcbefb-aa83-44d4-ad8b-59a758993045' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        784,
+        544
+      ],
+      "id": "053f1134-c575-468d-977f-c8e873b330eb",
+      "name": "GHL: Move Opp -> Send Cold Email 1",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1024,
+        544
+      ],
+      "id": "a364de34-db60-497a-90be-3dea1158512f",
+      "name": "Wait 2s",
+      "webhookId": "a-wait-wh"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule 3:00AM": {
+      "main": [
+        [
+          {
+            "node": "Pull New (max 100)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull New (max 100)": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop (batch 10)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "GHL: Move Opp -> Send Cold Email 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Move Opp -> Send Cold Email 1": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "Loop (batch 10)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "bcfeb4df-6a1b-4d24-92fe-4f16912e4604",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "WYYQ7p3wJ3QhBTrQ",
+  "tags": []
+}

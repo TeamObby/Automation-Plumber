@@ -1,0 +1,327 @@
+{
+  "name": "Dispatcher",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call-disposition-updated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1000,
+        -80
+      ],
+      "id": "wh-disp-updated",
+      "name": "Webhook (Disposition/Note Updated)",
+      "webhookId": "call-disposition-updated",
+      "notes": "GHL fires this when Call Disposition OR Call Notes changes. Payload carries contact_id."
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1000,
+        120
+      ],
+      "id": "wf-fallback-trigger",
+      "name": "When Called for Fallback",
+      "notes": "Invoked by Capture (Automation 1) after the grace wait if nobody dispositioned. Receives {contact_id, call_id, fallback:true}."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = ($json && $json.body) ? $json.body : $json;\nconst cd = b.customData || {};\nconst is_fallback = (b.fallback === true || b.fallback === 'true');\nreturn { json: {\n  contact_id: String(b.contact_id || cd.contact_id || '').trim(),\n  call_id: String(b.call_id || cd.call_id || '').trim(),\n  is_fallback: is_fallback\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -760,
+        0
+      ],
+      "id": "normalize",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Normalize').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -540,
+        0
+      ],
+      "id": "get-contact",
+      "name": "GHL: Get Contact",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Reads Call Disposition, Call Notes, Call Router Context, Last Call Transcript, Call Processing State."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const gc = $json || {};\nconst contact = gc.contact || gc || {};\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\nconst norm = $('Normalize').item.json;\nconst is_fallback = !!norm.is_fallback;\n\nconst DISP='YxGIrvPl5tfLeYoc7Ldr', NOTES='kVU8T6Swsh9sF4TWC81U',\n      CTX='HW0eBfoQPW2mwxX8aY7Q', STATE='BD9TmgEynOEy6bCvZshm', TX='2j4uCLLeAbtj8sDTS84o';\n\n// current human input\nlet disposition = String(cf(DISP) || '').trim();\nlet note        = String(cf(NOTES) || '').trim();\n\n// stored context + state + transcript (written by Capture / Cold Handler)\nlet ctx = {};   try { ctx   = JSON.parse(String(cf(CTX)   || '{}')) || {}; } catch(e) {}\nlet state = {}; try { state = JSON.parse(String(cf(STATE) || '{}')) || {}; } catch(e) {}\nconst transcript = String(cf(TX) || '');\nconst processed  = !!state.processed;\n\n// FALLBACK: ignore any (possibly stale) field values -> AI-only\nif (is_fallback) { disposition = ''; note = ''; }\n\n// signature of what we'd process\nconst dispo_norm = disposition ? disposition.toLowerCase().replace(/\\s+/g, '-') : '';\nconst signature = dispo_norm + '|' + note;\n\n// ---- GATE ----\nlet proceed = true, stop_reason = '';\nif (is_fallback) {\n  if (processed) { proceed = false; stop_reason = 'fallback-after-processed'; }   // downgrade guard\n} else {\n  if (!disposition && !note) { proceed = false; stop_reason = 'empty-input'; }     // ignore a clear\n}\nif (proceed && processed && signature === String(state.last_signature || '')) {\n  proceed = false; stop_reason = 'duplicate';                                      // identical re-fire\n}\n\nconst route = String(ctx.route || 'none').trim();\n\n// handler input contract\nreturn { json: {\n  proceed: proceed, stop_reason: stop_reason, route: route, is_fallback: is_fallback,\n  contact_id: String(contact.id || norm.contact_id || '').trim(),\n  disposition: disposition, note: note, transcript: transcript, signature: signature,\n  opp_id: String(ctx.opp_id || '').trim(),\n  caller_N: ctx.caller_N || 0,\n  call_id: String(ctx.call_id || norm.call_id || '').trim(),\n  stage_name: String(ctx.stage_name || '').trim(),\n  last_event_log_entry: String(state.last_event_log_entry || ''),\n  last_call_summary_entry: String(state.last_call_summary_entry || ''),\n  last_signature: String(state.last_signature || ''),\n  company_name: String(contact.companyName || contact.contactName || '').trim(),\n  contact: contact\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        0
+      ],
+      "id": "prep-gate",
+      "name": "Prep + Gate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "proceed-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -100,
+        0
+      ],
+      "id": "if-proceed",
+      "name": "IF: proceed?",
+      "notes": "false -> gate stopped it (empty input / fallback-after-processed / duplicate)."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "cold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "route-cold"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cold"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "other routes / none"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        120,
+        0
+      ],
+      "id": "switch-route",
+      "name": "Switch: branch on call pipeline"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "toFDNpFhy0ZyxfxN",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/toFDNpFhy0ZyxfxN",
+          "cachedResultName": "Call Disposition - Cold Handler"
+        },
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        360,
+        -100
+      ],
+      "id": "run-cold-handler",
+      "name": "Run Cold Call Handler",
+      "notes": "Automation 3. Passes the handler input contract. Cold Handler must be updated to read the new field names + set processed/last-entries/last_signature after it writes."
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        360,
+        100
+      ],
+      "id": "other-routes",
+      "name": "Other routes (build later)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        120,
+        180
+      ],
+      "id": "stopped",
+      "name": "Stopped (gate)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (Disposition/Note Updated)": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Called for Fallback": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Prep + Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep + Gate": {
+      "main": [
+        [
+          {
+            "node": "IF: proceed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: proceed?": {
+      "main": [
+        [
+          {
+            "node": "Switch: branch on call pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stopped (gate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: branch on call pipeline": {
+      "main": [
+        [
+          {
+            "node": "Run Cold Call Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Other routes (build later)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "SfI5Hx6mlc4Qh3D1",
+  "tags": []
+}

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:n8nascode.dev)",
+      "mcp__claude_ai_n8n__get_workflow_details",
+      "mcp__claude_ai_n8n__search_workflows"
+    ]
+  }
+}
