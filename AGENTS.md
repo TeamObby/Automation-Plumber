@@ -103,6 +103,31 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 - **Credentials in use:** GHL `httpMultipleHeadersAuth` → `DtotRKnzjDewbSsv`
   ("GHL [ Waterline Growth subaccount ]") · OpenAI `openAiApi` → `B4xA6dDfoOhHJMOo`
 
+## Metrics workbook (Google Sheets)
+Reporting layer, fed by the handlers. Setup script: [`metrics/metrics-sheet-setup.gs`](metrics/metrics-sheet-setup.gs)
+(builds `call_log`, `email_log`, and a 100%-formula `daily` tab).
+- **Spreadsheet:** "Plumber Campaign Metrics" `1RuupHeSo8-oUKzl1QjVzLYoGXj6Br-d-1tTJsuDTM3g` ·
+  `call_log` gid `412127457` · `email_log` gid **unknown** (re-select the tab in that one node).
+- **Credential:** `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU` ("Google Sheets account [ team@meetobby.com ]")
+- **Who writes what** (each a single `n8n-nodes-base.googleSheets` v4.7 node, `cellFormat: USER_ENTERED`,
+  `onError: continueRegularOutput`, hung off the terminal so a Sheets hiccup never breaks processing):
+  | Workflow | Sheet | Op | Node |
+  |---|---|---|---|
+  | Call-Disposition Cold Handler | `call_log` | **appendOrUpdate** on `call_id` | `Sheet: Log Call` (off `GHL: Write Logs`) |
+  | Call-Disposition Gatekeeper Handler | `call_log` | appendOrUpdate on `call_id` | `Sheet: Log Call` |
+  | Missed-Call Cold Handler | `call_log` | append | `Sheet: Log Call` (off `GHL: Write Logs`) |
+  | Missed-Call Gatekeeper Handler | `call_log` | append | `Sheet: Log Call` |
+  | Email Sent → Move To Sent Stage | `email_log` | append | `Sheet: Log Email` (off `GHL: Write Logs + Lead ID`) |
+- **`call_id` is the dedup key** for dispositioned calls (the handler re-runs on every disposition/note
+  edit — appendOrUpdate keeps one row per dial and reflects the latest outcome). Row fields are emitted
+  by the existing brain code node (`Parse + Map Outcome` / `Build Logs` / `Build Logs + Route`).
+- **Not yet fed:** `duration_sec` / `recording_url` / `from_number` (exist only during Capture — need
+  threading), and email engagement events (`opened`/`bounced`/`replied` → those `daily` columns stay 0
+  until a separate Instantly-events webhook workflow appends them to `email_log`).
+- **Test:** [`tests/metrics-logging.test.js`](tests/metrics-logging.test.js) — runs the brain code nodes
+  out of the workflow JSON, reconstructs the exact row each Sheets node writes, and asserts the `.gs`
+  contract (incl. 3 scrubbed real-execution fixtures). Run `node tests/metrics-logging.test.js` after any edit.
+
 ## Instantly (reference)
 Campaign + subsequence IDs for the cold email sequence. Inline these directly in
 workflows — do **not** fetch them via the `GHL Pipeline Stages (Cached)` sub-workflow.
