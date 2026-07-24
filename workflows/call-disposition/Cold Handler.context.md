@@ -141,7 +141,7 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 | `gatekeeper-good` | `fd52ae00-d4df-4008-8c8f-0dae62ca58e7` |
 | `gatekeeper-bad` | `d5670151-b316-448b-8b13-c4f804fdd696` |
 | `gatekeeper-on-hold` | `e921913e-1530-4186-8ce8-bb3dab47d301` |
-| **`call-center`** (new stage) | `04546ed9-e0d9-47dc-b61e-c0cd820849d7` |
+| **`call-center`** | `04546ed9-e0d9-47dc-b61e-c0cd820849d7` |
 | `cold-on-hold` | `54994e3f-1643-46f4-8eeb-ade43712ae2d` |
 | `conversation-active` | `edca2ee6-569d-4486-9ecd-4110e9c32882` |
 | `conversation-active-on-hold` | `175c5765-fd68-48d5-a319-8bcc77487703` |
@@ -150,9 +150,6 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 | `not-interested-right-now-good` | `8c76b904-fa25-4a73-9ac2-e17fb8323e2b` |
 | `not-interested-right-now-bad` | `865a3d8d-045d-4b5d-b421-4115b876bb25` |
 | `do-not-contact` | `cfc46631-06a5-4ef3-9788-1f15f35f052b` |
-
-_Change vs. 2026-07-16: `cold-bad`, `gatekeeper-good`, `gatekeeper-bad` moved **back** to Client Acq
-(were briefly in the email group); `call-center` added; `voicemail` added to the email group._
 
 ### resume_call_at (on-hold only)
 - Set **only** for `cold-on-hold`, `gatekeeper-on-hold`, `conversation-active-on-hold`.
@@ -183,37 +180,6 @@ _Change vs. 2026-07-16: `cold-bad`, `gatekeeper-good`, `gatekeeper-bad` moved **
 - **OpenAI:** `openAiApi` → `B4xA6dDfoOhHJMOo` (classify + summary nodes)
 - **Instantly:** ⚠️ **hardcoded bearer token in the node header** (present in the real
   export). **Action: move to an n8n credential / HTTP Header Auth credential and rotate.**
-
-## Sync state
-Modified locally **2026-07-14 → 16**; **not pushed** (n8n MCP disconnected). Changes vs. live:
-- **Input contract** — reads `disposition`/`note`/`opp_id` (Router's stored-context names);
-  old `wavv_disposition`/`latest_note`/`active_opp_id` kept as fallbacks.
-- **Idempotent writes** — Event Logs + Call Summary delta-replace (was blind append); Resume Call
-  At + Next Caller Stage always written (`''` clears); added the **Call Processing State** write-back.
-- **Reordered (2026-07-16):** move now runs **before** `GHL: Write Logs`, so `processed:true` only
-  lands after a real move. `Can move?` changed from a filter to an **IF** so a no-target lead still
-  logs (without moving) instead of vanishing.
-- **Log formats (2026-07-16):** event-log resume suffix removed; Call Summary label uses
-  `stage_name` instead of `cold call`.
-- **Routing reworked (2026-07-18):** email-drip group narrowed to **`cold-good` + `voicemail`**;
-  `cold-bad`, `gatekeeper-good`, `gatekeeper-bad` moved (back) to Client Acquisition; **`call-center`**
-  added to Client Acq (new stage `04546ed9…`); **`voicemail`** added to the email group **and** tagged
-  `last_call_missed` via a new **IF: voicemail? → GHL: Add Missed-Call Tag** side branch.
-- **Stop Phone Calls (2026-07-18):** narrowed to **`cold-bad` only** (was cold-bad/gatekeeper-bad).
-- **Main sequence simplified (2026-07-19):** removed `IF: cold?` **and** the main-path
-  `Instantly: Remove from Subsequence`; `Build Log Fields → Can move?` directly. `Can move?` false
-  now → **Not movable (build later)** stub (**no log write**; `processed` stays false) instead of
-  logging without a move.
-- **Voicemail → missed-call email (2026-07-19):** the voicemail side branch now continues past the
-  tag: **Compute MC → IF: sends MCE? →** Email Step Name write (`WtFfl1nEbMupk2oR4m9e`) + Instantly
-  interest (`-29996`/`-29992`), ported from the missed-call Cold Handler. `mc 0` (Day 1 Call B /
-  Day 3) tags only, no email.
-- **Voicemail `mc` keyed by `stage_id` (2026-07-20):** `Compute MC` now looks up the raw caller
-  **stage id** in `MCE_BY_STAGE` (identical to the missed-call `Build Logs` map) instead of the
-  stage name. `stage_id` is read off the **Call Router Context on the `contact`** (Capture stores it
-  there alongside `stage_name`); the **Dispatcher is untouched** — the passed-through `contact`
-  already carries the field. Only Capture (`Determine Caller Context`) + this node changed.
-- Resume/next-stage logic, log formats, idempotency, move-before-logs order all unchanged.
 
 ## TODOs / gotchas
 - Instantly token is a plaintext secret — rotate + move to a credential.

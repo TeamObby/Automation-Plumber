@@ -29,7 +29,7 @@ is identical to the Cold Handler.
 
 ## ⚠️ Cutover
 - Import this workflow; n8n assigns a new ID. Then **set that ID** on the Dispatcher's
-  **`Run Gatekeeper Call Handler`** node (it ships with an empty placeholder `workflowId`).
+  **`Run Gatekeeper Call Handler`** node (it ships with a placeholder `workflowId`).
 
 ## Related
 - Twin: [`Cold Handler`](./Cold%20Handler.context.md) (Automation 3, cold lane) — read that for the full logic.
