@@ -443,6 +443,114 @@
       "id": "ebeaa78a-c424-4a47-82f4-de50d37861cb",
       "name": "Anomaly (capture for later)",
       "notes": "STUB: captures anomalous calls ('none' / 'multiple'). Anomalies STOP here — no context stored, no fallback fired. $json.anomaly distinguishes the two. Expand later (alert / manual-review)."
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Determine Caller Context').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1240,
+        380
+      ],
+      "id": "get-contact-transcripts",
+      "name": "GHL: Get Contact (for transcripts)",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Reads the contact's current Call Transcripts so the append never clobbers history. Non-blocking side branch."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const dc = $('Determine Caller Context').item.json;\nconst transcript = String(dc.transcript || '').trim();\nconst stage_name = String(dc.stage_name || '').trim();\n\n// read the EXISTING Call Transcripts off the freshly-fetched contact so we never clobber history\nconst gc = $json || {};\nconst contact = gc.contact || gc || {};\nconst read_ok = !!(contact && contact.id && Array.isArray(contact.customFields));\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\nconst existing = String(cf('RoCuJYeWhST2NJG4p0US') || '');\n\nconst now = DateTime.now().setZone('America/Los_Angeles');\nconst stamp = now.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)';\nconst line = '[' + stamp + ' ' + (stage_name || 'call') + '] ' + transcript;\nconst call_transcripts_updated = existing ? (existing + '\\n' + line) : line;\n\n// only write when the read was clean AND there is a transcript to append\nconst should_write = read_ok && !!transcript;\nreturn { json: {\n  contact_id: String(dc.contact_id || contact.id || '').trim(),\n  should_write: should_write,\n  call_transcripts_updated: call_transcripts_updated\n}};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        380
+      ],
+      "id": "build-call-transcripts",
+      "name": "Build Call Transcripts",
+      "notes": "Appends '[<stamp> <stage_name>] <transcript>' to the existing Call Transcripts. should_write=false (empty transcript or a failed read) -> skip."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.should_write }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "ct-gate-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        380
+      ],
+      "id": "gate-append-transcript",
+      "name": "Gate: append transcript?",
+      "notes": "Passes only when there's a transcript and the contact read was clean."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Build Call Transcripts').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'RoCuJYeWhST2NJG4p0US', value: $('Build Call Transcripts').item.json.call_transcripts_updated } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1900,
+        380
+      ],
+      "id": "append-call-transcripts",
+      "name": "GHL: Append Call Transcripts",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Writes ONLY Call Transcripts (RoCuJYeWhST2NJG4p0US) = existing + new line. Additive; does not touch Last Call Transcript or anything else."
     }
   ],
   "pinData": {},
@@ -560,6 +668,11 @@
             "node": "IF: anomaly?",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "GHL: Get Contact (for transcripts)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -638,6 +751,39 @@
         [
           {
             "node": "GHL: Store Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact (for transcripts)": {
+      "main": [
+        [
+          {
+            "node": "Build Call Transcripts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Call Transcripts": {
+      "main": [
+        [
+          {
+            "node": "Gate: append transcript?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: append transcript?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Append Call Transcripts",
             "type": "main",
             "index": 0
           }

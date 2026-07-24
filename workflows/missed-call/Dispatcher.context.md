@@ -23,8 +23,7 @@ Call Disposition Dispatcher but for the "no answer" outcome (no transcript/note 
    **Filter: anomaly?** (parallel) — surfaces `none`/`multiple` anomalies.
 5. Handlers:
    - `cold` → **-> Missed Call Cold Handler** (`MKj1ck6WAwvPZWFz`).
-   - **`gatekeeper` → -> Missed Call Gatekeeper Handler** (⚠️ **placeholder `workflowId` — set it
-     to the imported missed-call Gatekeeper Handler's ID**).
+   - **`gatekeeper` → -> Missed Call Gatekeeper Handler** (`rcrCVXDZp8ix9pKp`).
    - `conversation` / `rebooking` → **disabled stubs** (handlers not built yet — set the
      sub-workflow id when built).
 

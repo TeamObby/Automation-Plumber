@@ -42,7 +42,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Call Disposition - Capture Wavv Disposition | `zSOjEBiz3e7gbeBp` | [open](https://n8n.meetobby.com/workflow/zSOjEBiz3e7gbeBp) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — WAVV note → Call Disposition/Notes fields |
 | Call Disposition - Dispatcher/Router (Automation 2) | `SfI5Hx6mlc4Qh3D1` | [open](https://n8n.meetobby.com/workflow/SfI5Hx6mlc4Qh3D1) | ❌ | ✓ [json+ctx](workflows/call-disposition/) — repurposed for disposition/note updates; not yet pushed |
 | Call Disposition - Cold Handler (Automation 3) | `toFDNpFhy0ZyxfxN` | [open](https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — rebuild + gatekeeper tag; not yet pushed |
-| Call Disposition - Gatekeeper Handler (Automation 3, gk twin) | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/call-disposition/) — **copy of Cold Handler, gatekeeper `MCE_BY_STAGE`; set its ID on the Dispatcher** |
+| Call Disposition - Gatekeeper Handler (Automation 3, gk twin) | `WhSS3Awo5K8XuRbQ` | [open](https://n8n.meetobby.com/workflow/WhSS3Awo5K8XuRbQ) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — copy of Cold Handler, gatekeeper `MCE_BY_STAGE` |
 | GHL Pipeline Stages (Cached) | `ny7jwqGX1Du9aXNC` | [open](https://n8n.meetobby.com/workflow/ny7jwqGX1Du9aXNC) | ✅ | ⏳ not pulled — **no longer called by any mirrored workflow** (see below) |
 | Resume On Hold Leads | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/scheduled-automations/) |
 | New to Cold Email 1 Stage (3AM) | `WYYQ7p3wJ3QhBTrQ` | [open](https://n8n.meetobby.com/workflow/WYYQ7p3wJ3QhBTrQ) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
@@ -53,7 +53,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Create Manual Review Opp | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/manual-review/) |
 | Missed Call - Dispatcher | `WRvTiZWThJTQAU8P` | [open](https://n8n.meetobby.com/workflow/WRvTiZWThJTQAU8P) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
-| Missed Call - Gatekeeper Handler (gk twin) | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/missed-call/) — **copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps; set its ID on the missed-call Dispatcher** |
+| Missed Call - Gatekeeper Handler (gk twin) | `rcrCVXDZp8ix9pKp` | [open](https://n8n.meetobby.com/workflow/rcrCVXDZp8ix9pKp) | ✅ | ✓ [json+ctx](workflows/missed-call/) — copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps |
 | Send Cold Email 1 (3:30AM) | `6wdNiXnexS3zT5b2` | [open](https://n8n.meetobby.com/workflow/6wdNiXnexS3zT5b2) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
 
 ---
@@ -82,6 +82,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
   **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` (JSON, write-once per call by Call-Disposition Automation 1 — `{opp_id, route, caller_N, call_id, stage_name, stage_id}`; `stage_id` is the raw caller-stage id the Cold Handler's voicemail branch needs for its missed-call-email `mc` lookup) ·
   **Call Processing State** `BD9TmgEynOEy6bCvZshm` (JSON — `{processed, last_event_log_entry, last_call_summary_entry, last_signature}`; Auto 1 resets, Auto 2 updates each run) ·
   **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` (multiline text — Whisper transcript, static input the disposition AI re-reads per update) ·
+  **Call Transcripts** `RoCuJYeWhST2NJG4p0US` (multiline text — **all** call transcripts accumulated, one per line `[<stamp> <caller stage name>] <transcript>`; appended once per call by **Capture Call Record**, additive alongside Last Call Transcript. Not read by any automation — an archive.) ·
   **Stop Phone Calls** `KFDw66sjfFaszQx5UX6X` (**radio**, options `True`/`False` — the Cold/Gatekeeper Handler **always writes it**: `True` on a `cold-bad` **or `gatekeeper-bad`** outcome to halt future calls, `False` otherwise.) ·
   **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` (**radio**, `True`/`False` — `True` ⇒ **no email is sent**: the scheduled senders (`Send Cold Email 1`, `Send Cold Email 2/3/4`) and both Cold Handlers move the opp **straight to `Cold Email N Sent`** instead of enrolling in Instantly, and the missed-call/voicemail email is skipped. Keyed on this field **alone** — every no-email lead **must** carry `Stop Emails=True`, or it stalls in `Cold Email N` before the first call.)
 - **`MGR` = "Missed call Google Review".** A lead is MGR **iff the `Missed Call Review` custom
@@ -154,7 +155,6 @@ _All non-cold call outcomes land here (see Cold Handler `STAGE_SLUG`)._
 | New | `f6aa7e0f-6b83-4a7b-b8b9-620753554b3a` |
 | Got New Email | `1eba8b0e-955b-4693-8e59-6e59197f5b84` |
 | Replied To New Email | `d4803845-4722-49b3-8ea1-0fe3f66f39c0` |
-| Gatekeeper Good | `fd52ae00-d4df-4008-8c8f-0dae62ca58e7` |
 | Gatekeeper Bad | `d5670151-b316-448b-8b13-c4f804fdd696` |
 | Gatekeeper On Hold | `e921913e-1530-4186-8ce8-bb3dab47d301` |
 | Call Center | `04546ed9-e0d9-47dc-b61e-c0cd820849d7` |
@@ -174,6 +174,8 @@ _All non-cold call outcomes land here (see Cold Handler `STAGE_SLUG`)._
 | Not Interested Right Now Good | `8c76b904-fa25-4a73-9ac2-e17fb8323e2b` |
 | Not Interested Right Now Bad | `865a3d8d-045d-4b5d-b421-4115b876bb25` |
 | Do Not Contact | `cfc46631-06a5-4ef3-9788-1f15f35f052b` |
+| Bad Number | `298c5fad-72da-4628-b254-0c4df89c72e1` |
+| Not A Fit | `1d34796e-811a-4bb3-afcb-61b59446a31e` |
 
 ### Cold Outbound Email Pipeline — `1A1RkYaL93s2rqbQ3Opi`
 _Cold call outcomes move here to "Cold Email N+1" via Cold Handler `SEND_NEXT`._

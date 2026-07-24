@@ -31,6 +31,13 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
      `mc` off the raw stage id, so it must be captured here while the opp is still in the call pipeline)
    - **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` = transcript
    - **Call Processing State** `BD9TmgEynOEy6bCvZshm` = `{processed:false, last_event_log_entry:"", last_call_summary_entry:"", last_signature:""}` ← **reset**
+4b. **Call Transcripts archive** (side branch off **Determine Caller Context**, **before** the
+   anomaly gate — runs for **every** call, non-blocking, additive): **GHL: Get Contact (for transcripts)** → **Build Call Transcripts** →
+   **Gate: append transcript?** → **GHL: Append Call Transcripts**. Reads the contact's current
+   **Call Transcripts** `RoCuJYeWhST2NJG4p0US`, appends `[<stamp> <stage_name>] <transcript>` on a
+   **new line**, and writes it back. **Skips (no write)** when the transcript is empty or the read
+   failed — so it **never clobbers** the accumulated history. Purely additive: **Last Call
+   Transcript** and everything downstream are unchanged.
 5. **Wait 5m (fallback grace)** → **GHL: Get Contact (re-read State)** → **Check Processed** →
    **IF: not processed?**
    - true (still `processed:false`) → **-> Automation 2 (fallback)** — Automation 1 owns this

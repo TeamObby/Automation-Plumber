@@ -1,6 +1,6 @@
 # Missed Call — Gatekeeper Handler  [gatekeeper twin]
 
-- **n8n ID:** _pending import_ · **Status:** Inactive ❌ (sub-workflow) — **not yet pushed**
+- **n8n ID:** `rcrCVXDZp8ix9pKp` · **URL:** https://n8n.meetobby.com/workflow/rcrCVXDZp8ix9pKp · **Status:** imported ✅ (sub-workflow)
 - **Folder:** missed-call · **Role:** the **gatekeeper-lane twin** of the
   [missed-call Cold Handler](./Cold%20Handler.context.md).
 
@@ -32,9 +32,9 @@ continueRegularOutput` leaf). Only difference: the `pipeline` column resolves to
 See [Cold Handler → Metrics logging](./Cold%20Handler.context.md#metrics-logging-call_log) and
 [`AGENTS.md` → Metrics workbook](../../AGENTS.md). Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
 
-## ⚠️ Cutover
-- Import this workflow; n8n assigns an ID. Then **set that ID** on the missed-call Dispatcher's
-  **`-> Missed Call Gatekeeper Handler`** node (ships with a placeholder `workflowId`).
+## Cutover — done
+- Imported as `rcrCVXDZp8ix9pKp`; the missed-call Dispatcher's **`-> Missed Call Gatekeeper Handler`**
+  node points at it.
 
 ## Related
 - Twin: [`Cold Handler`](./Cold%20Handler.context.md) — read that for the full logic.

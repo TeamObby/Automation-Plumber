@@ -62,8 +62,9 @@ A WAVV note looks like:
   Handler's voicemail branch.)
 - **Disposition** — text between `Disposition:` and `Tag:` (Tag always follows a present
   Disposition). Slugified (`Cold Good` → `cold-good`) and **kept only if it's in the KNOWN list**
-  (the 15 slugs the Cold Handler routes — incl. `voicemail` → email drip + `last_call_missed` tag,
-  and `call-center` → Client Acquisition); otherwise **empty**.
+  (the 17 slugs the Cold Handler routes — incl. `voicemail` → email drip + `last_call_missed` tag,
+  and `call-center` / `bad-number` / `not-a-fit` → Client Acquisition, no call/email sequence);
+  otherwise **empty**.
 - **Note** — text after `Note:` to end. **Empty** if absent **or** the literal `Auto-disposition`;
   otherwise kept as-is.
 

@@ -1,6 +1,6 @@
 # Gatekeeper Handler  [Automation 3 — gatekeeper twin]
 
-- **n8n ID:** _pending import_ · **Status:** Inactive ❌ (sub-workflow) — **not yet pushed**
+- **n8n ID:** `WhSS3Awo5K8XuRbQ` · **URL:** https://n8n.meetobby.com/workflow/WhSS3Awo5K8XuRbQ · **Status:** imported ✅ (sub-workflow)
 - **Folder:** call-disposition · **Role:** the **gatekeeper-lane twin** of the
   [Cold Handler](./Cold%20Handler.context.md).
 
@@ -35,9 +35,8 @@ difference: the `pipeline` column resolves to **`gatekeeper`** here (it echoes t
 See [Cold Handler → Metrics logging](./Cold%20Handler.context.md) and
 [`AGENTS.md` → Metrics workbook](../../AGENTS.md). Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
 
-## ⚠️ Cutover
-- Import this workflow; n8n assigns a new ID. Then **set that ID** on the Dispatcher's
-  **`Run Gatekeeper Call Handler`** node (it ships with a placeholder `workflowId`).
+## Cutover — done
+- Imported as `WhSS3Awo5K8XuRbQ`; the Dispatcher's **`Run Gatekeeper Call Handler`** node points at it.
 
 ## Related
 - Twin: [`Cold Handler`](./Cold%20Handler.context.md) (Automation 3, cold lane) — read that for the full logic.

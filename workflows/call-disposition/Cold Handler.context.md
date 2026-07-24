@@ -104,13 +104,14 @@ be **self-correcting**, verified by execution (first run appends, second run rep
   Keeps the rich AI summary.
 
 ## Outcome mapping (Parse + Map Outcome)
-- **15 valid dispositions (slugs):** `cold-good, cold-bad, cold-on-hold, gatekeeper-good,
+- **17 valid dispositions (slugs):** `cold-good, cold-bad, cold-on-hold, gatekeeper-good,
   gatekeeper-bad, gatekeeper-on-hold, conversation-active, conversation-active-on-hold,
   appointment-booked, sales-call, not-interested-right-now-good, not-interested-right-now-bad,
-  do-not-contact, voicemail, call-center`.
+  do-not-contact, voicemail, call-center, bad-number, not-a-fit`.
 - **Disposition wins**; the AI `outcome` (from transcript) is used only when the disposition
-  is missing/unrecognized. **Default = `cold-good`.** _(voicemail / call-center are recognized but
-  **not** in the AI classifier enum — AI won't infer them; they only arrive via a provided disposition.)_
+  is missing/unrecognized. **Default = `cold-good`.** _(voicemail, call-center, bad-number, not-a-fit
+  are recognized but **not** in the AI classifier enum — AI won't infer them; they only arrive via a
+  provided disposition.)_
 - **Email-drip group (`continues_drip` / `DRIP_OUTCOMES`) = `cold-good`, `gatekeeper-good`, `voicemail`.** → email
   pipeline `1A1RkYaL93s2rqbQ3Opi`, stage `SEND_NEXT[caller_N]` (N=1/2/3 → Cold Email 2/3/4). The
   sequence continues.
@@ -131,14 +132,13 @@ be **self-correcting**, verified by execution (first run appends, second run rep
        voicemails add the tag but send **no** email (`mc 0`).
 - **Stop Phone Calls** (`KFDw66sjfFaszQx5UX6X`, radio) always written: **`True` on `cold-bad` and
   `gatekeeper-bad`**, `False` otherwise.
-- **Everything else (13 outcomes)** → Client Acquisition pipeline `O7LMZpDOFM2SYO65twC5`, same-named
+- **Everything else (14 outcomes)** → Client Acquisition pipeline `O7LMZpDOFM2SYO65twC5`, same-named
   stage. Moving them out of the call/email pipelines takes them **out of sequential calling and
-  emails**:
+  emails** (`bad-number` / `not-a-fit` have **no** call/email sequence — they just land here):
 
 | Outcome | Client Acq stage ID |
 |---|---|
 | `cold-bad` | `8ecc2327-779f-4250-8d54-4554b49087f9` |
-| `gatekeeper-good` | `fd52ae00-d4df-4008-8c8f-0dae62ca58e7` |
 | `gatekeeper-bad` | `d5670151-b316-448b-8b13-c4f804fdd696` |
 | `gatekeeper-on-hold` | `e921913e-1530-4186-8ce8-bb3dab47d301` |
 | **`call-center`** | `04546ed9-e0d9-47dc-b61e-c0cd820849d7` |
@@ -150,6 +150,8 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 | `not-interested-right-now-good` | `8c76b904-fa25-4a73-9ac2-e17fb8323e2b` |
 | `not-interested-right-now-bad` | `865a3d8d-045d-4b5d-b421-4115b876bb25` |
 | `do-not-contact` | `cfc46631-06a5-4ef3-9788-1f15f35f052b` |
+| **`bad-number`** | `298c5fad-72da-4628-b254-0c4df89c72e1` |
+| **`not-a-fit`** | `1d34796e-811a-4bb3-afcb-61b59446a31e` |
 
 ### resume_call_at (on-hold only)
 - Set **only** for `cold-on-hold`, `gatekeeper-on-hold`, `conversation-active-on-hold`.
