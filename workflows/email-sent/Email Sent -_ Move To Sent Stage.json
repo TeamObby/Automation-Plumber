@@ -118,7 +118,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// contact from the GHL search (explicit ref; order-independent)\nconst r = $('GHL: Search Contact by Email').item.json;\nconst c = (r.contacts && r.contacts[0]) ? r.contacts[0] : (r.contact || r);\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\n\nconst NOTE_ID='4Ysr9E6CKC2vZK9m6MNm', EVENTLOGS_ID='7D9N71mEDfipN90zfV0j', EMAILHIST_ID='TcdjZt3fwFSZTgY6ngeE', CALLHIST_ID='ZVeEoK85i5EOhWt1HO1F', EMAIL_STEP_NAME_ID='WtFfl1nEbMupk2oR4m9e';\n\n// pick email (newest in the campaign-scoped fetch)\nconst resp  = ($('Instantly: Get Email').item && $('Instantly: Get Email').item.json) ? $('Instantly: Get Email').item.json : {};\nconst items = Array.isArray(resp.items) ? resp.items : (Array.isArray(resp) ? resp : []);\nconst em = items[0] || {};\nconst emailId  = String((em && em.id) || '').trim();\nconst bodyHtml = (em && em.body && (em.body.html || em.body.text)) ? String(em.body.html || em.body.text) : '';\n\n// strip HTML -> clean text for the summariser (fewer tokens, cleaner input)\nconst body_clean = bodyHtml\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;/gi, \"'\").replace(/&quot;/gi, '\"')\n  .replace(/\\s+/g, ' ').trim();\n\nconst oppList = Array.isArray(c.opportunities) ? c.opportunities : [];\n\n// ---- Route: email_step_name decides the target \"Cold Email N Sent\" stage -----------\n// email_step_name is written by the senders as 'cold email 1'..'cold email 4'\n// (also 'missed call email N' -> no cold step -> no move; the filter drops it).\nconst email_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim();\n\nconst EMAIL_PIPELINE_ID = '1A1RkYaL93s2rqbQ3Opi';\nconst SENT_STAGE = {\n  1: '41849471-6f42-4f40-9692-bbd4d3713d17',   // Cold Email 1 Sent\n  2: 'fdd4f9a4-a626-4866-a904-5053e626306f',   // Cold Email 2 Sent\n  3: '2f599547-4a2b-4ba4-850d-0feb7fcc976c',   // Cold Email 3 Sent\n  4: '39a20e88-ce88-46c6-9e95-8134aa9f269d'    // Cold Email 4 Sent\n};\nconst coldStep = (email_step_name.toLowerCase().match(/^cold email (\\d+)$/) || [])[1] || '';\nconst target_sent_stage_id = coldStep ? (SENT_STAGE[Number(coldStep)] || '') : '';\n\nconst emailOpp = oppList.find(o => o && o.pipelineId === EMAIL_PIPELINE_ID) || {};\nconst email_opp_id = String(emailOpp.id || '');\n\nconst now = DateTime.now().setZone('America/Los_Angeles');\nconst stampNote = now.toFormat('yyyy-MM-dd HH:mm');\nconst stampRun  = now.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)';\nlet stampEmail = stampRun;\nconst tsRaw = String((em && (em.timestamp_email || em.timestamp_created)) || '').trim();\nif (tsRaw) { const dt = DateTime.fromISO(tsRaw).setZone('America/Los_Angeles'); if (dt.isValid) stampEmail = dt.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)'; }\n\nconst step_label = email_step_name || 'email';\n\n// note + event_logs (no AI needed)\nconst noteBase  = String(cf(NOTE_ID) || '').trim();\nconst noteEntry = '[' + stampNote + ' | EMAIL_SENT] Cold Email';\nconst updated_note = noteBase ? (noteBase + '\\n' + noteEntry) : noteEntry;\nconst elBase  = String(cf(EVENTLOGS_ID) || '').trim();\nconst elEntry = '[' + stampRun + '] ' + step_label + ' sent';\nconst updated_event_logs = elBase ? (elBase + '\\n' + elEntry) : elEntry;\n\nconst ehBase = String(cf(EMAILHIST_ID) || '').trim();              // base email_history (appended in logging branch)\nconst call_history = String(cf(CALLHIST_ID) || '').trim();\nconst instantly_lead_id = String($('Normalize').item.json.instantly_lead_id || '').trim();\n\nreturn { json: {\n  contact_id: c.id, email_id: emailId,\n  body_clean,\n  email_step_name, step_label, stampEmail,\n  eh_base: ehBase, call_history,\n  updated_note, updated_event_logs,\n  instantly_lead_id,\n  target_sent_stage_id,\n  email_opp_id\n}};\n"
+        "jsCode": "// contact from the GHL search (explicit ref; order-independent)\nconst r = $('GHL: Search Contact by Email').item.json;\nconst c = (r.contacts && r.contacts[0]) ? r.contacts[0] : (r.contact || r);\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\n\nconst NOTE_ID='4Ysr9E6CKC2vZK9m6MNm', EVENTLOGS_ID='7D9N71mEDfipN90zfV0j', EMAILHIST_ID='TcdjZt3fwFSZTgY6ngeE', CALLHIST_ID='ZVeEoK85i5EOhWt1HO1F', EMAIL_STEP_NAME_ID='WtFfl1nEbMupk2oR4m9e';\n\n// pick email (newest in the campaign-scoped fetch)\nconst resp  = ($('Instantly: Get Email').item && $('Instantly: Get Email').item.json) ? $('Instantly: Get Email').item.json : {};\nconst items = Array.isArray(resp.items) ? resp.items : (Array.isArray(resp) ? resp : []);\nconst em = items[0] || {};\nconst emailId  = String((em && em.id) || '').trim();\nconst bodyHtml = (em && em.body && (em.body.html || em.body.text)) ? String(em.body.html || em.body.text) : '';\n\n// strip HTML -> clean text for the summariser (fewer tokens, cleaner input)\nconst body_clean = bodyHtml\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;/gi, \"'\").replace(/&quot;/gi, '\"')\n  .replace(/\\s+/g, ' ').trim();\n\nconst oppList = Array.isArray(c.opportunities) ? c.opportunities : [];\n\n// ---- Route: email_step_name decides the target \"Cold Email N Sent\" stage -----------\n// email_step_name is written by the senders as 'cold email 1'..'cold email 4'\n// (also 'missed call email N' -> no cold step -> no move; the filter drops it).\nconst email_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim();\n\nconst EMAIL_PIPELINE_ID = '1A1RkYaL93s2rqbQ3Opi';\nconst SENT_STAGE = {\n  1: '41849471-6f42-4f40-9692-bbd4d3713d17',   // Cold Email 1 Sent\n  2: 'fdd4f9a4-a626-4866-a904-5053e626306f',   // Cold Email 2 Sent\n  3: '2f599547-4a2b-4ba4-850d-0feb7fcc976c',   // Cold Email 3 Sent\n  4: '39a20e88-ce88-46c6-9e95-8134aa9f269d'    // Cold Email 4 Sent\n};\nconst coldStep = (email_step_name.toLowerCase().match(/^cold email (\\d+)$/) || [])[1] || '';\nconst target_sent_stage_id = coldStep ? (SENT_STAGE[Number(coldStep)] || '') : '';\n\nconst emailOpp = oppList.find(o => o && o.pipelineId === EMAIL_PIPELINE_ID) || {};\nconst email_opp_id = String(emailOpp.id || '');\n\nconst now = DateTime.now().setZone('America/Los_Angeles');\nconst stampNote = now.toFormat('yyyy-MM-dd HH:mm');\nconst stampRun  = now.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)';\nlet stampEmail = stampRun;\nconst tsRaw = String((em && (em.timestamp_email || em.timestamp_created)) || '').trim();\nif (tsRaw) { const dt = DateTime.fromISO(tsRaw).setZone('America/Los_Angeles'); if (dt.isValid) stampEmail = dt.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)'; }\n\nconst step_label = email_step_name || 'email';\n\n// note + event_logs (no AI needed)\nconst noteBase  = String(cf(NOTE_ID) || '').trim();\nconst noteEntry = '[' + stampNote + ' | EMAIL_SENT] Cold Email';\nconst updated_note = noteBase ? (noteBase + '\\n' + noteEntry) : noteEntry;\nconst elBase  = String(cf(EVENTLOGS_ID) || '').trim();\nconst elEntry = '[' + stampRun + '] ' + step_label + ' sent';\nconst updated_event_logs = elBase ? (elBase + '\\n' + elEntry) : elEntry;\n\nconst ehBase = String(cf(EMAILHIST_ID) || '').trim();              // base email_history (appended in logging branch)\nconst call_history = String(cf(CALLHIST_ID) || '').trim();\nconst instantly_lead_id = String($('Normalize').item.json.instantly_lead_id || '').trim();\n\nreturn { json: {\n  contact_id: c.id, email_id: emailId,\n  body_clean,\n  email_step_name, step_label, stampEmail,\n  eh_base: ehBase, call_history,\n  updated_note, updated_event_logs,\n  instantly_lead_id,\n  target_sent_stage_id,\n  email_opp_id,\n  timestamp_pt: now.toFormat('yyyy-LL-dd HH:mm:ss'), date_pt: now.toFormat('yyyy-LL-dd'),\n  company: String(c.companyName || '').trim(), city: String(c.city || '').trim(),\n  campaign_id: String($('Normalize').item.json.campaign_id || '').trim(),\n  step: coldStep ? Number(coldStep) : '', event_type: 'sent', reply_classification: ''\n}};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -318,6 +318,163 @@
           "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1RuupHeSo8-oUKzl1QjVzLYoGXj6Br-d-1tTJsuDTM3g",
+          "mode": "list",
+          "cachedResultName": "Plumber Campaign Metrics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1RuupHeSo8-oUKzl1QjVzLYoGXj6Br-d-1tTJsuDTM3g/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 0,
+          "mode": "list",
+          "cachedResultName": "email_log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1RuupHeSo8-oUKzl1QjVzLYoGXj6Br-d-1tTJsuDTM3g/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp_pt": "={{ $('Build Logs + Route').item.json.timestamp_pt }}",
+            "date_pt": "={{ $('Build Logs + Route').item.json.date_pt }}",
+            "contact_id": "={{ $('Build Logs + Route').item.json.contact_id }}",
+            "company": "={{ $('Build Logs + Route').item.json.company }}",
+            "city": "={{ $('Build Logs + Route').item.json.city }}",
+            "campaign_id": "={{ $('Build Logs + Route').item.json.campaign_id }}",
+            "step": "={{ $('Build Logs + Route').item.json.step }}",
+            "event_type": "={{ $('Build Logs + Route').item.json.event_type }}",
+            "reply_classification": "={{ $('Build Logs + Route').item.json.reply_classification }}",
+            "instantly_lead_id": "={{ $('Build Logs + Route').item.json.instantly_lead_id }}",
+            "email_id": "={{ $('Build Logs + Route').item.json.email_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp_pt",
+              "displayName": "timestamp_pt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date_pt",
+              "displayName": "date_pt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "step",
+              "displayName": "step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reply_classification",
+              "displayName": "reply_classification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "instantly_lead_id",
+              "displayName": "instantly_lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email_id",
+              "displayName": "email_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2128,
+        1252
+      ],
+      "id": "76e0af5e-f50f-4419-ae46-ac0f36b17011",
+      "name": "Sheet: Log Email",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nVa0UTFYjGo1apqU",
+          "name": "Google Sheets account [ team@meetobby.com ]"
+        }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "pinData": {},
@@ -436,6 +593,17 @@
         [
           {
             "node": "GHL: Move Opp -> Sent Cold Email N",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Write Logs + Lead ID": {
+      "main": [
+        [
+          {
+            "node": "Sheet: Log Email",
             "type": "main",
             "index": 0
           }
