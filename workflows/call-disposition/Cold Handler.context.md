@@ -175,9 +175,31 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 - Email History `TcdjZt3fwFSZTgY6ngeE` · **Resume Call At `u5VC5C59UlFZJDYOuw7N`** (text field)
 - **Email Step Name `WtFfl1nEbMupk2oR4m9e`** (text) — voicemail branch writes `missed call email N`
 
+## Metrics logging (call_log)
+A leaf **`Sheet: Log Call`** node hangs off **`GHL: Write Logs`** (the terminal write) and appends
+one row to the **`call_log`** tab of the *Plumber Campaign Metrics* sheet
+(`1RuupHeSo8-oUKzl1QjVzLYoGXj6Br-d-1tTJsuDTM3g`, gid `412127457`).
+- **Op `appendOrUpdate`, matching on `call_id`** (the WAVV per-dial id). The handler re-runs on every
+  disposition/note edit, so this keeps **one row per dial** and rewrites it in place to the latest
+  outcome — no duplicate rows.
+- Sits downstream of `GHL: Write Logs`, so it logs **only on the movable path** (same gate as
+  `processed`). `cellFormat: USER_ENTERED`; `onError: continueRegularOutput` with **no downstream node**
+  → a Sheets hiccup never blocks processing.
+- **Row fields come straight from `Parse + Map Outcome`:** `timestamp_pt, date_pt, contact_id, company,
+  city, pipeline` (= stored `route` → `cold`/`gatekeeper`), `stage_name, attempt_no, is_mgr,
+  is_missed_variant, picked_up` (literal `TRUE` here — a dispositioned call was answered),
+  `disposition_source` (`human`/`ai_fallback`), `disposition_slug, ai_outcome, final_outcome,
+  resume_call_at, call_id`. `from_number` / `duration_sec` / `recording_url` are left **blank** (they
+  exist only during Capture — not yet threaded).
+- ⚠️ **Twin:** the [Gatekeeper Handler](./Gatekeeper%20Handler.context.md) carries the **identical** node
+  (`Parse + Map Outcome` is byte-for-byte the same across both) — edit both.
+- Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`. Full schema + workbook:
+  [`AGENTS.md` → Metrics workbook](../../AGENTS.md).
+
 ## Credentials / constants
 - **GHL:** `httpMultipleHeadersAuth` → `DtotRKnzjDewbSsv` (Waterline Growth subaccount)
 - **OpenAI:** `openAiApi` → `B4xA6dDfoOhHJMOo` (classify + summary nodes)
+- **Google Sheets:** `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU` (`Sheet: Log Call` → `call_log`)
 - **Instantly:** ⚠️ **hardcoded bearer token in the node header** (present in the real
   export). **Action: move to an n8n credential / HTTP Header Auth credential and rotate.**
 

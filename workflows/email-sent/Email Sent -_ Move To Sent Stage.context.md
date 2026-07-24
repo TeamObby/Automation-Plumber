@@ -73,8 +73,25 @@ resolves correctly.
 - Instantly Lead ID `TWLomDBX0XInU1IKrG8L` — written when present
 - Call Summary `ZVeEoK85i5EOhWt1HO1F` — read (input to the interaction summary)
 
+## Metrics logging (email_log)
+A leaf **`Sheet: Log Email`** node hangs off **`GHL: Write Logs + Lead ID`** (the logging branch's
+terminal write) and **appends** one row to the **`email_log`** tab (*Plumber Campaign Metrics*
+`1RuupHeSo8-…`).
+- All columns come from `Build Logs + Route`: `timestamp_pt, date_pt, contact_id, company, city,
+  campaign_id, step` (`1`–`4` for `cold email N`, blank for `missed call email N`), `event_type`
+  (always **`sent`** here), `reply_classification, instantly_lead_id, email_id` (blank when
+  `Instantly: Get Email` failed — e.g. a 429; the send still logs).
+- `USER_ENTERED`; `onError: continueRegularOutput`, leaf → a Sheets miss never blocks the stage move.
+- Only **`sent`** events are written here; engagement events (`opened/bounced/replied`) would come from
+  a separate Instantly-events webhook (not built).
+- ⚠️ **Tab gid:** the node currently points at gid `0`; **re-select the `email_log` tab** in the node
+  after import if that isn't the real tab (AGENTS.md flags this gid as unconfirmed).
+- Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`. Full schema:
+  [`AGENTS.md` → Metrics workbook](../../AGENTS.md).
+
 ## Credentials / constants
 - **GHL:** `httpMultipleHeadersAuth` → `DtotRKnzjDewbSsv` · location `rzaMhqeo2apNI1p6DG5z`
+- **Google Sheets:** `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU` (`Sheet: Log Email` → `email_log`)
 - **OpenAI:** `openAiApi` → `B4xA6dDfoOhHJMOo` · `gpt-4o-mini`, both AI nodes `onError: continue`
 - **Instantly:** ⚠️ **hardcoded bearer token** in two node headers — move to a credential + rotate.
 

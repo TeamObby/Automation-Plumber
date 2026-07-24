@@ -83,8 +83,25 @@ Append-only (newline-joined onto the existing Event Logs value).
 - Email Step Name `WtFfl1nEbMupk2oR4m9e` — written `missed call email N` **only when `sends_email`**
 - Instantly Lead ID `TWLomDBX0XInU1IKrG8L` — read
 
+## Metrics logging (call_log)
+A leaf **`Sheet: Log Call`** node hangs off **`GHL: Write Logs`** and **appends** one row to the
+**`call_log`** tab (*Plumber Campaign Metrics* `1RuupHeSo8-…`, gid `412127457`).
+- **Op `append`** (no dedup key — a missed call fires once; `call_id` is left blank, unlike the
+  disposition handler's `appendOrUpdate`).
+- `picked_up` is the literal **`FALSE`** (missed call). Populated columns come from `Build Logs`:
+  `timestamp_pt, date_pt, contact_id, company, city, pipeline` (`cold`), `stage_name, attempt_no,
+  is_mgr, is_missed_variant`. All disposition/outcome columns (`disposition_source, disposition_slug,
+  ai_outcome, final_outcome, resume_call_at`) plus `from_number, duration_sec, recording_url, call_id`
+  are left **blank** — a missed call has no human disposition.
+- `USER_ENTERED`; `onError: continueRegularOutput`, leaf (no downstream) → never blocks the move.
+- ⚠️ **Twin:** the [Gatekeeper Handler](./Gatekeeper%20Handler.context.md) has the identical node
+  (`pipeline` = `gatekeeper`).
+- Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`. Schema:
+  [`AGENTS.md` → Metrics workbook](../../AGENTS.md).
+
 ## Credentials / constants
 - **GHL:** `httpMultipleHeadersAuth` → `DtotRKnzjDewbSsv` · timezone PT (America/Los_Angeles)
+- **Google Sheets:** `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU` (`Sheet: Log Call` → `call_log`)
 - **Instantly:** ⚠️ **hardcoded bearer token** in the node headers — move to a credential + rotate.
 
 ## TODOs / gotchas

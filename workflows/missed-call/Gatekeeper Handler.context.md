@@ -25,6 +25,13 @@ Handler. Missed calls don't change the `gatekeeper` tag (no human contact), so t
 - Everything else (Instantly interest codes, hi_firstname, logs, Stop Emails divert) is identical to
   the cold twin.
 
+## Metrics logging (call_log)
+Carries the **identical** `Sheet: Log Call` node as the [Cold Handler](./Cold%20Handler.context.md)
+(off `GHL: Write Logs`, **`append`**, `picked_up=FALSE`, `USER_ENTERED`, `onError:
+continueRegularOutput` leaf). Only difference: the `pipeline` column resolves to **`gatekeeper`**.
+See [Cold Handler → Metrics logging](./Cold%20Handler.context.md#metrics-logging-call_log) and
+[`AGENTS.md` → Metrics workbook](../../AGENTS.md). Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
+
 ## ⚠️ Cutover
 - Import this workflow; n8n assigns an ID. Then **set that ID** on the missed-call Dispatcher's
   **`-> Missed Call Gatekeeper Handler`** node (ships with a placeholder `workflowId`).

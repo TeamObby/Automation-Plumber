@@ -27,6 +27,14 @@ Everything else — tag add/remove, `continues_drip` (incl. gatekeeper-good), `s
 gatekeeper-bad), the move to the **shared** email pipeline / Client Acquisition, logs, idempotency —
 is identical to the Cold Handler.
 
+## Metrics logging (call_log)
+Carries the **identical** `Sheet: Log Call` node as the [Cold Handler](./Cold%20Handler.context.md)
+(off `GHL: Write Logs`, `appendOrUpdate` on `call_id`, `USER_ENTERED`, `onError: continueRegularOutput`
+leaf) — `Parse + Map Outcome` is byte-for-byte the same across both twins. The only practical
+difference: the `pipeline` column resolves to **`gatekeeper`** here (it echoes the stored `route`).
+See [Cold Handler → Metrics logging](./Cold%20Handler.context.md) and
+[`AGENTS.md` → Metrics workbook](../../AGENTS.md). Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
+
 ## ⚠️ Cutover
 - Import this workflow; n8n assigns a new ID. Then **set that ID** on the Dispatcher's
   **`Run Gatekeeper Call Handler`** node (it ships with a placeholder `workflowId`).
