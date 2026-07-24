@@ -1,21 +1,21 @@
 # Call Disposition — Cold Handler  [Automation 3]
 
 - **n8n ID:** `toFDNpFhy0ZyxfxN` · **URL:** https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN
-- **Folder:** call-disposition · **Status:** Active ✅ (sub-workflow) — **modified for the multi-update rebuild, not yet pushed**
+- **Folder:** call-disposition · **Status:** Active ✅ (sub-workflow) — **not yet pushed**
 - **Role:** Automation 3 of the multi-update rebuild.
 
 > ⚠️ **Has a gatekeeper twin — edit both.** [`Gatekeeper Handler`](./Gatekeeper%20Handler.context.md)
 > is a copy of this workflow differing only in `Compute MC`'s `MCE_BY_STAGE` (gatekeeper stage IDs).
 > Any logic change here must be mirrored there.
 
-## Gatekeeper lane (added 2026-07-24)
-This handler now also drives the **cold↔gatekeeper** flip via the `gatekeeper` tag, set in
+## Gatekeeper lane
+This handler also drives the **cold↔gatekeeper** flip via the `gatekeeper` tag, set in
 `Parse + Map Outcome` and applied by a non-blocking side branch (`Switch: tag action` →
-`GHL: Add / Remove Gatekeeper Tag`):
+`GHL: Add Gatekeeper Tag` / `GHL: Remove Gatekeeper Tag`):
 - `is_gatekeeper` (gatekeeper-good/bad/on-hold) → **add** tag · `is_cold` (cold-good/bad/on-hold) →
   **remove** tag · everything else (voicemail, …) → **leave** it (Option A).
-- `continues_drip` (was `is_cold`) now includes **gatekeeper-good** → Cold Email N+1.
-- `stop_phone_calls` now also true on **gatekeeper-bad**.
+- `continues_drip` includes **gatekeeper-good** → Cold Email N+1.
+- `stop_phone_calls` is true on **cold-bad** and **gatekeeper-bad**.
 The tag decides which call pipeline the lead's **next** call uses (read at 4:30AM); this handler
 always moves the drip to the **shared** email pipeline regardless of lane.
 
@@ -35,7 +35,7 @@ state** — in that order, so `processed:true` only lands after a real move.
 - Reads `disposition`/`note`/`opp_id` (old names `wavv_disposition`/`latest_note`/`active_opp_id`
   still accepted as fallbacks). Disposition is slugified in Build Prompt (`Cold Good` → `cold-good`).
 
-## Flow (reordered — move before logs)
+## Flow (move before logs)
 1. **Call Input** → **Build Prompt** — SDR classifier prompts (PT, today). Feeds transcript +
    disposition + note to the AI. **The AI re-runs on every update** (disposition/note are inputs).
 2. **OpenAI: Classify Call** — `gpt-4o-mini`, temp 0, JSON → `{summary, outcome, resume_call_at}`.
@@ -44,9 +44,8 @@ state** — in that order, so `processed:true` only lands after a real move.
 4. **AI: Interaction Summary** — rolling relationship summary.
 5. **Build Log Fields** (code) — assembles the GHL `customFields` payload array (logs, resume,
    next-stage, Stop Phone Calls, Processing State). Extracted here so the HTTP node stays trivial.
-6. **Can move?** (IF) — **directly after Build Log Fields** (the old `IF: cold?` + main-path
-   `Instantly: Remove from Subsequence` were removed 2026-07-19 — routing is decided inside
-   `Parse + Map Outcome`, no workflow-level branch needed):
+6. **Can move?** (IF) — **directly after Build Log Fields** (routing is decided inside
+   `Parse + Map Outcome`, so no workflow-level branch is needed):
    - `true` → **GHL: Move Opp → Target** → **GHL: Write Logs**
    - `false` (no target/opp) → **Not movable (build later)** stub — **no log write**, so
      `processed` stays `false` and the call is left for later handling.
@@ -56,7 +55,7 @@ state** — in that order, so `processed:true` only lands after a real move.
    **Only reached after the move**, so a failed/absent move means `processed` is never set →
    the call is retried next time.
 
-### Voicemail side branch (missed-call email) — added 2026-07-19
+### Voicemail side branch (missed-call email)
 `Parse + Map Outcome` → **IF: voicemail?** (`is_voicemail`, true only for the `voicemail` outcome):
 1. **GHL: Add Missed-Call Tag** — `POST /contacts/{id}/tags` adds `last_call_missed` (always, for
    voicemail).
@@ -73,7 +72,7 @@ state** — in that order, so `processed:true` only lands after a real move.
      (`update-interest-status`, dynamic `interest_value` → Missed Call Email 1/2 fires).
    - `false` (`mc 0`) → **No Missed-Call Email** stub (the tag was still added).
 
-   **Gate: emails allowed?** (Filter, added 2026-07-20) sits right before the send: it passes only
+   **Gate: emails allowed?** (Filter) sits right before the send: it passes only
    when **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` is **off**. A `Stop Emails=True` lead still gets the
    tag + Email Step Name write, but the missed-call email itself is **skipped**.
 
@@ -94,20 +93,17 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 | **Next Caller Stage `Tj0yopYbErXbwsTYTsCX`** | **always written** (value **or `''`**) |
 | **Event Logs `7D9N71mEDfipN90zfV0j`** | **delta-replace** via `upsert(live, last_event_log_entry, new)` — `split(lastEntry).join(newEntry)` replaces THIS call's prior line; else appends with a `\n`. Other automations' lines preserved. |
 | **Call Summary `ZVeEoK85i5EOhWt1HO1F`** | same delta-replace via `last_call_summary_entry` |
-| **Stop Phone Calls `KFDw66sjfFaszQx5UX6X`** | radio, **always written** — `True` only on `cold-bad`, else `False` |
+| **Stop Phone Calls `KFDw66sjfFaszQx5UX6X`** | radio, **always written** — `True` on `cold-bad`/`gatekeeper-bad`, else `False` |
 | **Email Step Name `WtFfl1nEbMupk2oR4m9e`** (voicemail branch) | written `missed call email N` only when `mc>0`; re-setting the Instantly interest is idempotent |
 | **Call Processing State `BD9TmgEynOEy6bCvZshm`** | set `{processed:true, …}` **last, after the move** — read next time by the Router (dedup/fallback) and Capture (fallback) |
 
 ### Log line formats
 - **Event Logs:** `[<stamp>] <stage_name> <disposition>` — e.g.
-  `[Thu, Jul 16, 2026, 10:00 AM (PT)] Day 2 Call cold-good`. **No resume suffix** (removed 2026-07-16).
+  `[Thu, Jul 16, 2026, 10:00 AM (PT)] Day 2 Call cold-good`. **No resume suffix**.
 - **Call Summary:** `[<stamp> | <stage_name>] <AI summary>` (+ ` | resume call at <date>` on on-hold).
-  `stage_name` replaced the literal `cold call` label (2026-07-16). Keeps the rich AI summary.
+  Keeps the rich AI summary.
 
-> **Note:** the old `Cached Values` step (`ny7jwqGX1Du9aXNC`) was removed 2026-07-06 — stage IDs
-> are hardcoded from AGENTS.md.
-
-## Outcome mapping (Parse + Map Outcome) — routing reworked 2026-07-18
+## Outcome mapping (Parse + Map Outcome)
 - **15 valid dispositions (slugs):** `cold-good, cold-bad, cold-on-hold, gatekeeper-good,
   gatekeeper-bad, gatekeeper-on-hold, conversation-active, conversation-active-on-hold,
   appointment-booked, sales-call, not-interested-right-now-good, not-interested-right-now-bad,
@@ -115,10 +111,10 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 - **Disposition wins**; the AI `outcome` (from transcript) is used only when the disposition
   is missing/unrecognized. **Default = `cold-good`.** _(voicemail / call-center are recognized but
   **not** in the AI classifier enum — AI won't infer them; they only arrive via a provided disposition.)_
-- **Email-drip group (`is_cold` / `COLD_CALL_OUTCOMES`) = `cold-good`, `voicemail` only.** → email
+- **Email-drip group (`continues_drip` / `DRIP_OUTCOMES`) = `cold-good`, `gatekeeper-good`, `voicemail`.** → email
   pipeline `1A1RkYaL93s2rqbQ3Opi`, stage `SEND_NEXT[caller_N]` (N=1/2/3 → Cold Email 2/3/4). The
   sequence continues.
-  - **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` = `True` (2026-07-20): the cold branch targets
+  - **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` = `True`: the cold branch targets
     **`SEND_NEXT_SENT[caller_N]`** (Cold Email N **Sent**: `fdd4f9a4`/`2f599547`/`39a20e88`) instead
     of the unsent stage — so **no cold email is sent** but 4:30AM still drains it to the next call.
     (Belt-and-suspenders with the sender-side check in `Send Cold Email 2/3/4`.)
@@ -133,11 +129,11 @@ be **self-correcting**, verified by execution (first run appends, second run rep
        `mc` is derived from the caller stage exactly like the dedicated
        [`missed-call Cold Handler`](../missed-call/Cold%20Handler.context.md). Day 1 Call B / Day 3
        voicemails add the tag but send **no** email (`mc 0`).
-- **Stop Phone Calls** (`KFDw66sjfFaszQx5UX6X`, radio) always written: **`True` only on `cold-bad`**,
-  `False` otherwise.
+- **Stop Phone Calls** (`KFDw66sjfFaszQx5UX6X`, radio) always written: **`True` on `cold-bad` and
+  `gatekeeper-bad`**, `False` otherwise.
 - **Everything else (13 outcomes)** → Client Acquisition pipeline `O7LMZpDOFM2SYO65twC5`, same-named
   stage. Moving them out of the call/email pipelines takes them **out of sequential calling and
-  emails** (the old non-cold `Instantly: Remove from Subsequence` step was dropped 2026-07-19):
+  emails**:
 
 | Outcome | Client Acq stage ID |
 |---|---|

@@ -16,7 +16,7 @@ on the GHL contact so it isn't enrolled twice.
    opportunity payload doesn't carry them).
 4. **Not sent yet?** (IF guard) — reads Email Step Name; proceeds only if it is **not**
    `cold email 1`. Already-enrolled leads short-circuit to **Wait 2s** and loop on.
-5. **IF: Stop Emails?** (added 2026-07-20) — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
+5. **IF: Stop Emails?** — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
    - `True` → **GHL: Move to Cold Email 1 Sent** (`41849471-…`) → **Wait 2s**. **No email** — the
      lead skips Instantly but still advances (4:30AM drains `Cold Email 1 Sent` → Day 1 Call A).
    - `False` → the normal send path (step 6).

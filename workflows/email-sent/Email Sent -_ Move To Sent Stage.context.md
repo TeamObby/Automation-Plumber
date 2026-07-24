@@ -79,20 +79,7 @@ resolves correctly.
 - **Instantly:** ⚠️ **hardcoded bearer token** in two node headers — move to a credential + rotate.
 
 ## Sync state
-Edited locally on **2026-07-14**; **not pushed** (n8n MCP disconnected). Changes vs. live:
-- **Dropped the retired `lifecycle` custom field** (`9T7lODjinSThOnAzAI0G`). It previously gated
-  the whole move (`if (lifecycle === 'cold') { … }`) and, defaulting to `'cold'`, effectively
-  always passed. The target stage is now derived **solely from `email_step_name`**.
-- **Dropped `route_tag`** — it was threaded through `Build email_history` and `Build customFields`
-  but **never produced by any node** (its only definition sat in a commented-out line), so it was
-  always `undefined`.
-- **Fixed a latent bug:** `if (!summary) summary = p.label` — `p.label` was also only in that
-  commented-out line, so whenever the AI summariser returned empty, the email-history entry got
-  `undefined`. Fallback is now `"<step_label> sent"`.
-- `lifecycle` also tagged each email-history entry (`| Kevin | cold]`). Since the field is gone,
-  that slot now carries **`email_step_name`** (e.g. `| Kevin | cold email 2]`).
-- `target_sent_stage_id` / `email_opp_id` are now always strings (previously `undefined` when the
-  lifecycle branch didn't run, which the `notEmpty` filter had to cope with).
+Local `.json` has edits **not yet pushed** to the live n8n instance — needs re-import.
 
 ## TODOs / gotchas
 - Instantly token is a plaintext secret in two node headers — rotate + move to a credential.

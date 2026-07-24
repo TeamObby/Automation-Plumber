@@ -2,7 +2,7 @@
 
 - **n8n ID:** _pending import_ · **File:** `Create Manual Review Opp.json`
 - **Folder:** `workflows/manual-review/`
-- **Status:** inactive (built 2026-07-06, not yet imported)
+- **Status:** inactive (not yet imported)
 - **Trigger:** Webhook (POST `/webhook/manual-review-opp`), called by a GHL workflow.
 
 ## Purpose

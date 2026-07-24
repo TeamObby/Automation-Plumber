@@ -27,7 +27,7 @@ Handler. Missed calls don't change the `gatekeeper` tag (no human contact), so t
 
 ## ⚠️ Cutover
 - Import this workflow; n8n assigns an ID. Then **set that ID** on the missed-call Dispatcher's
-  **`-> Missed Call Gatekeeper Handler`** node (ships with an empty placeholder `workflowId`).
+  **`-> Missed Call Gatekeeper Handler`** node (ships with a placeholder `workflowId`).
 
 ## Related
 - Twin: [`Cold Handler`](./Cold%20Handler.context.md) — read that for the full logic.

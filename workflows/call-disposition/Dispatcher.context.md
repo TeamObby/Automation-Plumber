@@ -1,12 +1,11 @@
 # Call Disposition — Dispatcher (Router)  [Automation 2]
 
 - **n8n ID:** `SfI5Hx6mlc4Qh3D1` · **URL:** https://n8n.meetobby.com/workflow/SfI5Hx6mlc4Qh3D1
-- **Folder:** call-disposition · **Status:** Inactive ❌ — **repurposed 2026-07-14, not yet pushed**
+- **Folder:** call-disposition · **Status:** Inactive ❌ — **not yet pushed**
 - **Role:** Automation 2 of the multi-update rebuild.
 
-> **This workflow was rewritten.** It used to be the single call-recorded entry point
-> (transcribe → poll → route → handler). That job is now split: **[Capture Call Record](./Capture%20Call%20Record.context.md)**
-> (Automation 1) handles the call-recorded event; this workflow is now the **thin Router** for
+> **Thin Router for disposition/note updates.** **[Capture Call Record](./Capture%20Call%20Record.context.md)**
+> (Automation 1) handles the call-recorded event; this workflow dispatches
 > **disposition/note updates**, and the **[Cold Handler](./Cold%20Handler.context.md)** (Automation 3)
 > does the classify/move/log.
 
@@ -30,8 +29,8 @@ Both converge on **Normalize** (`contact_id`, `call_id`, `is_fallback`).
 2. **Prep + Gate** (code) — the brain (below). Emits `proceed` + the handler input contract.
 3. **IF: proceed?** — `false` → **Stopped (gate)** (NoOp); `true` → the Switch.
 4. **Switch: branch on call pipeline** (stored `route`) → `cold` → **Run Cold Call Handler**
-   (`toFDNpFhy0ZyxfxN`) · **`gatekeeper` → Run Gatekeeper Call Handler** (added 2026-07-24 —
-   ⚠️ **placeholder `workflowId`; set it to the imported Gatekeeper Handler's ID**) · else →
+   (`toFDNpFhy0ZyxfxN`) · **`gatekeeper` → Run Gatekeeper Call Handler**
+   (⚠️ **placeholder `workflowId`; set it to the imported Gatekeeper Handler's ID**) · else →
    **Other routes (build later)** (stub).
 
 ## 🚦 The gate (Prep + Gate) — verified against 9 scenarios
@@ -63,12 +62,6 @@ The Cold Handler (Automation 3) consumes this and, after it writes, sets `Call P
 = `{processed:true, last_event_log_entry, last_call_summary_entry, last_signature}` — which this
 Router (and Capture's fallback) read next time.
 
-## Sync state
-Rewritten locally **2026-07-14**; **not pushed** (n8n MCP disconnected). Same workflow ID reused
-(`SfI5Hx6mlc4Qh3D1`). The old nodes (Whisper, poll loop, wavv-tag cleanup, `Route by Opp`,
-`GHL: Clear Call Fields`) are **gone** — moved to Capture or deleted. Set `active` only after the
-full cutover (§ below).
-
 ## ⚠️ Cutover — do these together
 1. Create the GHL "Call Disposition OR Call Notes changed → webhook" automation → point at
    `/webhook/call-disposition-updated`.
@@ -82,11 +75,9 @@ Until then this stays **inactive** — its trigger changed from call-recorded to
 old call-recorded flow would break if half-migrated.
 
 ## TODOs / gotchas
-- Only **cold** route wired; conversation/rebooking are stubs (unchanged).
+- Cold and gatekeeper routes wired; conversation/rebooking fall to the **Other routes (build later)** stub.
 - **Anomaly is handled upstream in [Capture Call Record](./Capture%20Call%20Record.context.md)**, not here — a lead in 2+ call
   pipelines is stopped before any context is stored, so the Router never sees it.
-- The whole poll/transcribe/clear apparatus is gone — the destructive `GHL: Clear Call Fields`
-  bug is resolved by construction.
 
 ## Related
 - Upstream: [`Capture Call Record`](./Capture%20Call%20Record.context.md) (Automation 1).

@@ -27,9 +27,9 @@ right subsequence.
 4. **Is routable?** (filter) — drops anything unmapped or missing a contact.
 5. **Loop (batch 10)** → **GHL: Get Contact**.
 6. **Build** (code) — the brain. Reads custom fields, computes `interest_value`, `step_name`
-   (`cold email N`), `already_sent`, plus **`stop_emails`** and **`sent_stage_id`** (2026-07-20).
+   (`cold email N`), `already_sent`, plus **`stop_emails`** and **`sent_stage_id`**.
 7. **Not sent yet?** (IF on `already_sent === false`) — skips → **Wait 2s**, else continues.
-8. **IF: Stop Emails?** (added 2026-07-20) — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
+8. **IF: Stop Emails?** — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
    - `True` → **GHL: Move to Cold Email N Sent** (`sent_stage_id`: CE2→`fdd4f9a4`, CE3→`2f599547`,
      CE4→`39a20e88`) → **Wait 2s**. **No email** — skips Instantly, but 4:30AM still drains it.
    - `False` → the normal send path (step 9).

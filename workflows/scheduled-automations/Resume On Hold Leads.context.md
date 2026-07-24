@@ -1,7 +1,7 @@
 # Resume On Hold Leads
 
 - **n8n ID:** _pending import_ · **File:** `Resume On Hold Leads.json`
-- **Folder:** `workflows/scheduled-for-stage-change/`
+- **Folder:** `workflows/scheduled-automations/`
 - **Status:** inactive (built 2026-07-06, not yet imported)
 - **Trigger:** Schedule — every 30 min, **08:00–22:00 PT** (workflow timezone = America/Los_Angeles)
 
@@ -12,13 +12,13 @@ Pairs with the Cold Handler, which sets `Resume Call At` + `Next Caller Stage` o
 
 ## Flow
 1. **Every 30m (8am-10pm PT)** (Schedule) — cron `0 0,30 8-21 * * *` + `0 0 22 * * *`.
-2. **Pull Cold-On-Hold** / **Pull Conv-On-Hold** (HTTP GET, paginated) — `/opportunities/search`
+2. **Pull Cold-On-Hold** / **Pull Conv-On-Hold** / **Pull Gatekeeper-On-Hold** (HTTP GET, paginated) — `/opportunities/search`
    filtered by `pipeline_id=O7LMZpDOFM2SYO65twC5` + `pipeline_stage_id`, `limit=100`.
    Cursor pagination: `startAfterId` + `startAfter` from `meta`, complete when a page returns `< 100`.
    - Cold - On Hold `54994e3f-1643-46f4-8eeb-ade43712ae2d`
    - Conversation - On Hold `175c5765-fd68-48d5-a319-8bcc77487703`
-   - **Gatekeeper - On Hold `e921913e-1530-4186-8ce8-bb3dab47d301`** (added 2026-07-24 — gatekeeper
-     on-holds sit here, not in Cold-On-Hold)
+   - **Gatekeeper - On Hold `e921913e-1530-4186-8ce8-bb3dab47d301`** — gatekeeper on-holds sit
+     here, not in Cold-On-Hold
 3. **Combine** (Merge, append) → **Split Out** (`opportunities`) → **Extract Opp** — one item
    per opp with `opp_id` + `contact_id`.
 4. **Loop (batch 10)** — batches of 10 with **Wait 2s** between batches (GHL rate-limit pacing).
@@ -35,8 +35,7 @@ Pairs with the Cold Handler, which sets `Resume Call At` + `Next Caller Stage` o
 - `Next Caller Stage` (`Tj0yopYbErXbwsTYTsCX`, text) slug → target pipeline + stage:
 
 Resumes into the **`(from on hold)`** stage; the **`gatekeeper` tag** picks the cold vs gatekeeper
-lane. _(**Day-shift bug FIXED 2026-07-24**: `cold_call_N` now → **Day N Call (from on hold)** — it
-used to point at the wrong non-hold stages, e.g. `cold_call_2` → Day 1 Call B.)_
+lane.
 
 | Slug | `gatekeeper` tag? | Target pipeline | Stage |
 |---|---|---|---|

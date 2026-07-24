@@ -6,9 +6,8 @@
 
 ## Purpose
 Turns a WAVV dialer disposition **note** into the two contact custom fields that drive the rest
-of the system. It replaces the old Dispatcher's inline "fetch contact → fetch notes → parse
-wavv- tags/note" logic with a small dedicated automation: parse the note, write **Call
-Disposition** + **Call Notes**, and let that field change trigger the
+of the system — a small dedicated automation that parses the note, writes **Call
+Disposition** + **Call Notes**, and lets that field change trigger the
 [Dispatcher](./Dispatcher.context.md) (Automation 2).
 
 ## Trigger
@@ -22,13 +21,12 @@ disposition note is added; the payload carries `contact_id` and the full note te
 
 **Branch A — write the disposition/note fields:**
 3. **IF: update fields?** — `should_update` true → write; false → **Skipped (non-WAVV / missed
-   call)** (NoOp). `should_update = is_wavv && !is_missed` (renamed 2026-07-19; was `IF: WAVV note?`
-   gating on `is_wavv` alone).
+   call)** (NoOp). `should_update = is_wavv && !is_missed`.
 4. **GHL: Set Call Fields** (PUT contact) — writes **Call Disposition** (`YxGIrvPl5tfLeYoc7Ldr`)
    and **Call Notes** (`kVU8T6Swsh9sF4TWC81U`), even when empty. The field change is what
    **triggers the Dispatcher**.
 
-**Branch B — strip the auto-added `wavv-` tag(s)** (added 2026-07-20):
+**Branch B — strip the auto-added `wavv-` tag(s)**:
 5. **Gate: WAVV note?** (Filter) — passes only WAVV notes (**any**, incl. `No Answer`/`Canceled`
    missed calls — GHL tags those too); other notes drop here.
 6. **GHL: Get Contact (tags)** → **Filter wavv- Tags** (code — keeps tags starting `wavv-`,
@@ -55,7 +53,7 @@ A WAVV note looks like:
 - **Flag** — only notes containing the `[ WAVV: <id> ]` marker are processed (`is_wavv`). Any other
   note type is ignored, so unrelated notes never touch the fields. Marker match is id-format-agnostic
   (`\[\s*WAVV:\s*[^\]]+\]`).
-- **Missed-call skip** (`is_missed`, added 2026-07-19) — this automation is **not** missed-call
+- **Missed-call skip** (`is_missed`) — this automation is **not** missed-call
   aware on its own, so a WAVV disposition whose text contains **`No Answer`** or **`Canceled`**
   (regex `/(no[\s-]*answer|cancell?ed)/i` on the `Disposition:` text) is treated as a missed call
   and the field write is **skipped** entirely — that lead belongs to the dedicated
@@ -65,7 +63,7 @@ A WAVV note looks like:
 - **Disposition** — text between `Disposition:` and `Tag:` (Tag always follows a present
   Disposition). Slugified (`Cold Good` → `cold-good`) and **kept only if it's in the KNOWN list**
   (the 15 slugs the Cold Handler routes — incl. `voicemail` → email drip + `last_call_missed` tag,
-  and `call-center` → Client Acquisition, both wired 2026-07-18); otherwise **empty**.
+  and `call-center` → Client Acquisition); otherwise **empty**.
 - **Note** — text after `Note:` to end. **Empty** if absent **or** the literal `Auto-disposition`;
   otherwise kept as-is.
 

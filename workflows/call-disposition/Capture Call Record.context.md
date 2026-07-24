@@ -17,17 +17,17 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
    - true → **Download Recording (MP3)** → **Transcribe (Whisper)** → **Set Transcript (from audio)** → **Transcript Ready**
    - false → **Transcript Ready**
 2. **GHL: Fetch Opps** (search by contact) → **Determine Caller Context** (code) — the brain:
-   picks the call pipeline (rebooking > conversation > cold > **gatekeeper**, added 2026-07-24),
-   derives `caller_N` (the day) and `stage_name` (the map now covers both the 15 cold **and** 13
+   picks the call pipeline (rebooking > conversation > cold > **gatekeeper**),
+   derives `caller_N` (the day) and `stage_name` (the map covers both the 15 cold **and** 13
    gatekeeper stages), captures `opp_id`/`stage_id`, and computes `anomaly`. `route` is `cold` or
    **`gatekeeper`** → the Dispatcher sends each to its matching handler.
-3. **IF: anomaly?** — the gate (**changed 2026-07-19:** was a non-blocking fan-out; now blocks):
+3. **IF: anomaly?** — the gate:
    - **anomaly non-empty** (`'none'` = no call opp, or `'multiple'` = 2+ call pipelines) →
      **Anomaly (capture for later)** stub, and **stop** — nothing is stored, no fallback fires.
    - **anomaly empty** (clean single call-pipeline match) → **GHL: Store Context** and continue.
 4. **GHL: Store Context** (PUT contact) — writes, **once** (only on the clean path):
    - **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` = `{opp_id, route, caller_N, call_id, stage_name, stage_id}`
-     (`stage_id` added 2026-07-20 — the Cold Handler's voicemail branch keys its missed-call-email
+     (`stage_id` — the Cold Handler's voicemail branch keys its missed-call-email
      `mc` off the raw stage id, so it must be captured here while the opp is still in the call pipeline)
    - **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` = transcript
    - **Call Processing State** `BD9TmgEynOEy6bCvZshm` = `{processed:false, last_event_log_entry:"", last_call_summary_entry:"", last_signature:""}` ← **reset**
@@ -39,8 +39,7 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
 
 ## Anomaly handling — blocking gate (lives here, not in the Router)
 `Determine Caller Context` computes `anomaly`: `''` (one call pipeline, normal) · `'none'` (no call
-opp) · `'multiple'` (2+ call pipelines). **IF: anomaly?** then gates the whole flow (**changed
-2026-07-19** — this used to be a non-blocking fan-out where context was always stored):
+opp) · `'multiple'` (2+ call pipelines). **IF: anomaly?** then gates the whole flow:
 - **anomaly non-empty** (`'none'` **or** `'multiple'`) → **Anomaly (capture for later)** stub, and
   the flow **stops**: no context stored, no grace-wait, no fallback. A placeholder to expand later
   (alert / manual-review); `$json.anomaly` distinguishes the two cases.
@@ -55,22 +54,19 @@ has no anomaly logic (it never sees these leads).
 - **Captures context while the opp is still in the call pipeline** — `caller_N`, `stage_name`, and
   `opp_id` cannot be recomputed once the first disposition moves the opp out. That's the whole
   reason for the split.
-- **`route='none'` / no call opp** → `anomaly='none'` → now **blocked at the gate** (captured for
+- **`route='none'` / no call opp** → `anomaly='none'` → **blocked at the gate** (captured for
   later, **not** stored). Same for a lead in 2+ call pipelines (`'multiple'`). Only a clean single
   call-pipeline match proceeds.
-- **No polling, no field-clear, no wavv-tags** — all dropped vs. the old Dispatcher.
+- **No polling, no field-clear, no wavv-tags.**
 
 ## ⚠️ Before this runs
-- **`-> Automation 2 (fallback)` has an empty workflow ID** (placeholder) — Automation 2 isn't
-  built yet. Set its ID once built, or the fallback branch errors at runtime. It passes
-  `{contact_id, call_id, fallback:true}` (auto-mapped) so Auto 2 classifies AI-only.
+- **`-> Automation 2 (fallback)` targets the Dispatcher** (`SfI5Hx6mlc4Qh3D1`, Automation 2). It
+  passes `{contact_id, call_id, fallback:true}` (passed through) so Auto 2 classifies AI-only.
 - Whisper node uses OpenAI cred `B4xA6dDfoOhHJMOo`; GHL calls use `DtotRKnzjDewbSsv`.
 
 ## Not built yet
-- **Automation 2 — Route & Handle** (the disposition/note-update handler). Next.
 - The GHL "field changed → webhook" automation for Automation 2's trigger.
 
 ## Related
 - Custom fields, pipelines/stages: [`AGENTS.md`](../../AGENTS.md).
 - Custom fields, pipelines, `STAGE_TO_N`: [`AGENTS.md`](../../AGENTS.md).
-- Supersedes (once live): the front half of [`Dispatcher.context.md`](./Dispatcher.context.md).

@@ -34,7 +34,7 @@ pulled — email 4 is the end of the sequence, no call follows.
    Call Router Context (`HW0eBfoQPW2mwxX8aY7Q`), Call Processing State (`BD9TmgEynOEy6bCvZshm`), or
    Interaction Summary. Non-blocking (`onError: continue`) so a cleanup hiccup never strands the move.
 9. **GHL: Move Opp → Cold Call Stage** (PUT opp) — moves it into the **cold OR gatekeeper** call
-   pipeline (`target_pipeline_id`, dynamic — added 2026-07-24) at `target_stage_id`. **This is the
+   pipeline (`target_pipeline_id`, dynamic) at `target_stage_id`. **This is the
    step that drains the `Cold Email N Sent` stages** and **the swap point** where the `gatekeeper`
    tag decides the lane.
 10. **Wait 2s** → loop.
@@ -43,7 +43,7 @@ pulled — email 4 is the end of the sequence, no call follows.
 **Three independent** axes decide the target stage:
 
 - **`is_gatekeeper`** — the lead carries the **`gatekeeper` tag** → the **gatekeeper** call pipeline
-  (`3onA8GkJnSwgzIGTGSpI`), same stage *name*; else the cold pipeline. (added 2026-07-24) N=1 has no
+  (`3onA8GkJnSwgzIGTGSpI`), same stage *name*; else the cold pipeline. N=1 has no
   gatekeeper twin, so a tagged N=1 lead safely falls back to cold.
 - **`is_mgr`** — MGR = *Missed call Google Review* lead. True ⟺ custom field
   **`Missed Call Review` `u9UymBEMP3f7IZqDTwVd`** is **non-empty**.
@@ -87,12 +87,9 @@ It returns `call_context` + `interaction_summary`.
 - All HTTP nodes: `retryOnFail`, 4 tries, 2s backoff. All three pulls paginate.
 
 ## TODOs / gotchas
-- The `(from on hold)` stages exist but **nothing targets them yet** — see `Resume On Hold Leads`.
-- **Restructured-pipeline migration:** this workflow, the call-disposition Dispatcher, and the
-  missed-call Cold Handler are all migrated. **`Resume On Hold Leads` is the only one still on the
-  old stage IDs** — see [`AGENTS.md`](../../AGENTS.md).
+- The `(from on hold)` stages are **not** targeted by this workflow — `Resume On Hold Leads` handles them.
 - Runs at **4:30AM**, 30 min after `Send Cold Email 2/3/4` (4:00AM) — the last step of the nightly
-  cascade (3:00 → 3:30 → 4:00 → 4:30). No longer shares an hour with 2/3/4.
+  cascade (3:00 → 3:30 → 4:00 → 4:30).
 
 ## Related
 - Upstream: [`Send Cold Email 1 (3:30AM)`](./Send%20Cold%20Email%201%20%283_30AM%29.context.md) ·
