@@ -204,6 +204,70 @@
           "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ String((($('GHL: Get Contact').item.json.contact.customFields || []).find(f => f.id === 'ixRO9dSUHVd6vNTdFa7Q') || {}).value || '').trim() }}",
+              "rightValue": "True",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "se1-stop-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -48,
+        600
+      ],
+      "id": "se1-if-stop",
+      "name": "IF: Stop Emails?",
+      "notes": "Stop Emails=True -> skip Instantly campaign add, move opp straight to 'Cold Email 1 Sent'."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $('Loop (batch 10)').item.json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: '1A1RkYaL93s2rqbQ3Opi', pipelineStageId: '41849471-6f42-4f40-9692-bbd4d3713d17' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        176,
+        620
+      ],
+      "id": "se1-move-sent",
+      "name": "GHL: Move to Cold Email 1 Sent",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Stop-Emails divert: move opp to Cold Email 1 Sent. No email sent."
     }
   ],
   "pinData": {},
@@ -257,7 +321,7 @@
       "main": [
         [
           {
-            "node": "Instantly: Add to Cold Email 1",
+            "node": "IF: Stop Emails?",
             "type": "main",
             "index": 0
           }
@@ -305,6 +369,35 @@
       ]
     },
     "GHL: Set email_step_name": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Stop Emails?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move to Cold Email 1 Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instantly: Add to Cold Email 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Move to Cold Email 1 Sent": {
       "main": [
         [
           {

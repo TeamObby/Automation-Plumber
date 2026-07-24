@@ -23,8 +23,11 @@ removes the lead from its Instantly subsequence, and refreshes the `hi_firstname
    (PUT; **`pipelineId` is dynamic** — call *or* email pipeline).
 4. **GHL: Write Logs** (PUT contact) — updates Event Logs (+ Email Step Name if it sends).
 5. **Instantly: Remove from Subsequence** → **Instantly: Update hi_firstname**.
-6. **Switch** on `mc` → **Instantly: Set Missed Call Email 1 / 2** (sets the Instantly interest
-   code that triggers the email). `mc=''` → Switch fallback, **not connected** → no email.
+6. **Gate: emails allowed?** (Filter, added 2026-07-20) → **Switch** on `mc` → **Instantly: Set
+   Missed Call Email 1 / 2** (sets the Instantly interest code that triggers the email). `mc=''` →
+   Switch fallback, **not connected** → no email. The gate passes only when **Stop Emails**
+   `ixRO9dSUHVd6vNTdFa7Q` is **off** — a `Stop Emails=True` lead is still moved + logged, but the
+   missed-call email is **skipped**.
 
 ## Routing (rewritten 2026-07-14 for the restructured call pipeline) 🎯
 **Two independent decisions.** They used to be one (`N` drove both the move and the email);
@@ -40,7 +43,9 @@ they are now decoupled.
 | Day 1 Call A (from on hold) `cb2dc70f` | **Day 1 Call B** `4cb90aaa` |
 | Day 1 Call A (MGR) `04ccf8e0` | **Day 1 Call B (MGR)** `648c4952` |
 
-**Otherwise** — hand off to the **email** pipeline (`1A1RkYaL93s2rqbQ3Opi`) at `SEND_NEXT[N]`:
+**Otherwise** — hand off to the **email** pipeline (`1A1RkYaL93s2rqbQ3Opi`) at `SEND_NEXT[N]`
+(or **`SEND_NEXT_SENT[N]`** — Cold Email N **Sent** — when **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` is
+`True`, so no cold email is sent but 4:30AM still drains it; added 2026-07-20. Redial is unaffected):
 
 | `STAGE_TO_N` | Stages | → |
 |---|---|---|

@@ -344,7 +344,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const cr = $json;\nconst c = cr.contact ? cr.contact : cr;\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\nconst N = $('Detect N').item.json.N;\nconst INTEREST = { 2:-29995, 3:-29994, 4:-29993 };\nconst EMAIL_STEP_NAME_ID = 'WtFfl1nEbMupk2oR4m9e';\n\nconst step_name = 'cold email ' + N;                                      // target value for this step\nconst current_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim().toLowerCase();\n\nreturn { json: {\n  contact_id: c.id,\n  email: String(c.email || '').trim(),\n  instantly_lead_id: String(cf('TWLomDBX0XInU1IKrG8L') || '').trim(),\n  first_name: String(c.firstName || '').trim(),\n  N,\n  interest_value: INTEREST[N] || 0,\n  step_name,\n  already_sent: current_step_name === step_name\n}};\n"
+        "jsCode": "const cr = $json;\nconst c = cr.contact ? cr.contact : cr;\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\nconst N = $('Detect N').item.json.N;\nconst INTEREST = { 2:-29995, 3:-29994, 4:-29993 };\nconst EMAIL_STEP_NAME_ID = 'WtFfl1nEbMupk2oR4m9e';\n\nconst step_name = 'cold email ' + N;                                      // target value for this step\nconst current_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim().toLowerCase();\n\nreturn { json: {\n  contact_id: c.id,\n  email: String(c.email || '').trim(),\n  instantly_lead_id: String(cf('TWLomDBX0XInU1IKrG8L') || '').trim(),\n  first_name: String(c.firstName || '').trim(),\n  N,\n  interest_value: INTEREST[N] || 0,\n  step_name,\n  already_sent: current_step_name === step_name,\n  email_opp_id: String($('Detect N').item.json.email_opp_id || '').trim(),\n  stop_emails: (String(cf('ixRO9dSUHVd6vNTdFa7Q') || '').trim() === 'True'),\n  sent_stage_id: ({ 2:'fdd4f9a4-a626-4866-a904-5053e626306f', 3:'2f599547-4a2b-4ba4-850d-0feb7fcc976c', 4:'39a20e88-ce88-46c6-9e95-8134aa9f269d' }[N] || '')\n}};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -445,6 +445,71 @@
       "id": "47c42de0-2647-4624-bdd3-88461f8c1173",
       "name": "Instantly: Remove from Subsequence",
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Build').item.json.stop_emails }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "se234-stop-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        120
+      ],
+      "id": "se234-if-stop",
+      "name": "IF: Stop Emails?",
+      "notes": "Stop Emails=True -> skip Instantly, move opp straight to 'Cold Email N Sent' (4:30AM still drains it)."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $('Build').item.json.email_opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: '1A1RkYaL93s2rqbQ3Opi', pipelineStageId: $('Build').item.json.sent_stage_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1984,
+        200
+      ],
+      "id": "se234-move-sent",
+      "name": "GHL: Move to Cold Email N Sent",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Stop-Emails divert: move opp to Cold Email N Sent (CE2/3/4 Sent). No email sent."
     }
   ],
   "pinData": {},
@@ -585,7 +650,7 @@
       "main": [
         [
           {
-            "node": "Instantly: Update hi_firstname",
+            "node": "IF: Stop Emails?",
             "type": "main",
             "index": 0
           }
@@ -644,6 +709,35 @@
       ]
     },
     "GHL: Set email_step_name": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Stop Emails?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move to Cold Email N Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instantly: Update hi_firstname",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Move to Cold Email N Sent": {
       "main": [
         [
           {

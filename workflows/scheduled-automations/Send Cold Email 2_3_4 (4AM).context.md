@@ -27,9 +27,13 @@ right subsequence.
 4. **Is routable?** (filter) — drops anything unmapped or missing a contact.
 5. **Loop (batch 10)** → **GHL: Get Contact**.
 6. **Build** (code) — the brain. Reads custom fields, computes `interest_value`, `step_name`
-   (`cold email N`), and `already_sent`.
+   (`cold email N`), `already_sent`, plus **`stop_emails`** and **`sent_stage_id`** (2026-07-20).
 7. **Not sent yet?** (IF on `already_sent === false`) — skips → **Wait 2s**, else continues.
-8. **Instantly: Update hi_firstname** → **Instantly: Remove from Subsequence** →
+8. **IF: Stop Emails?** (added 2026-07-20) — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
+   - `True` → **GHL: Move to Cold Email N Sent** (`sent_stage_id`: CE2→`fdd4f9a4`, CE3→`2f599547`,
+     CE4→`39a20e88`) → **Wait 2s**. **No email** — skips Instantly, but 4:30AM still drains it.
+   - `False` → the normal send path (step 9).
+9. **Instantly: Update hi_firstname** → **Instantly: Remove from Subsequence** →
    **Set interest (cold email N)** → **GHL: Set email_step_name** → **Wait 2s** → loop.
 
 The remove-then-set-interest order matters: the lead is pulled out of whatever subsequence it

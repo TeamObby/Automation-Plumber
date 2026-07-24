@@ -54,9 +54,13 @@ state** — in that order, so `processed:true` only lands after a real move.
 3. **IF: sends MCE?** (`sends_email`, i.e. `mc > 0`):
    - `true` → **GHL: Write MCE Field** (writes **only** Email Step Name `WtFfl1nEbMupk2oR4m9e` =
      `missed call email N`) → **Instantly: Remove from Subsequence** → **Instantly: Update
-     hi_firstname** → **Instantly: Set Missed Call Email** (`update-interest-status`, dynamic
-     `interest_value` → Missed Call Email 1/2 fires).
+     hi_firstname** → **Gate: emails allowed?** → **Instantly: Set Missed Call Email**
+     (`update-interest-status`, dynamic `interest_value` → Missed Call Email 1/2 fires).
    - `false` (`mc 0`) → **No Missed-Call Email** stub (the tag was still added).
+
+   **Gate: emails allowed?** (Filter, added 2026-07-20) sits right before the send: it passes only
+   when **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` is **off**. A `Stop Emails=True` lead still gets the
+   tag + Email Step Name write, but the missed-call email itself is **skipped**.
 
 This runs **in parallel** with the main chain (which routes voicemail to the email pipeline, exactly
 like cold-good). The two paths touch **different** contact fields — tag + Email Step Name vs
@@ -99,6 +103,10 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 - **Email-drip group (`is_cold` / `COLD_CALL_OUTCOMES`) = `cold-good`, `voicemail` only.** → email
   pipeline `1A1RkYaL93s2rqbQ3Opi`, stage `SEND_NEXT[caller_N]` (N=1/2/3 → Cold Email 2/3/4). The
   sequence continues.
+  - **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` = `True` (2026-07-20): the cold branch targets
+    **`SEND_NEXT_SENT[caller_N]`** (Cold Email N **Sent**: `fdd4f9a4`/`2f599547`/`39a20e88`) instead
+    of the unsent stage — so **no cold email is sent** but 4:30AM still drains it to the next call.
+    (Belt-and-suspenders with the sender-side check in `Send Cold Email 2/3/4`.)
   - **`voicemail`** is treated as a **missed call** (side branch, runs in parallel with the move):
     1. **adds the GHL tag `last_call_missed`** (`GHL: Add Missed-Call Tag`, `POST /contacts/{id}/tags`)
        so it routes to a **`(missed call)` caller stage** later (read by
