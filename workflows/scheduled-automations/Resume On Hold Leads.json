@@ -116,7 +116,7 @@
     },
     {
       "parameters": {
-        "numberInputs": 2
+        "numberInputs": 3
       },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
@@ -200,7 +200,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// contact from the immediate predecessor (GHL: Get Contact)\nconst contact = ($json && $json.contact) ? $json.contact : ($json || {});\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\nconst RESUME = 'u5VC5C59UlFZJDYOuw7N', NEXT = 'Tj0yopYbErXbwsTYTsCX';\n\nconst o = $('Extract Opp').item.json;                  // paired opportunity\nconst opp_id = String(o.opp_id || '').trim();\n\nconst raw = String(cf(RESUME) || '').trim().replace('T', ' ');\nconst next_stage = String(cf(NEXT) || '').trim().toLowerCase();\n\n// next_caller_stage slug -> target pipeline + stage (ids from AGENTS.md)\nconst STAGE_MAP = {\n  'cold_call_1':     { pipeline: '9E6y34DlG1Imr8FV42RV', stage: '060f44a8-4cd8-4561-8c84-7150bfd57498' },\n  'cold_call_2':     { pipeline: '9E6y34DlG1Imr8FV42RV', stage: '4cb90aaa-b8c3-40a8-b1e6-6585213b258c' },\n  'cold_call_3':     { pipeline: '9E6y34DlG1Imr8FV42RV', stage: '4b1d7a88-87c0-422b-90e4-b48d16430900' },\n  'day_1_attempt_1': { pipeline: 'TwW6o0JdPXUlcwvX0EvI', stage: '74c3e036-2d2f-4138-8806-b337973ccad5' }\n};\nconst target = STAGE_MAP[next_stage] || null;\n\n// resume gate (America/Los_Angeles). date-only -> due when the date is reached; with time -> due when date+time passed.\nconst now = DateTime.now().setZone('America/Los_Angeles');\nlet due = false, resume_kind = 'none';\nif (raw) {\n  const hasTime = /^\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}/.test(raw);\n  if (hasTime) {\n    const dt = DateTime.fromFormat(raw.slice(0, 16), 'yyyy-MM-dd HH:mm', { zone: 'America/Los_Angeles' });\n    due = dt.isValid && now >= dt;\n    resume_kind = 'datetime';\n  } else {\n    const d = DateTime.fromFormat(raw.slice(0, 10), 'yyyy-MM-dd', { zone: 'America/Los_Angeles' });\n    due = d.isValid && now.startOf('day') >= d.startOf('day');\n    resume_kind = 'date';\n  }\n}\n\nconst can_move = !!(opp_id && target && due);\nreturn { json: {\n  opp_id: opp_id,\n  contact_id: String(o.contact_id || '').trim(),\n  resume_call_at: raw,\n  resume_kind: resume_kind,\n  next_caller_stage: next_stage,\n  due: due,\n  can_move: can_move,\n  target_pipeline_id: target ? target.pipeline : '',\n  target_stage_id: target ? target.stage : ''\n}};"
+        "jsCode": "// contact from the immediate predecessor (GHL: Get Contact)\nconst contact = ($json && $json.contact) ? $json.contact : ($json || {});\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\nconst RESUME = 'u5VC5C59UlFZJDYOuw7N', NEXT = 'Tj0yopYbErXbwsTYTsCX';\n\nconst o = $('Extract Opp').item.json;                  // paired opportunity\nconst opp_id = String(o.opp_id || '').trim();\n\nconst raw = String(cf(RESUME) || '').trim().replace('T', ' ');\nconst next_stage = String(cf(NEXT) || '').trim().toLowerCase();\n\n// Resume into the '(from on hold)' stage. Cold vs gatekeeper lane is picked by the `gatekeeper`\n// tag; day_1_attempt_1 resumes the Conversation cadence.\n// (Day-shift FIXED 2026-07-24: cold_call_N now -> Day N Call (from on hold); was the wrong non-hold stages.)\nconst isGatekeeper = (Array.isArray(contact.tags) ? contact.tags : []).some(t => t === 'gatekeeper');\nconst COLD_PIPE='9E6y34DlG1Imr8FV42RV', GK_PIPE='3onA8GkJnSwgzIGTGSpI', CONV_PIPE='TwW6o0JdPXUlcwvX0EvI';\nconst RESUME_COLD = {\n  'cold_call_1': 'cb2dc70f-c44e-48fd-b9cc-438901e292ac', // Day 1 Call A (from on hold)\n  'cold_call_2': 'ab6ae288-8886-4d4e-ba61-2d6134f585bd', // Day 2 Call (from on hold)\n  'cold_call_3': '1bd6fb3c-b7bb-40bd-af31-f1c62065c7bb'  // Day 3 Call (from on hold)\n};\nconst RESUME_GK = {\n  'cold_call_1': 'b9ce3091-acad-4067-abb5-49dc19ec4314', // Day 1 Call A (from on hold)\n  'cold_call_2': 'efda07de-f15a-48c1-b0dd-a84ad1f52899', // Day 2 Call (from on hold)\n  'cold_call_3': '29d698ed-b6ab-45c2-884a-fa011cfa60fe'  // Day 3 Call (from on hold)\n};\nlet target = null;\nif (next_stage === 'day_1_attempt_1') {\n  target = { pipeline: CONV_PIPE, stage: '74c3e036-2d2f-4138-8806-b337973ccad5' };\n} else if (RESUME_COLD[next_stage]) {\n  target = isGatekeeper\n    ? { pipeline: GK_PIPE,   stage: RESUME_GK[next_stage] }\n    : { pipeline: COLD_PIPE, stage: RESUME_COLD[next_stage] };\n}\n\n// resume gate (America/Los_Angeles). date-only -> due when the date is reached; with time -> due when date+time passed.\nconst now = DateTime.now().setZone('America/Los_Angeles');\nlet due = false, resume_kind = 'none';\nif (raw) {\n  const hasTime = /^\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}/.test(raw);\n  if (hasTime) {\n    const dt = DateTime.fromFormat(raw.slice(0, 16), 'yyyy-MM-dd HH:mm', { zone: 'America/Los_Angeles' });\n    due = dt.isValid && now >= dt;\n    resume_kind = 'datetime';\n  } else {\n    const d = DateTime.fromFormat(raw.slice(0, 10), 'yyyy-MM-dd', { zone: 'America/Los_Angeles' });\n    due = d.isValid && now.startOf('day') >= d.startOf('day');\n    resume_kind = 'date';\n  }\n}\n\nconst can_move = !!(opp_id && target && due);\nreturn { json: {\n  opp_id: opp_id,\n  contact_id: String(o.contact_id || '').trim(),\n  resume_call_at: raw,\n  resume_kind: resume_kind,\n  next_caller_stage: next_stage,\n  is_gatekeeper: isGatekeeper,\n  due: due,\n  can_move: can_move,\n  target_pipeline_id: target ? target.pipeline : '',\n  target_stage_id: target ? target.stage : ''\n}};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -289,6 +289,50 @@
       "id": "wait-2s-batch",
       "name": "Wait 2s",
       "webhookId": "resume-onhold-wait-2s"
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=O7LMZpDOFM2SYO65twC5&pipeline_stage_id=e921913e-1530-4186-8ce8-bb3dab47d301&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -416,
+        336
+      ],
+      "id": "pull-gk-on-hold",
+      "name": "Pull Gatekeeper-On-Hold",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -303,6 +347,11 @@
           },
           {
             "node": "Pull Conv-On-Hold",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Gatekeeper-On-Hold",
             "type": "main",
             "index": 0
           }
@@ -434,6 +483,17 @@
             "node": "Loop (batch 10)",
             "type": "main",
             "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull Gatekeeper-On-Hold": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 2
           }
         ]
       ]

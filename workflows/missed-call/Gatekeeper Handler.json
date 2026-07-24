@@ -1,0 +1,518 @@
+{
+  "name": "Gatekeeper Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = ($json && $json.body) ? $json.body : $json;\nreturn { json: {\n  contact_id:        String(b.contact_id || '').trim(),\n  instantly_lead_id: String(b['Instantly Lead Id'] || b.instantly_lead_id || '').trim(),\n  email:             String(b.email || '').trim(),\n  // opp context resolved by the dispatcher (accept either naming)\n  opp_id:      String(b.opp_id      || b.matched_opp_id      || '').trim(),\n  pipeline_id: String(b.pipeline_id || b.matched_pipeline_id || '').trim(),\n  stage_id:    String(b.stage_id    || b.matched_stage_id    || '').trim(),\n  outcome: 'no answer'\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4272,
+        -48
+      ],
+      "id": "8689bb57-f10f-4800-b296-ad1a97729399",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Build Logs').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: '7D9N71mEDfipN90zfV0j', value: $('Build Logs').item.json.updated_event_logs } ].concat($('Build Logs').item.json.sends_email ? [{ id: 'WtFfl1nEbMupk2oR4m9e', value: 'missed call email ' + $('Build Logs').item.json.mc }] : []) }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -3152,
+        -48
+      ],
+      "id": "544940b4-7bf9-47f8-b828-8c5ee2fe4284",
+      "name": "GHL: Write Logs",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Build Logs').item.json.mc }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1b44eda6-1769-497c-b4b3-330c218d9f71"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "missed_call_1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Build Logs').item.json.mc }}",
+                    "rightValue": "2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "54ccf919-0f55-4361-9b68-fd23149416df"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "missed_call_2"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2480,
+        -64
+      ],
+      "id": "4cba7883-2569-4634-972b-1b81a6b6b8ab",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/update-interest-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_email: $('Normalize').item.json.email, interest_value: -29996 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2256,
+        -144
+      ],
+      "id": "707ea9aa-45c3-4d31-b8a0-c8c4d24fa198",
+      "name": "Instantly: Set Missed Call Email 1",
+      "notes": "Sets Instantly interest -29996 -> triggers Missed Call Email 1. Fires on the FIRST miss of Day 1 or Day 2 (see MCE_BY_STAGE in Build Logs). Not tied to the call number."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/update-interest-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_email: $('Normalize').item.json.email, interest_value: -29992 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2256,
+        48
+      ],
+      "id": "47fa3d39-2539-4490-b1f2-1936b2e1b3be",
+      "name": "Instantly: Set Missed Call Email 2",
+      "notes": "Sets Instantly interest -29992 -> triggers Missed Call Email 2. Fires on the SECOND miss of Day 2 (lead already in a Day 2 'missed call' stage). Not tied to the call number."
+    },
+    {
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Normalize').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -4048,
+        -48
+      ],
+      "id": "8e7e3607-c95e-4566-a00f-299c569b1b33",
+      "name": "GHL: Get Contact",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $('Build Logs').item.json.caller_opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: $('Build Logs').item.json.target_pipeline_id, pipelineStageId: $('Build Logs').item.json.target_stage_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -3376,
+        -48
+      ],
+      "id": "b461346b-4397-4afb-9a5b-3b412bc29f9a",
+      "name": "GHL: Move Opp -> Next Stage",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Moves the caller opp to the stage chosen by Build Logs. Two destinations: same-day REDIAL within the call pipeline (9E6y34DlG1Imr8FV42RV) for a missed Day 1 Call A, or handoff to the email pipeline (1A1RkYaL93s2rqbQ3Opi) at Send Cold Email N+1 otherwise. pipelineId is dynamic - do not hardcode it."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r = $('GHL: Get Contact').item.json;\nconst c = (r.contacts && r.contacts[0]) ? r.contacts[0] : (r.contact || r);\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\n\nconst EVENTLOGS_ID='7D9N71mEDfipN90zfV0j', LEADID_ID='TWLomDBX0XInU1IKrG8L';\n\nconst CALL_PIPELINE  = '3onA8GkJnSwgzIGTGSpI';   // Gatekeeper Outbound Call Pipeline\nconst EMAIL_PIPELINE = '1A1RkYaL93s2rqbQ3Opi';   // Cold Outbound Email Pipeline\n\n// caller opp + its stage come from the dispatcher (no re-search / re-derivation)\nconst caller_opp_id = String($('Normalize').item.json.opp_id   || '').trim();\nconst cur_stage     = String($('Normalize').item.json.stage_id || '').trim();\n\n// stage id -> human name (event log context)\nconst STAGE_NAME = {\n  'b9ce3091-acad-4067-abb5-49dc19ec4314': 'Day 1 Call A (from on hold)',\n  '09efdb09-af96-40b9-a96c-8a80c333e6ab': 'Day 1 Call B',\n  'd31cf0e2-ed61-4f0b-815b-ef3ee8e6e474': 'Day 1 Call B (MGR)',\n  '042d9b81-1cb4-4265-a3c0-086b7d9d149d': 'Day 2 Call',\n  'cee93f24-aedb-45d1-a613-0bd4d3d326d7': 'Day 2 Call (MGR)',\n  'efda07de-f15a-48c1-b0dd-a84ad1f52899': 'Day 2 Call (from on hold)',\n  'a1d2058e-6fcf-4be5-8046-85fd1aff1fbc': 'Day 2 Call (missed call)',\n  'b7a81325-f410-4fa4-b5c7-a65fe6e3b284': 'Day 2 Call MGR (missed call)',\n  '0f9041ab-677d-4320-a10d-3f24900b586a': 'Day 3 Call',\n  '54df4784-5d51-4924-965f-ca4a59b3535f': 'Day 3 Call (MGR)',\n  '29d698ed-b6ab-45c2-884a-fa011cfa60fe': 'Day 3 Call (from on hold)',\n  '27b684ee-1cdd-44b4-b38b-f789c77d6514': 'Day 3 Call (missed call)',\n  '23b44136-bc3e-4302-a6bd-23bc566d76e0': 'Day 3 Call MGR (missed call)',\n  'e4b13f51-2229-4d47-aa3e-12381a31a8c1': 'Cold Email 2',\n  '342b193f-9456-4bcc-a2a7-cb81973500c9': 'Cold Email 3',\n  'f3ea4cd2-daf2-4ca2-baaa-301f807d697c': 'Cold Email 4'\n};\n\n// (1) SAME-DAY REDIAL: a missed Day 1 Call A stays in the CALL pipeline and re-dials as Call B.\nconst REDIAL_TO = {\n  'b9ce3091-acad-4067-abb5-49dc19ec4314': '09efdb09-af96-40b9-a96c-8a80c333e6ab'  // D1 Call A (from on hold) -> D1 Call B  (gk has no plain/MGR Day-1-A)\n};\n\n// (2) OTHERWISE: hand the opp off to the EMAIL pipeline at Send Cold Email N+1.\nconst STAGE_TO_N = {\n  '09efdb09-af96-40b9-a96c-8a80c333e6ab': 1, // Day 1 Call B\n  'd31cf0e2-ed61-4f0b-815b-ef3ee8e6e474': 1, // Day 1 Call B (MGR)\n  '042d9b81-1cb4-4265-a3c0-086b7d9d149d': 2, // Day 2 Call\n  'cee93f24-aedb-45d1-a613-0bd4d3d326d7': 2, // Day 2 Call (MGR)\n  'efda07de-f15a-48c1-b0dd-a84ad1f52899': 2, // Day 2 Call (from on hold)\n  'a1d2058e-6fcf-4be5-8046-85fd1aff1fbc': 2, // Day 2 Call (missed call)\n  'b7a81325-f410-4fa4-b5c7-a65fe6e3b284': 2, // Day 2 Call MGR (missed call)\n  '0f9041ab-677d-4320-a10d-3f24900b586a': 3, // Day 3 Call\n  '54df4784-5d51-4924-965f-ca4a59b3535f': 3, // Day 3 Call (MGR)\n  '29d698ed-b6ab-45c2-884a-fa011cfa60fe': 3, // Day 3 Call (from on hold)\n  '27b684ee-1cdd-44b4-b38b-f789c77d6514': 3, // Day 3 Call (missed call)\n  '23b44136-bc3e-4302-a6bd-23bc566d76e0': 3  // Day 3 Call MGR (missed call)\n};\nconst SEND_NEXT = { 1:'e4b13f51-2229-4d47-aa3e-12381a31a8c1', 2:'342b193f-9456-4bcc-a2a7-cb81973500c9', 3:'f3ea4cd2-daf2-4ca2-baaa-301f807d697c' };\n\n// (3) MISSED-CALL EMAIL: independent of N. MCE1 = first miss of Day 1 or Day 2.\n//     MCE2 = second miss of Day 2 (i.e. the lead is already in a Day 2 'missed call' stage).\n//     Everything else (Day 1 Call B, all of Day 3) sends no missed-call email.\nconst MCE_BY_STAGE = {\n  'b9ce3091-acad-4067-abb5-49dc19ec4314': 1, // Day 1 Call A (from on hold)\n  '042d9b81-1cb4-4265-a3c0-086b7d9d149d': 1, // Day 2 Call\n  'cee93f24-aedb-45d1-a613-0bd4d3d326d7': 1, // Day 2 Call (MGR)\n  'efda07de-f15a-48c1-b0dd-a84ad1f52899': 1, // Day 2 Call (from on hold)\n  'a1d2058e-6fcf-4be5-8046-85fd1aff1fbc': 2, // Day 2 Call (missed call)\n  'b7a81325-f410-4fa4-b5c7-a65fe6e3b284': 2  // Day 2 Call MGR (missed call)\n};\nconst INTEREST = { 1:-29996, 2:-29992 };\n\nconst redial_stage_id = REDIAL_TO[cur_stage] || '';\nconst is_redial = !!redial_stage_id;\n\nconst N = is_redial ? 0 : (STAGE_TO_N[cur_stage] || 0);\n\nconst SEND_NEXT_SENT = { 1:'fdd4f9a4-a626-4866-a904-5053e626306f', 2:'2f599547-4a2b-4ba4-850d-0feb7fcc976c', 3:'39a20e88-ce88-46c6-9e95-8134aa9f269d' };\nconst stop_emails = (String(cf('ixRO9dSUHVd6vNTdFa7Q') || '').trim() === 'True');   // Stop Emails -> move to the Sent stage instead of enrolling\nconst email_target_stage = (stop_emails ? SEND_NEXT_SENT[N] : SEND_NEXT[N]) || '';\nconst target_pipeline_id = is_redial ? CALL_PIPELINE : EMAIL_PIPELINE;\nconst target_stage_id    = is_redial ? redial_stage_id : email_target_stage;\nconst can_move = !!(caller_opp_id && target_stage_id);\n\nconst mce = MCE_BY_STAGE[cur_stage] || 0;\nconst interest_value = INTEREST[mce] || 0;   // 0 => no missed-call email\nconst sends_email = interest_value !== 0;\n\nconst now = DateTime.now().setZone('America/Los_Angeles');\nconst stampNew = now.toFormat('ccc, LLL d, yyyy, hh:mm a') + ' (PT)';\n\nconst from_stage_name = STAGE_NAME[cur_stage] || ('unknown stage' + (cur_stage ? ' ' + cur_stage : ''));\nconst to_stage_name   = STAGE_NAME[target_stage_id] || '';\n\n// event log: '[stamp] <stage name> no answer'\nconst elBase  = String(cf(EVENTLOGS_ID) || '').trim();\nconst elEntry = '[' + stampNew + '] ' + from_stage_name + ' no answer';\nconst updated_event_logs = elBase ? (elBase + '\\n' + elEntry) : elEntry;\n\nreturn { json: {\n  contact_id: String(c.id || $('Normalize').item.json.contact_id || '').trim(),\n  caller_opp_id,\n  target_pipeline_id, target_stage_id, can_move, is_redial, stop_emails,\n  from_stage_name, to_stage_name,\n  N, mc: String(mce || ''), interest_value, sends_email,\n  updated_event_logs,\n  instantly_lead_id: String(cf(LEADID_ID) || $('Normalize').item.json.instantly_lead_id || '').trim(),\n  first_name: String(c.firstName || '').trim()\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3824,
+        -48
+      ],
+      "id": "417cae5a-233a-44c3-9807-3ab4fe7e46ad",
+      "name": "Build Logs"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.instantly.ai/api/v2/leads/{{ $('Build Logs').item.json.instantly_lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ custom_variables: { hi_firstname: ($('Build Logs').item.json.first_name ? `Hi ${$('Build Logs').item.json.first_name}\\n\\n` : '') } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2704,
+        -48
+      ],
+      "id": "673b39df-c6f6-47ab-b2fe-f4e038c14ee6",
+      "name": "Instantly: Update hi_firstname",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Build Logs').item.json.can_move }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "canmove-guard-0001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -3600,
+        -48
+      ],
+      "id": "5fc4e1d1-d938-4e52-9ed2-7373c29869bb",
+      "name": "Can move (opp found)?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v2/leads/subsequence/remove",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YjY3ZDE4OTktNWNhNy00NmU2LWEyMmItMDZmNWE3OWM5YmRkOkpvUlRURFp4REFyRA=="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $('Build Logs').item.json.instantly_lead_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -2928,
+        -48
+      ],
+      "id": "09855c1a-52cf-4ff9-be20-af1d53ccc6c9",
+      "name": "Instantly: Remove from Subsequence",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4496,
+        -48
+      ],
+      "id": "16269556-e331-49f1-a299-ea36f98b4199",
+      "name": "When Called by Dispatcher"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Build Logs').item.json.stop_emails }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              },
+              "id": "mc-gate-1"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -2592,
+        -48
+      ],
+      "id": "mc-gate-emails",
+      "name": "Gate: emails allowed?",
+      "notes": "Point 2: passes only when Stop Emails is off. Stop-Emails leads still get moved + logged; the missed-call email is skipped."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Logs": {
+      "main": [
+        [
+          {
+            "node": "Can move (opp found)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can move (opp found)?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move Opp -> Next Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Write Logs": {
+      "main": [
+        [
+          {
+            "node": "Instantly: Remove from Subsequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instantly: Update hi_firstname": {
+      "main": [
+        [
+          {
+            "node": "Gate: emails allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Instantly: Set Missed Call Email 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Instantly: Set Missed Call Email 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instantly: Remove from Subsequence": {
+      "main": [
+        [
+          {
+            "node": "Instantly: Update hi_firstname",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Called by Dispatcher": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "Build Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Move Opp -> Next Stage": {
+      "main": [
+        [
+          {
+            "node": "GHL: Write Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: emails allowed?": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "",
+  "tags": []
+}

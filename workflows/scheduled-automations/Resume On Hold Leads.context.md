@@ -17,6 +17,8 @@ Pairs with the Cold Handler, which sets `Resume Call At` + `Next Caller Stage` o
    Cursor pagination: `startAfterId` + `startAfter` from `meta`, complete when a page returns `< 100`.
    - Cold - On Hold `54994e3f-1643-46f4-8eeb-ade43712ae2d`
    - Conversation - On Hold `175c5765-fd68-48d5-a319-8bcc77487703`
+   - **Gatekeeper - On Hold `e921913e-1530-4186-8ce8-bb3dab47d301`** (added 2026-07-24 — gatekeeper
+     on-holds sit here, not in Cold-On-Hold)
 3. **Combine** (Merge, append) → **Split Out** (`opportunities`) → **Extract Opp** — one item
    per opp with `opp_id` + `contact_id`.
 4. **Loop (batch 10)** — batches of 10 with **Wait 2s** between batches (GHL rate-limit pacing).
@@ -32,12 +34,19 @@ Pairs with the Cold Handler, which sets `Resume Call At` + `Next Caller Stage` o
 - Comparisons in **America/Los_Angeles**.
 - `Next Caller Stage` (`Tj0yopYbErXbwsTYTsCX`, text) slug → target pipeline + stage:
 
-| Slug | Target pipeline | Stage |
-|---|---|---|
-| `cold_call_1` | Cold Outbound Call `9E6y34DlG1Imr8FV42RV` | Cold Call 1 `060f44a8…` |
-| `cold_call_2` | Cold Outbound Call `9E6y34DlG1Imr8FV42RV` | Cold Call 2 `4cb90aaa…` |
-| `cold_call_3` | Cold Outbound Call `9E6y34DlG1Imr8FV42RV` | Cold Call 3 `4b1d7a88…` |
-| `day_1_attempt_1` | Active Conversation Call `TwW6o0JdPXUlcwvX0EvI` | Day 1 - 1st Attempt `74c3e036…` |
+Resumes into the **`(from on hold)`** stage; the **`gatekeeper` tag** picks the cold vs gatekeeper
+lane. _(**Day-shift bug FIXED 2026-07-24**: `cold_call_N` now → **Day N Call (from on hold)** — it
+used to point at the wrong non-hold stages, e.g. `cold_call_2` → Day 1 Call B.)_
+
+| Slug | `gatekeeper` tag? | Target pipeline | Stage |
+|---|---|---|---|
+| `cold_call_1` | no | Cold `9E6y34DlG1Imr8FV42RV` | Day 1 Call A (from on hold) `cb2dc70f…` |
+| `cold_call_1` | yes | Gatekeeper `3onA8GkJnSwgzIGTGSpI` | Day 1 Call A (from on hold) `b9ce3091…` |
+| `cold_call_2` | no | Cold | Day 2 Call (from on hold) `ab6ae288…` |
+| `cold_call_2` | yes | Gatekeeper | Day 2 Call (from on hold) `efda07de…` |
+| `cold_call_3` | no | Cold | Day 3 Call (from on hold) `1bd6fb3c…` |
+| `cold_call_3` | yes | Gatekeeper | Day 3 Call (from on hold) `29d698ed…` |
+| `day_1_attempt_1` | (any) | Active Conversation `TwW6o0JdPXUlcwvX0EvI` | Day 1 - 1st Attempt `74c3e036…` |
 
 - `can_move = opp_id && target resolved && due`. Unknown slug or empty/future resume → not moved.
 - Moving the opp OUT of the on-hold stage drops it from future sweeps (no field cleanup needed).

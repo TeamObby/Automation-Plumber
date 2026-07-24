@@ -1,5 +1,5 @@
 {
-  "name": "Cold Handler",
+  "name": "Gatekeeper Handler",
   "nodes": [
     {
       "parameters": {
@@ -294,7 +294,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const P = $('Parse + Map Outcome').item.json;\nconst ci = $('Call Input').item.json;\nconst c = ci.contact || {};\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\n\n// stage id comes from the Call Router Context Capture stored on the contact (HW0eBfoQPW2mwxX8aY7Q).\n// The Router passes the whole contact through untouched, so we read it straight off the contact —\n// no need for the Dispatcher to carry stage_id as a separate contract field.\nlet rctx = {}; try { rctx = JSON.parse(String(cf('HW0eBfoQPW2mwxX8aY7Q') || '{}')) || {}; } catch(e) {}\nconst stage_id = String(rctx.stage_id || '').trim();\n\n// mc from the caller STAGE ID (same map as the missed-call Cold Handler's MCE_BY_STAGE):\n// 1 = first miss (Day 1 Call A* / Day 2 first attempt); 2 = second miss of Day 2;\n// 0 = no missed-call email (Day 1 Call B, all of Day 3).\nconst MCE_BY_STAGE = {\n  '060f44a8-4cd8-4561-8c84-7150bfd57498': 1, // Day 1 Call A\n  '04ccf8e0-383f-4c17-9268-51020233d08b': 1, // Day 1 Call A (MGR)\n  'cb2dc70f-c44e-48fd-b9cc-438901e292ac': 1, // Day 1 Call A (from on hold)\n  '4b1d7a88-87c0-422b-90e4-b48d16430900': 1, // Day 2 Call\n  '4b3023aa-515b-40f8-ad82-292ca685562e': 1, // Day 2 Call (MGR)\n  'ab6ae288-8886-4d4e-ba61-2d6134f585bd': 1, // Day 2 Call (from on hold)\n  '40bdc040-8e97-4654-ae52-51e458c7f882': 2, // Day 2 Call (missed call)\n  '59069dd4-8071-45e2-820c-df565ab17132': 2  // Day 2 Call MGR (missed call)\n};\nconst INTEREST = { 1: -29996, 2: -29992 };\nconst mce = MCE_BY_STAGE[stage_id] || 0;\nconst interest_value = INTEREST[mce] || 0;   // 0 => no missed-call email\nconst sends_email = interest_value !== 0;\n\nreturn { json: {\n  contact_id: String(P.contact_id || c.id || '').trim(),\n  instantly_lead_id: String(P.instantly_lead_id || cf('TWLomDBX0XInU1IKrG8L') || '').trim(),\n  email: String(c.email || ci.email || '').trim(),\n  first_name: String(c.firstName || '').trim(),\n  mc: String(mce || ''), interest_value: interest_value, sends_email: sends_email,\n  stop_emails: (String(cf('ixRO9dSUHVd6vNTdFa7Q') || '').trim() === 'True')\n}};"
+        "jsCode": "const P = $('Parse + Map Outcome').item.json;\nconst ci = $('Call Input').item.json;\nconst c = ci.contact || {};\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? (f.value !== undefined ? f.value : f.field_value) : ''; };\n\n// stage id comes from the Call Router Context Capture stored on the contact (HW0eBfoQPW2mwxX8aY7Q).\n// The Router passes the whole contact through untouched, so we read it straight off the contact —\n// no need for the Dispatcher to carry stage_id as a separate contract field.\nlet rctx = {}; try { rctx = JSON.parse(String(cf('HW0eBfoQPW2mwxX8aY7Q') || '{}')) || {}; } catch(e) {}\nconst stage_id = String(rctx.stage_id || '').trim();\n\n// mc from the caller STAGE ID (same map as the missed-call Cold Handler's MCE_BY_STAGE):\n// 1 = first miss (Day 1 Call A* / Day 2 first attempt); 2 = second miss of Day 2;\n// 0 = no missed-call email (Day 1 Call B, all of Day 3).\nconst MCE_BY_STAGE = {\n  'b9ce3091-acad-4067-abb5-49dc19ec4314': 1, // Day 1 Call A (from on hold)\n  '042d9b81-1cb4-4265-a3c0-086b7d9d149d': 1, // Day 2 Call\n  'cee93f24-aedb-45d1-a613-0bd4d3d326d7': 1, // Day 2 Call (MGR)\n  'efda07de-f15a-48c1-b0dd-a84ad1f52899': 1, // Day 2 Call (from on hold)\n  'a1d2058e-6fcf-4be5-8046-85fd1aff1fbc': 2, // Day 2 Call (missed call)\n  'b7a81325-f410-4fa4-b5c7-a65fe6e3b284': 2  // Day 2 Call MGR (missed call)\n};\nconst INTEREST = { 1: -29996, 2: -29992 };\nconst mce = MCE_BY_STAGE[stage_id] || 0;\nconst interest_value = INTEREST[mce] || 0;   // 0 => no missed-call email\nconst sends_email = interest_value !== 0;\n\nreturn { json: {\n  contact_id: String(P.contact_id || c.id || '').trim(),\n  instantly_lead_id: String(P.instantly_lead_id || cf('TWLomDBX0XInU1IKrG8L') || '').trim(),\n  email: String(c.email || ci.email || '').trim(),\n  first_name: String(c.firstName || '').trim(),\n  mc: String(mce || ''), interest_value: interest_value, sends_email: sends_email,\n  stop_emails: (String(cf('ixRO9dSUHVd6vNTdFa7Q') || '').trim() === 'True')\n}};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -304,7 +304,7 @@
       ],
       "id": "vm-compute-mc",
       "name": "Compute MC",
-      "notes": "Voicemail = missed call. Reads the caller STAGE ID from the Call Router Context on the contact (HW0eBfoQPW2mwxX8aY7Q, written by Capture) and maps it to mc (1/2/0) via the same MCE_BY_STAGE as the missed-call Cold Handler. mc 0 => no missed-call email."
+      "notes": "Gatekeeper twin. Reads the caller STAGE ID (gatekeeper pipeline) from Call Router Context; maps to mc via the gatekeeper MCE_BY_STAGE (same rule as cold, gatekeeper IDs)."
     },
     {
       "parameters": {
@@ -872,10 +872,9 @@
     "binaryMode": "separate",
     "availableInMCP": true
   },
-  "versionId": "eca53655-f5be-4c05-abe7-a1fca6337375",
   "meta": {
     "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
   },
-  "id": "toFDNpFhy0ZyxfxN",
+  "id": "",
   "tags": []
 }

@@ -4,6 +4,21 @@
 - **Folder:** call-disposition · **Status:** Active ✅ (sub-workflow) — **modified for the multi-update rebuild, not yet pushed**
 - **Role:** Automation 3 of the multi-update rebuild.
 
+> ⚠️ **Has a gatekeeper twin — edit both.** [`Gatekeeper Handler`](./Gatekeeper%20Handler.context.md)
+> is a copy of this workflow differing only in `Compute MC`'s `MCE_BY_STAGE` (gatekeeper stage IDs).
+> Any logic change here must be mirrored there.
+
+## Gatekeeper lane (added 2026-07-24)
+This handler now also drives the **cold↔gatekeeper** flip via the `gatekeeper` tag, set in
+`Parse + Map Outcome` and applied by a non-blocking side branch (`Switch: tag action` →
+`GHL: Add / Remove Gatekeeper Tag`):
+- `is_gatekeeper` (gatekeeper-good/bad/on-hold) → **add** tag · `is_cold` (cold-good/bad/on-hold) →
+  **remove** tag · everything else (voicemail, …) → **leave** it (Option A).
+- `continues_drip` (was `is_cold`) now includes **gatekeeper-good** → Cold Email N+1.
+- `stop_phone_calls` now also true on **gatekeeper-bad**.
+The tag decides which call pipeline the lead's **next** call uses (read at 4:30AM); this handler
+always moves the drip to the **shared** email pipeline regardless of lane.
+
 ## Purpose
 Handler invoked by the **[Dispatcher/Router](./Dispatcher.context.md)** (Automation 2) for the
 **cold** route. Classifies the call outcome (disposition-first, AI fallback), **moves the

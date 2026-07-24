@@ -17,8 +17,10 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
    - true → **Download Recording (MP3)** → **Transcribe (Whisper)** → **Set Transcript (from audio)** → **Transcript Ready**
    - false → **Transcript Ready**
 2. **GHL: Fetch Opps** (search by contact) → **Determine Caller Context** (code) — the brain:
-   picks the call pipeline (rebooking > conversation > cold), derives `caller_N` (the day) and
-   `stage_name` from the 15-stage map, captures `opp_id`, and computes `anomaly`.
+   picks the call pipeline (rebooking > conversation > cold > **gatekeeper**, added 2026-07-24),
+   derives `caller_N` (the day) and `stage_name` (the map now covers both the 15 cold **and** 13
+   gatekeeper stages), captures `opp_id`/`stage_id`, and computes `anomaly`. `route` is `cold` or
+   **`gatekeeper`** → the Dispatcher sends each to its matching handler.
 3. **IF: anomaly?** — the gate (**changed 2026-07-19:** was a non-blocking fan-out; now blocks):
    - **anomaly non-empty** (`'none'` = no call opp, or `'multiple'` = 2+ call pipelines) →
      **Anomaly (capture for later)** stub, and **stop** — nothing is stored, no fallback fires.

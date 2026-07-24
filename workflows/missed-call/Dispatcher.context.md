@@ -17,12 +17,14 @@ Call Disposition Dispatcher but for the "no answer" outcome (no transcript/note 
 2. **GHL: Fetch Opps** — `/opportunities/search` by `contact_id` (all opps).
    `onError: continueRegularOutput` — a failed fetch still routes (as `none`).
 3. **Route: Determine Call Pipeline** — which CALL pipeline holds an opp (priority
-   **rebooking > conversation > cold**); emits `route`, `matched_opp_id`,
-   `matched_pipeline_id`, `matched_stage_id`, `anomaly`, + passthrough ids.
-4. **Switch: route** → cold / conversation / rebooking (fallback `none`).
+   **rebooking > conversation > cold > gatekeeper**, gatekeeper added 2026-07-24); emits `route`,
+   `matched_opp_id`, `matched_pipeline_id`, `matched_stage_id`, `anomaly`, + passthrough ids.
+4. **Switch: route** → cold / conversation / rebooking / **gatekeeper** (fallback `none`).
    **Filter: anomaly?** (parallel) — surfaces `none`/`multiple` anomalies.
 5. Handlers:
    - `cold` → **-> Missed Call Cold Handler** (`MKj1ck6WAwvPZWFz`).
+   - **`gatekeeper` → -> Missed Call Gatekeeper Handler** (⚠️ **placeholder `workflowId` — set it
+     to the imported missed-call Gatekeeper Handler's ID**).
    - `conversation` / `rebooking` → **disabled stubs** (handlers not built yet — set the
      sub-workflow id when built).
 

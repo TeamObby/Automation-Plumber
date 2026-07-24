@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -1000,
-        -80
+        -2400,
+        264
       ],
-      "id": "wh-disp-updated",
+      "id": "17af69de-6431-4570-a241-158f5a20a2fc",
       "name": "Webhook (Disposition/Note Updated)",
       "webhookId": "call-disposition-updated",
       "notes": "GHL fires this when Call Disposition OR Call Notes changes. Payload carries contact_id."
@@ -25,10 +25,10 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
       "position": [
-        -1000,
-        120
+        -2400,
+        456
       ],
-      "id": "wf-fallback-trigger",
+      "id": "0b9d2230-57c2-4752-9e60-9b8ff4cb73ef",
       "name": "When Called for Fallback",
       "notes": "Invoked by Capture (Automation 1) after the grace wait if nobody dispositioned. Receives {contact_id, call_id, fallback:true}."
     },
@@ -40,10 +40,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -760,
-        0
+        -2176,
+        360
       ],
-      "id": "normalize",
+      "id": "dc29243e-93a5-4355-b6f3-440d94051f06",
       "name": "Normalize"
     },
     {
@@ -56,10 +56,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -540,
-        0
+        -1952,
+        360
       ],
-      "id": "get-contact",
+      "id": "611c5d4a-d1da-40e4-a8bc-4f02250361ce",
       "name": "GHL: Get Contact",
       "retryOnFail": true,
       "maxTries": 4,
@@ -81,10 +81,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -320,
-        0
+        -1728,
+        360
       ],
-      "id": "prep-gate",
+      "id": "53a92341-4017-4773-b1a6-b566a718b09a",
       "name": "Prep + Gate"
     },
     {
@@ -115,10 +115,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -100,
-        0
+        -1504,
+        360
       ],
-      "id": "if-proceed",
+      "id": "8c0bc2c4-f41a-4389-a9a1-f691f9e38bb1",
       "name": "IF: proceed?",
       "notes": "false -> gate stopped it (empty input / fallback-after-processed / duplicate)."
     },
@@ -149,6 +149,30 @@
               },
               "renameOutput": true,
               "outputKey": "cold"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "gatekeeper",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "route-gk"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gatekeeper"
             }
           ]
         },
@@ -160,10 +184,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        120,
-        0
+        -1280,
+        232
       ],
-      "id": "switch-route",
+      "id": "02cc4d74-a19e-441f-be87-07521e238077",
       "name": "Switch: branch on call pipeline"
     },
     {
@@ -189,10 +213,10 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        360,
-        -100
+        -1056,
+        64
       ],
-      "id": "run-cold-handler",
+      "id": "a0e38f30-f7e9-4803-9977-8e1798cb4f2f",
       "name": "Run Cold Call Handler",
       "notes": "Automation 3. Passes the handler input contract. Cold Handler must be updated to read the new field names + set processed/last-entries/last_signature after it writes."
     },
@@ -201,10 +225,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        360,
-        100
+        -1056,
+        448
       ],
-      "id": "other-routes",
+      "id": "69850ae4-5e48-453f-a776-9e83c3929507",
       "name": "Other routes (build later)"
     },
     {
@@ -212,11 +236,41 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        120,
-        180
+        -1280,
+        456
       ],
-      "id": "stopped",
+      "id": "caeb152b-a3e5-4de5-bee1-1d5cb99d31d8",
       "name": "Stopped (gate)"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "WhSS3Awo5K8XuRbQ",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/WhSS3Awo5K8XuRbQ",
+          "cachedResultName": "Gatekeeper Handler"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -1056,
+        256
+      ],
+      "id": "29474b6b-9683-4f49-8b76-4f4ca71f7a62",
+      "name": "Run Gatekeeper Call Handler",
+      "notes": "PLACEHOLDER workflowId — set it to the imported Gatekeeper Handler's ID. Same input contract as the Cold Handler."
     }
   ],
   "pinData": {},
@@ -305,6 +359,13 @@
         ],
         [
           {
+            "node": "Run Gatekeeper Call Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Other routes (build later)",
             "type": "main",
             "index": 0
@@ -313,12 +374,13 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": true
   },
+  "versionId": "3f7283b9-864e-4c3c-905c-7ad1d7e48ffc",
   "meta": {
     "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
   },

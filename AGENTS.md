@@ -42,6 +42,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Call Disposition - Capture Wavv Disposition | `zSOjEBiz3e7gbeBp` | [open](https://n8n.meetobby.com/workflow/zSOjEBiz3e7gbeBp) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — WAVV note → Call Disposition/Notes fields |
 | Call Disposition - Dispatcher/Router (Automation 2) | `SfI5Hx6mlc4Qh3D1` | [open](https://n8n.meetobby.com/workflow/SfI5Hx6mlc4Qh3D1) | ❌ (was ✅) | ✓ [json+ctx](workflows/call-disposition/) — **repurposed, not yet pushed** |
 | Call Disposition - Cold Handler (Automation 3) | `toFDNpFhy0ZyxfxN` | [open](https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — **modified for the rebuild, not yet pushed** |
+| Call Disposition - Gatekeeper Handler (Automation 3, gk twin) | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/call-disposition/) — **copy of Cold Handler, gatekeeper `MCE_BY_STAGE`; set its ID on the Dispatcher** |
 | GHL Pipeline Stages (Cached) | `ny7jwqGX1Du9aXNC` | [open](https://n8n.meetobby.com/workflow/ny7jwqGX1Du9aXNC) | ✅ | ⏳ not pulled — **no longer called by any mirrored workflow** (see below) |
 | Resume On Hold Leads | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/scheduled-automations/) |
 | New to Cold Email 1 Stage (3AM) | `WYYQ7p3wJ3QhBTrQ` | [open](https://n8n.meetobby.com/workflow/WYYQ7p3wJ3QhBTrQ) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
@@ -52,6 +53,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Create Manual Review Opp | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/manual-review/) |
 | Missed Call - Dispatcher | `WRvTiZWThJTQAU8P` | [open](https://n8n.meetobby.com/workflow/WRvTiZWThJTQAU8P) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
+| Missed Call - Gatekeeper Handler (gk twin) | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/missed-call/) — **copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps; set its ID on the missed-call Dispatcher** |
 | Send Cold Email 1 (3:30AM) | `6wdNiXnexS3zT5b2` | [open](https://n8n.meetobby.com/workflow/6wdNiXnexS3zT5b2) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
 
 ---
@@ -60,6 +62,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 - **location_id:** `rzaMhqeo2apNI1p6DG5z`
 - **Call pipelines** (dispatcher routing, priority order):
   rebooking `smoNRUaagZYOElKFLwtp` > conversation `TwW6o0JdPXUlcwvX0EvI` > cold `9E6y34DlG1Imr8FV42RV`
+  > **gatekeeper** `3onA8GkJnSwgzIGTGSpI` _(gatekeeper runs like cold, its own call pipeline; lane chosen by the `gatekeeper` tag — see pipeline table)_
 - **Email pipeline:** `1A1RkYaL93s2rqbQ3Opi`
 - **Contact custom fields:** Event Logs `7D9N71mEDfipN90zfV0j` · Call Summary `ZVeEoK85i5EOhWt1HO1F` ·
   Interaction Summary `AH3JqyYEPzPX4wXKoX1V` · Instantly Lead ID `TWLomDBX0XInU1IKrG8L` ·
@@ -79,7 +82,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
   **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` (JSON, write-once per call by Call-Disposition Automation 1 — `{opp_id, route, caller_N, call_id, stage_name, stage_id}`; `stage_id` is the raw caller-stage id the Cold Handler's voicemail branch needs for its missed-call-email `mc` lookup) ·
   **Call Processing State** `BD9TmgEynOEy6bCvZshm` (JSON — `{processed, last_event_log_entry, last_call_summary_entry, last_signature}`; Auto 1 resets, Auto 2 updates each run) ·
   **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` (multiline text — Whisper transcript, static input the disposition AI re-reads per update) ·
-  **Stop Phone Calls** `KFDw66sjfFaszQx5UX6X` (**radio**, options `True`/`False` — the Cold Handler **always writes it**: `True` only on a `cold-bad` outcome to halt future calls, `False` otherwise. _(Narrowed from cold-bad/gatekeeper-bad → cold-bad only, 2026-07-18.)_) ·
+  **Stop Phone Calls** `KFDw66sjfFaszQx5UX6X` (**radio**, options `True`/`False` — the Cold/Gatekeeper Handler **always writes it**: `True` on a `cold-bad` **or `gatekeeper-bad`** outcome to halt future calls, `False` otherwise. _(cold-bad/gatekeeper-bad → cold-bad only 2026-07-18 → gatekeeper-bad re-added 2026-07-24 with the gatekeeper lane.)_) ·
   **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` (**radio**, `True`/`False` — `True` ⇒ **no email is sent**: the scheduled senders (`Send Cold Email 1`, `Send Cold Email 2/3/4`) and both Cold Handlers move the opp **straight to `Cold Email N Sent`** instead of enrolling in Instantly, and the missed-call/voicemail email is skipped. Keyed on this field **alone** — every no-email lead **must** carry `Stop Emails=True`, or it stalls in `Cold Email N` before the first call. Wired 2026-07-20.)
 - **`MGR` = "Missed call Google Review".** A lead is MGR **iff the `Missed Call Review` custom
   field (`u9UymBEMP3f7IZqDTwVd`) is non-empty.** It is an **axis independent of "missed call"** —
@@ -204,6 +207,48 @@ Note `MGR` is a **separate axis from `missed call`** (Day 2/3 have both `(MGR)` 
 reused IDs were old *Missed Call* stages now labelled `(MGR)`; do not assume the old meaning
 carries over. **Confirm before mapping.**
 
+### Gatekeeper Outbound Call Pipeline — `3onA8GkJnSwgzIGTGSpI`
+_Added 2026-07-24. **The gatekeeper lane runs exactly like cold** (shared email pipeline; a parallel
+call pipeline). Which lane a lead is in is decided by the **`gatekeeper` contact tag**._
+
+**Tag rules (set on every call-disposition process, Option A):**
+- **any `gatekeeper-*` disposition** (good/bad/on-hold) → **add** `gatekeeper` tag
+- **any `cold-*` disposition** (good/bad/on-hold) → **remove** `gatekeeper` tag
+- **anything else** (voicemail, Client-Acq dispositions) → **leave the tag untouched**
+
+The tag is what the **4:30AM `Sent Cold Email to Caller Stages`** reads to move a lead into the cold
+**or** gatekeeper Day-N stage (same stage *name*, pipeline chosen by tag). So a lead flips cold↔
+gatekeeper freely across calls; the tag just reflects the last cold/gatekeeper disposition.
+`gatekeeper-good` **continues the drip** (like cold-good → Cold Email N+1); `gatekeeper-bad` →
+Client Acq + **Stop Phone Calls=True**; `gatekeeper-on-hold` → Client Acq (resumed later by tag).
+
+**Runtime split:** the **Cold Handler** processes leads in the cold pipeline; a **separate
+`Gatekeeper Handler`** (a copy differing only in the voicemail `MCE_BY_STAGE`) processes leads in the
+gatekeeper pipeline. `Capture` detects the pipeline (`route='cold'|'gatekeeper'`); the Dispatcher
+routes to the matching handler. The missed-call side has the same cold/gatekeeper split.
+
+Mirrors the **Cold Outbound Call Pipeline** day/attempt structure — same `(MGR)` / `(missed call)` /
+`(from on hold)` axes — **but only 13 stages, not 15**: it has **no plain `Day 1 Call A` or
+`Day 1 Call A (MGR)`**; the pipeline begins at `Day 1 Call A (from on hold)`, then `Day 1 Call B`.
+(All 13 IDs are brand-new — no ID is shared with the cold pipeline. A lead is only gatekeeper *after*
+a prior disposition, so it never needs a fresh Day-1-A in this lane.)
+
+| Stage | ID |
+|---|---|
+| Day 1 Call A (from on hold) | `b9ce3091-acad-4067-abb5-49dc19ec4314` |
+| Day 1 Call B | `09efdb09-af96-40b9-a96c-8a80c333e6ab` |
+| Day 1 Call B (MGR) | `d31cf0e2-ed61-4f0b-815b-ef3ee8e6e474` |
+| Day 2 Call | `042d9b81-1cb4-4265-a3c0-086b7d9d149d` |
+| Day 2 Call (MGR) | `cee93f24-aedb-45d1-a613-0bd4d3d326d7` |
+| Day 2 Call (from on hold) | `efda07de-f15a-48c1-b0dd-a84ad1f52899` |
+| Day 2 Call (missed call) | `a1d2058e-6fcf-4be5-8046-85fd1aff1fbc` |
+| Day 2 Call MGR (missed call) | `b7a81325-f410-4fa4-b5c7-a65fe6e3b284` |
+| Day 3 Call | `0f9041ab-677d-4320-a10d-3f24900b586a` |
+| Day 3 Call (MGR) | `54df4784-5d51-4924-965f-ca4a59b3535f` |
+| Day 3 Call (from on hold) | `29d698ed-b6ab-45c2-884a-fa011cfa60fe` |
+| Day 3 Call (missed call) | `27b684ee-1cdd-44b4-b38b-f789c77d6514` |
+| Day 3 Call MGR (missed call) | `23b44136-bc3e-4302-a6bd-23bc566d76e0` |
+
 ### Migration impact (cold-call restructure) 🚨
 **Nothing is broken loudly — that's the danger.** The 6 reused IDs still resolve, so the live
 workflows keep running while silently applying the *old* semantics.
@@ -226,10 +271,9 @@ resolve to `N=0` → `routable=false` → **leads parked in any Day 3 stage, any
 stage, or the new Day 2 missed-call stages are silently skipped.** Verified: zero references to
 the 9 new IDs anywhere in this repo.
 
-**3. `Resume On Hold Leads` probably targets the wrong stages now.** Its `Next Caller Stage`
-values (`cold_call_1/2/3`) resume a held lead into `060f44a8` / `4cb90aaa` / `4b1d7a88` — i.e.
-the **normal** call stages. The restructure added dedicated **`(from on hold)`** stages, which
-look purpose-built for exactly this. Likely needs rewiring — confirm intent.
+**3. `Resume On Hold Leads` — ✅ RESOLVED 2026-07-24.** It now resumes into the dedicated
+**`(from on hold)`** stages (cold or gatekeeper by the `gatekeeper` tag). See the migration-status
+table below.
 
 **Migration status — partially done (operator is working through it):**
 
@@ -238,20 +282,20 @@ look purpose-built for exactly this. Likely needs rewiring — confirm intent.
 | `scheduled-automations/Sent Cold Email to Caller Stages (4_30AM).json` ✅active | ✅ **migrated 2026-07-14** — routes to the new Day 1/2/3 stages on the MGR × missed-call matrix |
 | `missed-call/Cold Handler.json` ✅active | ✅ **migrated 2026-07-14** — same-day redial + new `STAGE_TO_N` + separate `MCE_BY_STAGE` |
 | `call-disposition/Dispatcher.json` ✅active | ✅ **migrated 2026-07-14** — `STAGE_TO_N` covers all 15 stages, **N = the day** |
-| `scheduled-automations/Resume On Hold Leads.json` ❌inactive | 🔴 **LAST ONE — and now wrong.** `cold_call_N` still points at old IDs → resumes a day early. See below. |
+| `scheduled-automations/Resume On Hold Leads.json` ❌inactive | ✅ **FIXED 2026-07-24** — `cold_call_N` now → **Day N Call (from on hold)**, cold/gatekeeper by tag; also pulls the Gatekeeper-On-Hold stage. |
 
-**🔴 `Resume On Hold Leads` must be migrated before it is activated.** Both dispatchers write
-`next_caller_stage = 'cold_call_' + N` where **N is now the day**, but that workflow still maps:
+**✅ `Resume On Hold Leads` day-shift — FIXED 2026-07-24** (as part of the gatekeeper build). Both
+dispatchers write `next_caller_stage = 'cold_call_' + N` (N = the day); the workflow now maps:
 
-| label | resumes at (today) | should be |
-|---|---|---|
-| `cold_call_1` | Day 1 Call A `060f44a8` | Day 1 Call A **(from on hold)** `cb2dc70f` |
-| `cold_call_2` | **Day 1 Call B** `4cb90aaa` ❌ | Day 2 Call **(from on hold)** `ab6ae288` |
-| `cold_call_3` | **Day 2 Call** `4b1d7a88` ❌ | Day 3 Call **(from on hold)** `1bd6fb3c` |
+| label | resumes at (cold / gatekeeper by tag) |
+|---|---|
+| `cold_call_1` | Day 1 Call A **(from on hold)** — cold `cb2dc70f` / gk `b9ce3091` |
+| `cold_call_2` | Day 2 Call **(from on hold)** — cold `ab6ae288` / gk `efda07de` |
+| `cold_call_3` | Day 3 Call **(from on hold)** — cold `1bd6fb3c` / gk `29d698ed` |
 
-A lead held on a **Day 2** call would resume at **Day 1 Call B** — a day backwards. Harmless right
-now (the workflow is inactive/not imported), but it is a live bug the moment it's switched on. The
-`(from on hold)` stages exist for exactly this.
+The old mapping pointed `cold_call_N` at the wrong non-hold stages (`cold_call_2` → Day 1 Call B, a
+day backwards). Both the day-shift **and** the gatekeeper-lane split are resolved; still needs
+importing/activating.
 
 ⚠️ **The system is mid-migration**, so the reused IDs currently carry *two* meanings depending
 on which workflow reads them. Operator has said they will update the rest later.

@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -544,
-        1152
+        -1616,
+        2304
       ],
-      "id": "f719f605-caa1-4c85-9ede-781f3f3c0e89",
+      "id": "8477cd00-b6c8-4f79-9c6e-97866b97b089",
       "name": "Webhook (Missed Call)",
       "webhookId": "c6c2f54b-8fa2-4f2a-9eb5-4d3735703684"
     },
@@ -24,10 +24,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -320,
-        1152
+        -1392,
+        2304
       ],
-      "id": "cafd129a-7147-413c-8798-0940c6e41f0c",
+      "id": "24df1c11-cef9-4bf8-85fc-8513a1722bb0",
       "name": "Normalize"
     },
     {
@@ -40,10 +40,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        128,
-        1152
+        -1168,
+        2304
       ],
-      "id": "f8bdb324-e014-4508-9cf5-817d4277aa18",
+      "id": "5bd937c6-5c3a-4d3f-8adc-8fc9ce4d0edf",
       "name": "GHL: Fetch Opps",
       "retryOnFail": true,
       "maxTries": 3,
@@ -59,15 +59,15 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// priority order: rebooking > conversation > cold\n// Pipeline IDs inlined (previously read from the GHL Pipeline Stages sub-workflow)\nconst CALL_PIPES = [\n  { key: 'rebooking',    id: 'smoNRUaagZYOElKFLwtp' },   // Rebooking Call\n  { key: 'conversation', id: 'TwW6o0JdPXUlcwvX0EvI' },   // Active Conversation Call\n  { key: 'cold',         id: '9E6y34DlG1Imr8FV42RV' },   // Cold Outbound Call\n];\n\nconst resp = $json || {};\nconst opps = Array.isArray(resp.opportunities) ? resp.opportunities : (Array.isArray(resp) ? resp : []);\nconst pipeOf  = o => String((o && (o.pipelineId || o.pipeline_id)) || '').trim();\nconst stageOf = o => String((o && (o.pipelineStageId || o.pipeline_stage_id)) || '').trim();\n\n// which call pipelines does the lead currently hold an opp in?\nconst found = CALL_PIPES.filter(cp => cp.id && opps.some(o => pipeOf(o) === cp.id));\nconst distinctCount = found.length;\n\n// tiebreaker: highest-priority call pipeline that has an opp\nconst chosen = found.length ? found[0] : null;\nconst matchedOpp = chosen ? opps.find(o => pipeOf(o) === chosen.id) : null;\n\nlet anomaly = '';\nif (distinctCount === 0) anomaly = 'none';\nelse if (distinctCount > 1) anomaly = 'multiple';\n\nconst n = $('Normalize').item.json;\nreturn { json: {\n  route: chosen ? chosen.key : 'none',\n  matched_opp_id:      matchedOpp ? String(matchedOpp.id) : '',\n  matched_pipeline_id: chosen ? chosen.id : '',\n  matched_stage_id:    matchedOpp ? stageOf(matchedOpp) : '',\n  call_pipelines_found: distinctCount,\n  found_keys: found.map(f => f.key).join(',') || 'none',\n  anomaly,\n  contact_id: String(n.contact_id || ''),\n  instantly_lead_id: String(n.instantly_lead_id || ''),\n  email: String(n.email || ''),\n}};\n"
+        "jsCode": "// priority order: rebooking > conversation > cold > gatekeeper\n// Pipeline IDs inlined (previously read from the GHL Pipeline Stages sub-workflow)\nconst CALL_PIPES = [\n  { key: 'rebooking',    id: 'smoNRUaagZYOElKFLwtp' },   // Rebooking Call\n  { key: 'conversation', id: 'TwW6o0JdPXUlcwvX0EvI' },   // Active Conversation Call\n  { key: 'cold',         id: '9E6y34DlG1Imr8FV42RV' },   // Cold Outbound Call\n  { key: 'gatekeeper',   id: '3onA8GkJnSwgzIGTGSpI' },   // Gatekeeper Outbound Call\n];\n\nconst resp = $json || {};\nconst opps = Array.isArray(resp.opportunities) ? resp.opportunities : (Array.isArray(resp) ? resp : []);\nconst pipeOf  = o => String((o && (o.pipelineId || o.pipeline_id)) || '').trim();\nconst stageOf = o => String((o && (o.pipelineStageId || o.pipeline_stage_id)) || '').trim();\n\n// which call pipelines does the lead currently hold an opp in?\nconst found = CALL_PIPES.filter(cp => cp.id && opps.some(o => pipeOf(o) === cp.id));\nconst distinctCount = found.length;\n\n// tiebreaker: highest-priority call pipeline that has an opp\nconst chosen = found.length ? found[0] : null;\nconst matchedOpp = chosen ? opps.find(o => pipeOf(o) === chosen.id) : null;\n\nlet anomaly = '';\nif (distinctCount === 0) anomaly = 'none';\nelse if (distinctCount > 1) anomaly = 'multiple';\n\nconst n = $('Normalize').item.json;\nreturn { json: {\n  route: chosen ? chosen.key : 'none',\n  matched_opp_id:      matchedOpp ? String(matchedOpp.id) : '',\n  matched_pipeline_id: chosen ? chosen.id : '',\n  matched_stage_id:    matchedOpp ? stageOf(matchedOpp) : '',\n  call_pipelines_found: distinctCount,\n  found_keys: found.map(f => f.key).join(',') || 'none',\n  anomaly,\n  contact_id: String(n.contact_id || ''),\n  instantly_lead_id: String(n.instantly_lead_id || ''),\n  email: String(n.email || ''),\n}};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        352,
-        1152
+        -944,
+        2304
       ],
-      "id": "924961e9-8040-4da1-ada6-b71a0ea418b1",
+      "id": "eb2e4475-92d9-40ad-a57b-b07fdfad1679",
       "name": "Route: Determine Call Pipeline"
     },
     {
@@ -97,6 +97,30 @@
               },
               "renameOutput": true,
               "outputKey": "cold"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "gatekeeper",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "route-gk-mc"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "gatekeeper"
             },
             {
               "conditions": {
@@ -155,10 +179,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        576,
-        1024
+        -720,
+        2160
       ],
-      "id": "4b4d2ced-362d-435c-85d9-965c83ab5ee5",
+      "id": "66a578ce-2fe1-43f0-bd3d-2479151ac6d7",
       "name": "Switch: route"
     },
     {
@@ -189,10 +213,10 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
       "position": [
-        576,
-        1248
+        -720,
+        2416
       ],
-      "id": "e13d8b7f-2d61-4f87-a963-e80363362dc6",
+      "id": "63a1c743-6816-4c49-a04f-fe0bb45a6025",
       "name": "Filter: anomaly?"
     },
     {
@@ -209,10 +233,10 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        800,
-        848
+        -496,
+        1904
       ],
-      "id": "58438571-598c-480d-9fd8-baeee66a87c4",
+      "id": "57ce8a7c-620c-49c3-8035-97ba16e9f5cb",
       "name": "-> Missed Call Cold Handler"
     },
     {
@@ -228,10 +252,10 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        800,
-        1040
+        -496,
+        2288
       ],
-      "id": "06112a82-1b39-4bf2-aed3-14794a003380",
+      "id": "12829248-94df-4726-87a9-11328fe2b991",
       "name": "-> Missed Call Conversation Handler",
       "disabled": true,
       "notes": "Build this handler, then select it here."
@@ -249,13 +273,34 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        800,
-        1232
+        -496,
+        2480
       ],
-      "id": "04bfc06e-3b87-4056-9688-57c590f6e2ef",
+      "id": "54b949f9-c3d9-4802-8d3b-eac2fde5a67c",
       "name": "-> Missed Call Rebooking Handler",
       "disabled": true,
       "notes": "Build this handler, then select it here."
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "rcrCVXDZp8ix9pKp",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/rcrCVXDZp8ix9pKp",
+          "cachedResultName": "Gatekeeper Handler"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -496,
+        2096
+      ],
+      "id": "52a5a6ed-9956-4215-ba38-b23848ac97cd",
+      "name": "-> Missed Call Gatekeeper Handler",
+      "notes": "PLACEHOLDER workflowId — set to the imported missed-call Gatekeeper Handler's ID."
     }
   ],
   "pinData": {},
@@ -320,6 +365,13 @@
         ],
         [
           {
+            "node": "-> Missed Call Gatekeeper Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "-> Missed Call Conversation Handler",
             "type": "main",
             "index": 0
@@ -341,7 +393,7 @@
     "binaryMode": "separate",
     "availableInMCP": true
   },
-  "versionId": "272ae993-c509-4a60-8211-abee6b2e5bbd",
+  "versionId": "9c878e49-0365-4a30-a7bd-771c83eff969",
   "meta": {
     "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
   },

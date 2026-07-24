@@ -33,17 +33,25 @@ pulled — email 4 is the end of the sequence, no call follows.
    next call cycle starts clean. Partial PUT — **does not touch** Call Context (`sLGmbbrcmzdlGONFYDSC`),
    Call Router Context (`HW0eBfoQPW2mwxX8aY7Q`), Call Processing State (`BD9TmgEynOEy6bCvZshm`), or
    Interaction Summary. Non-blocking (`onError: continue`) so a cleanup hiccup never strands the move.
-9. **GHL: Move Opp → Cold Call Stage** (PUT opp) — moves it into pipeline `9E6y34DlG1Imr8FV42RV`
-   at `target_stage_id`. **This is the step that drains the `Cold Email N Sent` stages.**
+9. **GHL: Move Opp → Cold Call Stage** (PUT opp) — moves it into the **cold OR gatekeeper** call
+   pipeline (`target_pipeline_id`, dynamic — added 2026-07-24) at `target_stage_id`. **This is the
+   step that drains the `Cold Email N Sent` stages** and **the swap point** where the `gatekeeper`
+   tag decides the lane.
 10. **Wait 2s** → loop.
 
 ## 🎯 Routing matrix (the core logic)
-Two **independent** axes decide the target stage:
+**Three independent** axes decide the target stage:
 
+- **`is_gatekeeper`** — the lead carries the **`gatekeeper` tag** → the **gatekeeper** call pipeline
+  (`3onA8GkJnSwgzIGTGSpI`), same stage *name*; else the cold pipeline. (added 2026-07-24) N=1 has no
+  gatekeeper twin, so a tagged N=1 lead safely falls back to cold.
 - **`is_mgr`** — MGR = *Missed call Google Review* lead. True ⟺ custom field
   **`Missed Call Review` `u9UymBEMP3f7IZqDTwVd`** is **non-empty**.
 - **`is_missed`** — the lead's **last call** went unanswered. True ⟺ contact carries the
   **`last_call_missed` tag**.
+
+The matrix below shows the **cold** stage IDs; for a gatekeeper lead, swap to the same-named
+gatekeeper stage (see AGENTS.md interchange).
 
 | From (N) | last call missed? | normal | MGR |
 |---|---|---|---|

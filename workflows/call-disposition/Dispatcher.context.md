@@ -30,7 +30,9 @@ Both converge on **Normalize** (`contact_id`, `call_id`, `is_fallback`).
 2. **Prep + Gate** (code) — the brain (below). Emits `proceed` + the handler input contract.
 3. **IF: proceed?** — `false` → **Stopped (gate)** (NoOp); `true` → the Switch.
 4. **Switch: branch on call pipeline** (stored `route`) → `cold` → **Run Cold Call Handler**
-   (`toFDNpFhy0ZyxfxN`); else → **Other routes (build later)** (stub).
+   (`toFDNpFhy0ZyxfxN`) · **`gatekeeper` → Run Gatekeeper Call Handler** (added 2026-07-24 —
+   ⚠️ **placeholder `workflowId`; set it to the imported Gatekeeper Handler's ID**) · else →
+   **Other routes (build later)** (stub).
 
 ## 🚦 The gate (Prep + Gate) — verified against 9 scenarios
 Two inputs decide everything: `is_fallback` (which trigger fired) and `processed` (from stored

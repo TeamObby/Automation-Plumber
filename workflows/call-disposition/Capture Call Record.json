@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -1200,
-        0
+        7952,
+        5904
       ],
-      "id": "wh-capture",
+      "id": "620055cf-77b6-455f-8ef1-bdc64441a5cf",
       "name": "Webhook (Call Recorded)",
       "webhookId": "call-recorded-capture",
       "notes": "Repoint the GHL 'Call Recorded' trigger here (was the old Dispatcher)."
@@ -26,10 +26,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -980,
-        0
+        8176,
+        5904
       ],
-      "id": "normalize-call",
+      "id": "3a25b8fd-11b2-4046-b006-0cf65c89e6aa",
       "name": "Normalize Call"
     },
     {
@@ -60,10 +60,10 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
       "position": [
-        -760,
-        0
+        8400,
+        5904
       ],
-      "id": "filter-pickup",
+      "id": "e661fe16-947a-4643-95b8-1066a0721948",
       "name": "Filter: call was picked up",
       "notes": "Proceeds if any call data is present. Missed calls handled elsewhere."
     },
@@ -95,10 +95,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -540,
-        0
+        8624,
+        5904
       ],
-      "id": "if-tx-missing",
+      "id": "46268640-9bd8-4898-8fa0-1de7ad5f91a0",
       "name": "IF: transcript missing?",
       "notes": "True only when transcript empty AND a recording URL is present."
     },
@@ -116,10 +116,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -320,
-        -120
+        8848,
+        5832
       ],
-      "id": "download-mp3",
+      "id": "11dc2ed7-9305-4fc9-bb7f-96309f369edc",
       "name": "Download Recording (MP3)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -152,10 +152,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        -100,
-        -120
+        9072,
+        5832
       ],
-      "id": "whisper",
+      "id": "ee398526-f9d3-4e7c-b26b-e228c3e34b80",
       "name": "Transcribe (OpenAI Whisper)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -176,10 +176,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        120,
-        -120
+        9296,
+        5832
       ],
-      "id": "set-transcript",
+      "id": "8cff5cb5-085a-475c-8541-fcbbfab97f7a",
       "name": "Set Transcript (from audio)"
     },
     {
@@ -190,10 +190,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        340,
-        0
+        9520,
+        5904
       ],
-      "id": "transcript-ready",
+      "id": "655a38b9-ec34-451b-895a-130e14be9315",
       "name": "Transcript Ready"
     },
     {
@@ -206,10 +206,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        560,
-        0
+        9744,
+        5904
       ],
-      "id": "fetch-opps",
+      "id": "5c891842-33e1-45e0-8f1e-e31aa3f26413",
       "name": "GHL: Fetch Opps",
       "retryOnFail": true,
       "maxTries": 4,
@@ -225,15 +225,15 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const resp = $json || {};\nconst opps = Array.isArray(resp.opportunities) ? resp.opportunities : (Array.isArray(resp) ? resp : []);\nconst t = $('Transcript Ready').item.json;\nconst pipeOf  = o => String((o && (o.pipelineId || o.pipeline_id)) || '').trim();\nconst stageOf = o => String((o && (o.pipelineStageId || o.pipeline_stage_id)) || '').trim();\n\n// which CALL pipeline holds an opp (priority: rebooking > conversation > cold)\nconst COLD_CALL='9E6y34DlG1Imr8FV42RV', CONVERSATION='TwW6o0JdPXUlcwvX0EvI', REBOOKING='smoNRUaagZYOElKFLwtp';\nconst CALL_PIPES = [\n  { key: 'rebooking',    id: REBOOKING },\n  { key: 'conversation', id: CONVERSATION },\n  { key: 'cold',         id: COLD_CALL },\n];\nconst found = CALL_PIPES.filter(cp => opps.some(o => pipeOf(o) === cp.id));\nconst chosen = found.length ? found[0] : null;\nconst route = chosen ? chosen.key : 'none';\nconst matchedOpp = chosen ? (opps.find(o => pipeOf(o) === chosen.id) || {}) : {};\nconst anomaly = (found.length === 0) ? 'none' : (found.length > 1 ? 'multiple' : '');\n\n// caller stage -> N (the day) and -> human name. All 15 restructured cold-call stages.\nconst STAGE_TO_N = {\n  '060f44a8-4cd8-4561-8c84-7150bfd57498': 1, '04ccf8e0-383f-4c17-9268-51020233d08b': 1,\n  'cb2dc70f-c44e-48fd-b9cc-438901e292ac': 1, '4cb90aaa-b8c3-40a8-b1e6-6585213b258c': 1,\n  '648c4952-1ac0-4c8c-9e52-b93efa5ec39e': 1,\n  '4b1d7a88-87c0-422b-90e4-b48d16430900': 2, '4b3023aa-515b-40f8-ad82-292ca685562e': 2,\n  'ab6ae288-8886-4d4e-ba61-2d6134f585bd': 2, '40bdc040-8e97-4654-ae52-51e458c7f882': 2,\n  '59069dd4-8071-45e2-820c-df565ab17132': 2,\n  'f8407fb8-f94c-4443-baf9-b7d1c6f50d34': 3, '5bfcb041-6abb-48d2-a60d-511af1af807f': 3,\n  '1bd6fb3c-b7bb-40bd-af31-f1c62065c7bb': 3, 'b50e0792-a88c-4d0a-9e44-2d5cebfdef18': 3,\n  '21b772e5-385d-47b7-8234-3138bd312a26': 3\n};\nconst STAGE_NAME = {\n  '060f44a8-4cd8-4561-8c84-7150bfd57498': 'Day 1 Call A',\n  '04ccf8e0-383f-4c17-9268-51020233d08b': 'Day 1 Call A (MGR)',\n  'cb2dc70f-c44e-48fd-b9cc-438901e292ac': 'Day 1 Call A (from on hold)',\n  '4cb90aaa-b8c3-40a8-b1e6-6585213b258c': 'Day 1 Call B',\n  '648c4952-1ac0-4c8c-9e52-b93efa5ec39e': 'Day 1 Call B (MGR)',\n  '4b1d7a88-87c0-422b-90e4-b48d16430900': 'Day 2 Call',\n  '4b3023aa-515b-40f8-ad82-292ca685562e': 'Day 2 Call (MGR)',\n  'ab6ae288-8886-4d4e-ba61-2d6134f585bd': 'Day 2 Call (from on hold)',\n  '40bdc040-8e97-4654-ae52-51e458c7f882': 'Day 2 Call (missed call)',\n  '59069dd4-8071-45e2-820c-df565ab17132': 'Day 2 Call MGR (missed call)',\n  'f8407fb8-f94c-4443-baf9-b7d1c6f50d34': 'Day 3 Call',\n  '5bfcb041-6abb-48d2-a60d-511af1af807f': 'Day 3 Call (MGR)',\n  '1bd6fb3c-b7bb-40bd-af31-f1c62065c7bb': 'Day 3 Call (from on hold)',\n  'b50e0792-a88c-4d0a-9e44-2d5cebfdef18': 'Day 3 Call (missed call)',\n  '21b772e5-385d-47b7-8234-3138bd312a26': 'Day 3 Call MGR (missed call)'\n};\nconst cur_stage = stageOf(matchedOpp);\nconst caller_N = STAGE_TO_N[cur_stage] || 0;\nconst stage_name = STAGE_NAME[cur_stage] || '';\n\nconst context = {\n  opp_id: String(matchedOpp.id || '').trim(),\n  route: route,\n  caller_N: caller_N,\n  call_id: String(t.call_id || '').trim(),\n  stage_name: stage_name,\n  stage_id: cur_stage\n};\nconst state = { processed: false, last_event_log_entry: '', last_call_summary_entry: '', last_signature: '' };\n\nreturn { json: {\n  contact_id: String(t.contact_id || '').trim(),\n  transcript: String(t.transcript || ''),\n  route: route, caller_N: caller_N, anomaly: anomaly, stage_name: stage_name,\n  context_json: JSON.stringify(context),\n  state_json: JSON.stringify(state)\n}};"
+        "jsCode": "const resp = $json || {};\nconst opps = Array.isArray(resp.opportunities) ? resp.opportunities : (Array.isArray(resp) ? resp : []);\nconst t = $('Transcript Ready').item.json;\nconst pipeOf  = o => String((o && (o.pipelineId || o.pipeline_id)) || '').trim();\nconst stageOf = o => String((o && (o.pipelineStageId || o.pipeline_stage_id)) || '').trim();\n\n// which CALL pipeline holds an opp (priority: rebooking > conversation > cold)\nconst COLD_CALL='9E6y34DlG1Imr8FV42RV', GATEKEEPER='3onA8GkJnSwgzIGTGSpI', CONVERSATION='TwW6o0JdPXUlcwvX0EvI', REBOOKING='smoNRUaagZYOElKFLwtp';\nconst CALL_PIPES = [\n  { key: 'rebooking',    id: REBOOKING },\n  { key: 'conversation', id: CONVERSATION },\n  { key: 'cold',         id: COLD_CALL },\n  { key: 'gatekeeper',   id: GATEKEEPER },\n];\nconst found = CALL_PIPES.filter(cp => opps.some(o => pipeOf(o) === cp.id));\nconst chosen = found.length ? found[0] : null;\nconst route = chosen ? chosen.key : 'none';\nconst matchedOpp = chosen ? (opps.find(o => pipeOf(o) === chosen.id) || {}) : {};\nconst anomaly = (found.length === 0) ? 'none' : (found.length > 1 ? 'multiple' : '');\n\n// caller stage -> N (the day) and -> human name. All 15 restructured cold-call stages.\nconst STAGE_TO_N = {\n  '060f44a8-4cd8-4561-8c84-7150bfd57498': 1, '04ccf8e0-383f-4c17-9268-51020233d08b': 1,\n  'cb2dc70f-c44e-48fd-b9cc-438901e292ac': 1, '4cb90aaa-b8c3-40a8-b1e6-6585213b258c': 1,\n  '648c4952-1ac0-4c8c-9e52-b93efa5ec39e': 1,\n  '4b1d7a88-87c0-422b-90e4-b48d16430900': 2, '4b3023aa-515b-40f8-ad82-292ca685562e': 2,\n  'ab6ae288-8886-4d4e-ba61-2d6134f585bd': 2, '40bdc040-8e97-4654-ae52-51e458c7f882': 2,\n  '59069dd4-8071-45e2-820c-df565ab17132': 2,\n  'f8407fb8-f94c-4443-baf9-b7d1c6f50d34': 3, '5bfcb041-6abb-48d2-a60d-511af1af807f': 3,\n  '1bd6fb3c-b7bb-40bd-af31-f1c62065c7bb': 3, 'b50e0792-a88c-4d0a-9e44-2d5cebfdef18': 3,\n  '21b772e5-385d-47b7-8234-3138bd312a26': 3,\n  // --- gatekeeper pipeline (3onA8GkJnSwgzIGTGSpI), N = the day ---\n  'b9ce3091-acad-4067-abb5-49dc19ec4314': 1, '09efdb09-af96-40b9-a96c-8a80c333e6ab': 1,\n  'd31cf0e2-ed61-4f0b-815b-ef3ee8e6e474': 1,\n  '042d9b81-1cb4-4265-a3c0-086b7d9d149d': 2, 'cee93f24-aedb-45d1-a613-0bd4d3d326d7': 2,\n  'efda07de-f15a-48c1-b0dd-a84ad1f52899': 2, 'a1d2058e-6fcf-4be5-8046-85fd1aff1fbc': 2,\n  'b7a81325-f410-4fa4-b5c7-a65fe6e3b284': 2,\n  '0f9041ab-677d-4320-a10d-3f24900b586a': 3, '54df4784-5d51-4924-965f-ca4a59b3535f': 3,\n  '29d698ed-b6ab-45c2-884a-fa011cfa60fe': 3, '27b684ee-1cdd-44b4-b38b-f789c77d6514': 3,\n  '23b44136-bc3e-4302-a6bd-23bc566d76e0': 3\n};\nconst STAGE_NAME = {\n  '060f44a8-4cd8-4561-8c84-7150bfd57498': 'Day 1 Call A',\n  '04ccf8e0-383f-4c17-9268-51020233d08b': 'Day 1 Call A (MGR)',\n  'cb2dc70f-c44e-48fd-b9cc-438901e292ac': 'Day 1 Call A (from on hold)',\n  '4cb90aaa-b8c3-40a8-b1e6-6585213b258c': 'Day 1 Call B',\n  '648c4952-1ac0-4c8c-9e52-b93efa5ec39e': 'Day 1 Call B (MGR)',\n  '4b1d7a88-87c0-422b-90e4-b48d16430900': 'Day 2 Call',\n  '4b3023aa-515b-40f8-ad82-292ca685562e': 'Day 2 Call (MGR)',\n  'ab6ae288-8886-4d4e-ba61-2d6134f585bd': 'Day 2 Call (from on hold)',\n  '40bdc040-8e97-4654-ae52-51e458c7f882': 'Day 2 Call (missed call)',\n  '59069dd4-8071-45e2-820c-df565ab17132': 'Day 2 Call MGR (missed call)',\n  'f8407fb8-f94c-4443-baf9-b7d1c6f50d34': 'Day 3 Call',\n  '5bfcb041-6abb-48d2-a60d-511af1af807f': 'Day 3 Call (MGR)',\n  '1bd6fb3c-b7bb-40bd-af31-f1c62065c7bb': 'Day 3 Call (from on hold)',\n  'b50e0792-a88c-4d0a-9e44-2d5cebfdef18': 'Day 3 Call (missed call)',\n  '21b772e5-385d-47b7-8234-3138bd312a26': 'Day 3 Call MGR (missed call)',\n  'b9ce3091-acad-4067-abb5-49dc19ec4314': 'Day 1 Call A (from on hold)',\n  '09efdb09-af96-40b9-a96c-8a80c333e6ab': 'Day 1 Call B',\n  'd31cf0e2-ed61-4f0b-815b-ef3ee8e6e474': 'Day 1 Call B (MGR)',\n  '042d9b81-1cb4-4265-a3c0-086b7d9d149d': 'Day 2 Call',\n  'cee93f24-aedb-45d1-a613-0bd4d3d326d7': 'Day 2 Call (MGR)',\n  'efda07de-f15a-48c1-b0dd-a84ad1f52899': 'Day 2 Call (from on hold)',\n  'a1d2058e-6fcf-4be5-8046-85fd1aff1fbc': 'Day 2 Call (missed call)',\n  'b7a81325-f410-4fa4-b5c7-a65fe6e3b284': 'Day 2 Call MGR (missed call)',\n  '0f9041ab-677d-4320-a10d-3f24900b586a': 'Day 3 Call',\n  '54df4784-5d51-4924-965f-ca4a59b3535f': 'Day 3 Call (MGR)',\n  '29d698ed-b6ab-45c2-884a-fa011cfa60fe': 'Day 3 Call (from on hold)',\n  '27b684ee-1cdd-44b4-b38b-f789c77d6514': 'Day 3 Call (missed call)',\n  '23b44136-bc3e-4302-a6bd-23bc566d76e0': 'Day 3 Call MGR (missed call)'\n};\nconst cur_stage = stageOf(matchedOpp);\nconst caller_N = STAGE_TO_N[cur_stage] || 0;\nconst stage_name = STAGE_NAME[cur_stage] || '';\n\nconst context = {\n  opp_id: String(matchedOpp.id || '').trim(),\n  route: route,\n  caller_N: caller_N,\n  call_id: String(t.call_id || '').trim(),\n  stage_name: stage_name,\n  stage_id: cur_stage\n};\nconst state = { processed: false, last_event_log_entry: '', last_call_summary_entry: '', last_signature: '' };\n\nreturn { json: {\n  contact_id: String(t.contact_id || '').trim(),\n  transcript: String(t.transcript || ''),\n  route: route, caller_N: caller_N, anomaly: anomaly, stage_name: stage_name,\n  context_json: JSON.stringify(context),\n  state_json: JSON.stringify(state)\n}};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        780,
-        0
+        9968,
+        5904
       ],
-      "id": "determine-context",
+      "id": "2844f988-d76e-452e-b5fb-96079dfe93b3",
       "name": "Determine Caller Context"
     },
     {
@@ -250,10 +250,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1240,
-        0
+        10416,
+        5808
       ],
-      "id": "store-context",
+      "id": "bbca0431-9767-4299-8c0c-0cd6ee5d24b7",
       "name": "GHL: Store Context",
       "retryOnFail": true,
       "maxTries": 4,
@@ -268,16 +268,15 @@
     },
     {
       "parameters": {
-        "amount": 5,
         "unit": "minutes"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1460,
-        0
+        10640,
+        5808
       ],
-      "id": "wait-grace",
+      "id": "d8687ff2-a8f4-46e7-8841-6a82dbf95171",
       "name": "Wait 5m (fallback grace)",
       "webhookId": "capture-fallback-wait"
     },
@@ -291,10 +290,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1680,
-        0
+        10864,
+        5808
       ],
-      "id": "reread-state",
+      "id": "c192ce18-1c09-41d4-a65e-defc1e847416",
       "name": "GHL: Get Contact (re-read State)",
       "retryOnFail": true,
       "maxTries": 4,
@@ -316,10 +315,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1900,
-        0
+        11088,
+        5808
       ],
-      "id": "check-processed",
+      "id": "1f312c12-ee7f-4ebb-b76d-661bf38fdeac",
       "name": "Check Processed"
     },
     {
@@ -350,10 +349,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2120,
-        0
+        11312,
+        5808
       ],
-      "id": "if-not-processed",
+      "id": "1388134c-5859-43ee-9454-c39d554e3928",
       "name": "IF: not processed?",
       "notes": "TRUE when processed is still false -> fire the fallback. Automation 1 owns this decision."
     },
@@ -361,12 +360,13 @@
       "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "",
+          "value": "SfI5Hx6mlc4Qh3D1",
           "mode": "list",
-          "cachedResultName": "Automation 2 - Route & Handle (SET WHEN BUILT)"
+          "cachedResultUrl": "/workflow/SfI5Hx6mlc4Qh3D1",
+          "cachedResultName": "Dispatcher"
         },
         "workflowInputs": {
-          "mappingMode": "autoMapInputData",
+          "mappingMode": "defineBelow",
           "value": {},
           "matchingColumns": [],
           "schema": [],
@@ -379,10 +379,10 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        2340,
-        -100
+        11536,
+        5712
       ],
-      "id": "call-auto2",
+      "id": "eebbc349-4318-46dc-adc1-a88883ead7d8",
       "name": "-> Automation 2 (fallback)",
       "notes": "PLACEHOLDER: set the Automation 2 workflow ID here once it is built. Passes {contact_id, call_id, fallback:true} so Auto 2 classifies AI-only."
     },
@@ -391,10 +391,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2340,
-        100
+        11536,
+        5904
       ],
-      "id": "done-processed",
+      "id": "c724ac3f-39d5-46d3-b1c6-866f12f58707",
       "name": "Done (already processed)"
     },
     {
@@ -425,10 +425,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1000,
-        0
+        10192,
+        5904
       ],
-      "id": "cap-if-anomaly",
+      "id": "522d3f98-8036-4660-89b3-22770c4b22df",
       "name": "IF: anomaly?",
       "notes": "Gate. TRUE when anomaly is non-empty ('multiple' = 2+ call pipelines, 'none' = no call opp) -> capture for later, do NOT store context. FALSE (clean single match) -> Store Context and continue."
     },
@@ -437,10 +437,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1240,
-        220
+        10416,
+        6000
       ],
-      "id": "cap-anomaly-stub",
+      "id": "ebeaa78a-c424-4a47-82f4-de50d37861cb",
       "name": "Anomaly (capture for later)",
       "notes": "STUB: captures anomalous calls ('none' / 'multiple'). Anomalies STOP here — no context stored, no fallback fired. $json.anomaly distinguishes the two. Expand later (alert / manual-review)."
     }
@@ -645,14 +645,15 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": true
+    "binaryMode": "separate"
   },
+  "versionId": "b5f3b948-a2d2-4cf5-8259-521c688a8177",
   "meta": {
     "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
   },
+  "id": "8o1qYsV2ZXmyvTbr",
   "tags": []
 }
