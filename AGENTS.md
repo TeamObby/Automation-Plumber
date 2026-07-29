@@ -133,7 +133,17 @@ Reporting layer, fed by the handlers. Setup script: [`metrics/metrics-sheet-setu
 Campaign + subsequence IDs for the cold email sequence. Inline these directly in
 workflows — do **not** fetch them via the `GHL Pipeline Stages (Cached)` sub-workflow.
 
-- **Campaign (Cold Email 1):** `995a75d0-4325-4b19-aefe-e69c9a4a86d2`
+- **Campaign (Cold Email 1) — one per timezone.** The lead is **created** in the campaign matching
+  its **TZ** custom field (`Q8NyGdyiYyeaakqmPjNT`, values `PT`/`CT`/`AKST`/`HST`). Only `Send Cold
+  Email 1` picks the campaign (the lead-create point); every later step (Cold Email 2/3/4, missed-call
+  emails) keys off the existing lead by **email/lead_id**, so no campaign id is needed there. All four
+  campaigns share the **same subsequences + interest-value mapping**. Empty/unknown TZ ⇒ **default PT**.
+  | TZ | State | Campaign ID |
+  |---|---|---|
+  | `PT` (default) | California | `995a75d0-4325-4b19-aefe-e69c9a4a86d2` |
+  | `CT` | Texas | `c2d3708e-de7f-4b06-81d5-db065e174b66` |
+  | `AKST` | Alaska | `4905a02f-791b-4dde-baa2-a2eb52a30472` |
+  | `HST` | Hawaii | `ac7941aa-a3c7-4849-8140-222b55d94cb2` |
 - **Test campaign:** `b1f723b8-5cc4-45ab-be45-b8f9f39d7cb5` — _not used; listed for completeness_
 
 | Subsequence | ID |
