@@ -29,9 +29,12 @@ state** — in that order, so `processed:true` only lands after a real move.
 - Trigger node **Call Input** = Execute Workflow trigger (`inputSource: passthrough`).
 - Called by the Router's **Run Cold Call Handler**. Receives (see Router context):
   `contact_id, is_fallback, disposition, note, transcript, opp_id, route, caller_N, call_id,
-  stage_name, signature, last_event_log_entry, last_call_summary_entry, last_signature,
-  company_name, contact`. (The voicemail branch's `Compute MC` also needs the raw caller
-  **`stage_id`** — it reads that off `contact`'s **Call Router Context**, not from a contract field.)
+  stage_name, call_duration, call_recording_url, signature, last_event_log_entry,
+  last_call_summary_entry, last_signature, company_name, contact`. (The voicemail branch's
+  `Compute MC` also needs the raw caller **`stage_id`** — it reads that off `contact`'s
+  **Call Router Context**, not from a contract field.)
+- **`call_duration` / `call_recording_url` are metrics-only** — `Parse + Map Outcome` passes them
+  straight through to the `call_log` row. No classification, move, or field write reads them.
 - Reads `disposition`/`note`/`opp_id` (old names `wavv_disposition`/`latest_note`/`active_opp_id`
   still accepted as fallbacks). Disposition is slugified in Build Prompt (`Cold Good` → `cold-good`).
 
@@ -191,8 +194,20 @@ one row to the **`call_log`** tab of the *Plumber Campaign Metrics* sheet
   city, pipeline` (= stored `route` → `cold`/`gatekeeper`), `stage_name, attempt_no, is_mgr,
   is_missed_variant, picked_up` (literal `TRUE` here — a dispositioned call was answered),
   `disposition_source` (`human`/`ai_fallback`), `disposition_slug, ai_outcome, final_outcome,
-  resume_call_at, call_id`. `from_number` / `duration_sec` / `recording_url` are left **blank** (they
-  exist only during Capture — not yet threaded).
+  resume_call_at, call_id`, plus **`duration_sec` / `recording_url` / `call_transcript`** (below).
+  `from_number` is still left **blank** — GHL never sends it.
+- **`duration_sec` / `recording_url` / `call_transcript`** — captured per dial by
+  [Capture Call Record](./Capture%20Call%20Record.context.md) and threaded here via **Call Router
+  Context** (duration/recording) and the **`transcript`** contract field. All three fall back to `''`,
+  so an anomaly call or a contact captured before this threading existed logs blank cells rather than
+  failing. `duration_sec` feeds `avg_call_duration_sec` on the `daily` tab, so it must stay a bare
+  number-as-text (`"47"`) for USER_ENTERED to parse it.
+  - **`sheetSafe()` in `Parse + Map Outcome` guards the transcript cell**, because `USER_ENTERED`
+    would otherwise evaluate it: a transcript starting with `=`, `+`, `@` or `-` gets a leading `'`
+    (Sheets stores it as text and hides the quote), and anything over **45,000 chars** is truncated
+    with a ` ...[truncated]` marker — a Sheets cell hard-caps at 50,000 and the write would fail.
+  - The **missed-call** handlers deliberately do **not** map `call_transcript` (no pickup, nothing to
+    transcribe); they plain-`append`, so they leave that column empty.
 - ⚠️ **Twin:** the [Gatekeeper Handler](./Gatekeeper%20Handler.context.md) carries the **identical** node
   (`Parse + Map Outcome` is byte-for-byte the same across both) — edit both.
 - Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`. Full schema + workbook:

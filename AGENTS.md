@@ -79,7 +79,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
   Call Context `sLGmbbrcmzdlGONFYDSC` (text — per-call personalized context, written by `Personalize Call Context (SUB)`) ·
   Note `4Ysr9E6CKC2vZK9m6MNm` (text — append-only activity note, e.g. `[… | EMAIL_SENT] Cold Email`.
   **Only `Email Sent → Move To Sent Stage` writes it.**) ·
-  **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` (JSON, write-once per call by Call-Disposition Automation 1 — `{opp_id, route, caller_N, call_id, stage_name, stage_id}`; `stage_id` is the raw caller-stage id the Cold Handler's voicemail branch needs for its missed-call-email `mc` lookup) ·
+  **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` (JSON, write-once per call by Call-Disposition Automation 1 — `{opp_id, route, caller_N, call_id, stage_name, stage_id, call_duration, call_recording_url}`; `stage_id` is the raw caller-stage id the Cold Handler's voicemail branch needs for its missed-call-email `mc` lookup. `call_duration`/`call_recording_url` are **metrics passengers** — nothing routes on them; they live here because the call-recorded webhook is the only place they ever appear, and the handlers need them for the `call_log` row) ·
   **Call Processing State** `BD9TmgEynOEy6bCvZshm` (JSON — `{processed, last_event_log_entry, last_call_summary_entry, last_signature}`; Auto 1 resets, Auto 2 updates each run) ·
   **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` (multiline text — Whisper transcript, static input the disposition AI re-reads per update) ·
   **Call Transcripts** `RoCuJYeWhST2NJG4p0US` (multiline text — **all** call transcripts accumulated, one per line `[<stamp> <caller stage name>] <transcript>`; appended once per call by **Capture Call Record**, additive alongside Last Call Transcript. Not read by any automation — an archive.) ·
@@ -122,9 +122,18 @@ Reporting layer, fed by the handlers. Setup script: [`metrics/metrics-sheet-setu
 - **`call_id` is the dedup key** for dispositioned calls (the handler re-runs on every disposition/note
   edit — appendOrUpdate keeps one row per dial and reflects the latest outcome). Row fields are emitted
   by the existing brain code node (`Parse + Map Outcome` / `Build Logs` / `Build Logs + Route`).
-- **Not yet fed:** `duration_sec` / `recording_url` / `from_number` (exist only during Capture — need
-  threading), and email engagement events (`opened`/`bounced`/`replied` → those `daily` columns stay 0
-  until a separate Instantly-events webhook workflow appends them to `email_log`).
+- **`duration_sec` / `recording_url` / `call_transcript`** are fed by the **disposition** handlers only.
+  They exist just once, on the call-recorded webhook, so **Capture Call Record** stows duration +
+  recording URL in **Call Router Context** and the transcript in **Last Call Transcript**; the
+  Dispatcher's `Prep + Gate` puts all three on the handler contract. Missed-call handlers leave them
+  blank (`call_transcript` isn't even mapped there — no pickup, no transcript). `duration_sec` is what
+  makes `avg_call_duration_sec` on `daily` non-empty, so it must stay a bare number-as-text.
+  ⚠️ `call_transcript` is free text into a `USER_ENTERED` cell: `Parse + Map Outcome`'s `sheetSafe()`
+  prefixes `'` when it starts with `=`/`+`/`@`/`-` and truncates at 45k (50k cell cap). **Keep that
+  guard on any new free-text column.**
+- **Not yet fed:** `from_number` (GHL never sends it), and email engagement events
+  (`opened`/`bounced`/`replied` → those `daily` columns stay 0 until a separate Instantly-events
+  webhook workflow appends them to `email_log`).
 - **Test:** [`tests/metrics-logging.test.js`](tests/metrics-logging.test.js) — runs the brain code nodes
   out of the workflow JSON, reconstructs the exact row each Sheets node writes, and asserts the `.gs`
   contract (incl. 3 scrubbed real-execution fixtures). Run `node tests/metrics-logging.test.js` after any edit.

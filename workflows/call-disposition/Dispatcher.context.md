@@ -52,10 +52,15 @@ real human decision.
 
 ## Handler input contract (Router → Cold Handler)
 `contact_id, is_fallback, disposition, note, transcript, opp_id, route, caller_N, call_id,
-stage_name, signature, last_event_log_entry, last_call_summary_entry, last_signature, company_name,
-contact`. (The Cold Handler's voicemail branch needs the raw **`stage_id`** too, but it reads that
-straight off the passed-through `contact`'s Call Router Context — the Router doesn't carry it as a
-separate field.)
+stage_name, call_duration, call_recording_url, signature, last_event_log_entry,
+last_call_summary_entry, last_signature, company_name, contact`. (The Cold Handler's voicemail branch
+needs the raw **`stage_id`** too, but it reads that straight off the passed-through `contact`'s Call
+Router Context — the Router doesn't carry it as a separate field.)
+
+**`call_duration` / `call_recording_url`** are metrics passengers: `Prep + Gate` lifts them out of
+the stored Call Router Context alongside `opp_id`/`caller_N`/`stage_name` and hands them on
+unexamined — no gate logic or routing reads them. Both fall back to `''`, so a contact captured
+before these keys existed (or one whose ctx was never stored) just logs blank cells.
 
 The Cold Handler (Automation 3) consumes this and, after it writes, sets `Call Processing State`
 = `{processed:true, last_event_log_entry, last_call_summary_entry, last_signature}` — which this

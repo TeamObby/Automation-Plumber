@@ -93,6 +93,11 @@ A leaf **`Sheet: Log Call`** node hangs off **`GHL: Write Logs`** and **appends*
   is_mgr, is_missed_variant`. All disposition/outcome columns (`disposition_source, disposition_slug,
   ai_outcome, final_outcome, resume_call_at`) plus `from_number, duration_sec, recording_url, call_id`
   are left **blank** — a missed call has no human disposition.
+- **`call_transcript` is not mapped at all here** (the disposition handlers do map it): a missed call
+  was never picked up, so there is nothing to transcribe. `append` simply leaves the column empty.
+  The test asserts this asymmetry — `MISSED_CALL_HEADERS` in
+  [`tests/metrics-logging.test.js`](../../tests/metrics-logging.test.js) is `CALL_HEADERS` minus
+  `call_transcript`.
 - `USER_ENTERED`; `onError: continueRegularOutput`, leaf (no downstream) → never blocks the move.
 - ⚠️ **Twin:** the [Gatekeeper Handler](./Gatekeeper%20Handler.context.md) has the identical node
   (`pipeline` = `gatekeeper`).

@@ -16,6 +16,10 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
 1. **Normalize Call** → **Filter: call was picked up** → **IF: transcript missing?**
    - true → **Download Recording (MP3)** → **Transcribe (Whisper)** → **Set Transcript (from audio)** → **Transcript Ready**
    - false → **Transcript Ready**
+   - **Transcript Ready** is the carrier node both branches converge on. Besides the transcript it
+     forwards `call_duration` (← Normalize Call's `duration`) and `call_recording_url` — they arrive
+     **only** on the call-recorded webhook, so if this node drops them they are gone for good
+     (Automation 2 is triggered by a field change and never sees the call payload).
 2. **GHL: Fetch Opps** (search by contact) → **Determine Caller Context** (code) — the brain:
    picks the call pipeline (rebooking > conversation > cold > **gatekeeper**),
    derives `caller_N` (the day) and `stage_name` (the map covers both the 15 cold **and** 13
@@ -26,9 +30,13 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
      **Anomaly (capture for later)** stub, and **stop** — nothing is stored, no fallback fires.
    - **anomaly empty** (clean single call-pipeline match) → **GHL: Store Context** and continue.
 4. **GHL: Store Context** (PUT contact) — writes, **once** (only on the clean path):
-   - **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` = `{opp_id, route, caller_N, call_id, stage_name, stage_id}`
+   - **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` =
+     `{opp_id, route, caller_N, call_id, stage_name, stage_id, call_duration, call_recording_url}`
      (`stage_id` — the Cold Handler's voicemail branch keys its missed-call-email
-     `mc` off the raw stage id, so it must be captured here while the opp is still in the call pipeline)
+     `mc` off the raw stage id, so it must be captured here while the opp is still in the call pipeline.
+     `call_duration` / `call_recording_url` — **metrics only**, nothing routes on them; they ride
+     along here purely because this is the only automation that ever sees the call payload, and the
+     handlers need them for the `call_log` row.)
    - **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` = transcript
    - **Call Processing State** `BD9TmgEynOEy6bCvZshm` = `{processed:false, last_event_log_entry:"", last_call_summary_entry:"", last_signature:""}` ← **reset**
 4b. **Call Transcripts archive** (side branch off **Determine Caller Context**, **before** the

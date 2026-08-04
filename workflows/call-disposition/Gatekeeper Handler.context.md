@@ -30,8 +30,10 @@ is identical to the Cold Handler.
 ## Metrics logging (call_log)
 Carries the **identical** `Sheet: Log Call` node as the [Cold Handler](./Cold%20Handler.context.md)
 (off `GHL: Write Logs`, `appendOrUpdate` on `call_id`, `USER_ENTERED`, `onError: continueRegularOutput`
-leaf) — `Parse + Map Outcome` is byte-for-byte the same across both twins. The only practical
-difference: the `pipeline` column resolves to **`gatekeeper`** here (it echoes the stored `route`).
+leaf) — `Parse + Map Outcome` is byte-for-byte the same across both twins, **including the
+`duration_sec` / `recording_url` / `call_transcript` columns and the `sheetSafe()` transcript guard**.
+The only practical difference: the `pipeline` column resolves to **`gatekeeper`** here (it echoes the
+stored `route`).
 See [Cold Handler → Metrics logging](./Cold%20Handler.context.md) and
 [`AGENTS.md` → Metrics workbook](../../AGENTS.md). Credential `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
 

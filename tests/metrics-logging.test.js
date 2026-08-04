@@ -55,7 +55,10 @@ function effectiveRow(sheet, out) {
   return row;
 }
 
-const CALL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','from_number','pipeline','stage_name','attempt_no','is_mgr','is_missed_variant','picked_up','duration_sec','disposition_source','disposition_slug','ai_outcome','final_outcome','resume_call_at','recording_url','call_id'];
+const CALL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','from_number','pipeline','stage_name','attempt_no','is_mgr','is_missed_variant','picked_up','duration_sec','disposition_source','disposition_slug','ai_outcome','final_outcome','resume_call_at','recording_url','call_id','call_transcript'];
+// Missed-call handlers map every call_log column EXCEPT call_transcript — they never see a
+// transcript (no pickup, nothing to transcribe), so they leave that cell untouched.
+const MISSED_CALL_HEADERS = CALL_HEADERS.filter(h => h !== 'call_transcript');
 const EMAIL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','campaign_id','step','event_type','reply_classification','instantly_lead_id','email_id'];
 const KNOWN = ['cold-good','cold-bad','cold-on-hold','gatekeeper-good','gatekeeper-bad','gatekeeper-on-hold','conversation-active','conversation-active-on-hold','appointment-booked','sales-call','not-interested-right-now-good','not-interested-right-now-bad','do-not-contact','voicemail','call-center'];
 
@@ -72,6 +75,12 @@ function assertCallContract(row, label, opts = {}) {
   ok(row.attempt_no === '' || [1,2,3].includes(row.attempt_no), `${label}: attempt_no in {1,2,3,''} (${row.attempt_no})`);
   ok(row.final_outcome === '' || KNOWN.includes(row.final_outcome), `${label}: final_outcome known-or-empty (${row.final_outcome})`);
   ok(['human','ai_fallback',''].includes(row.disposition_source), `${label}: disposition_source enum (${row.disposition_source})`);
+  ok(row.duration_sec === '' || /^\d+$/.test(String(row.duration_sec)), `${label}: duration_sec bare number-as-text (${row.duration_sec})`);
+  if ('call_transcript' in row) {
+    // USER_ENTERED would read a leading = + @ - as a formula; a cell caps at 50k chars.
+    ok(!/^[=+@-]/.test(String(row.call_transcript)), `${label}: call_transcript cannot trigger a formula`);
+    ok(String(row.call_transcript).length <= 45020, `${label}: call_transcript within the cell cap`);
+  }
   Object.entries(row).forEach(([k,v]) => ok(v !== undefined && v !== null, `${label}: ${k} not undefined/null`));
   if (opts.needCallId) ok(String(row.call_id||'') !== '', `${label}: call_id non-empty (dedup key)`);
 }
@@ -84,10 +93,12 @@ const cfArr = over => {
   Object.assign(base, over || {});
   return Object.entries(base).map(([id,value]) => ({id,value}));
 };
-function dispMock(disp, {fallback=false, mgr=false, stage='Day 2 Call', N=2, ai='cold-good', resume=''}={}) {
+function dispMock(disp, {fallback=false, mgr=false, stage='Day 2 Call', N=2, ai='cold-good', resume='',
+                        transcript='x', duration='47', recording='https://rec.example/c1.mp3'}={}) {
   const contact = { id:'C1', city:'Austin', firstName:'Bob', customFields: cfArr(mgr ? {'u9UymBEMP3f7IZqDTwVd':'note'} : {}) };
-  const b = { contact_id:'C1', is_fallback:fallback, disposition:fallback?'':disp, note:'', transcript:'x',
+  const b = { contact_id:'C1', is_fallback:fallback, disposition:fallback?'':disp, note:'', transcript:transcript,
     opp_id:'OPP1', route:'cold', caller_N:N, call_id:'wavv-'+disp+'-'+N, stage_name:stage,
+    call_duration:duration, call_recording_url:recording,
     company_name:'Acme Plumbing', signature:disp+'|', last_event_log_entry:'', last_call_summary_entry:'', dispo_matched:true };
   return { 'Build Prompt':{item:{json:b}}, 'Call Input':{item:{json:{contact}}},
            'OpenAI: Classify Call':{item:{json:{choices:[{message:{content:JSON.stringify({summary:'s',outcome:ai,resume_call_at:resume})}}]}}} };
@@ -115,6 +126,79 @@ console.log('=== 2) Disposition: full 15-outcome sweep + fallback + N=0 edge ===
   ok(fr.disposition_slug === '', 'fallback: disposition_slug empty');
   ok(fr.final_outcome === 'appointment-booked', 'fallback: final_outcome from AI');
   ok(effectiveRow(sheet, runCode(codeOf(d,'Parse + Map Outcome'), dispMock('cold-good',{N:0}))).attempt_no === '', 'edge N=0 -> attempt_no empty');
+
+  // duration / recording / transcript: threaded in from Call Router Context + Call Input
+  const tr = effectiveRow(sheet, runCode(codeOf(d,'Parse + Map Outcome'), dispMock('cold-good')));
+  ok(tr.duration_sec === '47', 'threaded: duration_sec lands in the row');
+  ok(tr.recording_url === 'https://rec.example/c1.mp3', 'threaded: recording_url lands in the row');
+  ok(tr.call_transcript === 'x', 'threaded: call_transcript lands in the row');
+
+  // sheet-safety of the transcript cell (USER_ENTERED + the 50k cell cap)
+  for (const lead of ['=SUM(A1)', '+1 caller', '-- inaudible --', '@here']) {
+    const r = effectiveRow(sheet, runCode(codeOf(d,'Parse + Map Outcome'), dispMock('cold-good',{transcript:lead})));
+    ok(r.call_transcript === "'" + lead, `sheet-safe: leading '${lead[0]}' quoted as text`);
+  }
+  const lng = effectiveRow(sheet, runCode(codeOf(d,'Parse + Map Outcome'), dispMock('cold-good',{transcript:'y'.repeat(60000)})));
+  ok(lng.call_transcript.length === 45015, `sheet-safe: 60k transcript truncated to 45015 (got ${lng.call_transcript.length})`);
+
+  // a call captured before this change (or an anomaly) has no ctx values -> empty cells, never undefined
+  const bare = effectiveRow(sheet, runCode(codeOf(d,'Parse + Map Outcome'), dispMock('cold-good',{duration:'',recording:'',transcript:''})));
+  ok(bare.duration_sec === '' && bare.recording_url === '' && bare.call_transcript === '',
+     'missing capture data -> empty strings, not undefined');
+}
+
+console.log('=== 2b) Capture -> Dispatcher -> Handler: duration/recording/transcript round-trip ===');
+{
+  // runCode with a $json input item (Capture/Dispatcher code nodes read $json, the handlers don't).
+  const runCode$ = (code, mock, json) => new Function('DateTime','$','$json', code)(DateTime, name => {
+    if (!(name in mock)) throw new Error('mock missing node: ' + name);
+    return mock[name];
+  }, json).json;
+
+  const cap = wf('workflows/call-disposition/Capture Call Record.json');
+  const DUR = '183', REC = 'https://recordings.example/abc.mp3', TXT = 'Hi, this is Kevin calling.';
+  const DAY2 = '4b1d7a88-87c0-422b-90e4-b48d16430900';   // cold pipeline, Day 2 Call
+
+  // 1. Normalize Call -> Transcript Ready: the two fields survive the hop that used to drop them.
+  const norm = { contact_id:'C1', email:'b@acme.test', company_name:'Acme Plumbing', call_id:'wavv-9',
+                 duration:DUR, call_recording_url:REC, transcript:TXT };
+  const tready = runCode$(codeOf(cap,'Transcript Ready'), {'Normalize Call':{item:{json:norm}}}, {transcript:TXT});
+  ok(tready.call_duration === DUR, 'Transcript Ready carries call_duration');
+  ok(tready.call_recording_url === REC, 'Transcript Ready carries call_recording_url');
+
+  // 2. Determine Caller Context -> both land inside the stored Call Router Context JSON.
+  const opps = { opportunities: [{ id:'OPP1', pipelineId:'9E6y34DlG1Imr8FV42RV', pipelineStageId:DAY2 }] };
+  const dcc = runCode$(codeOf(cap,'Determine Caller Context'), {'Transcript Ready':{item:{json:tready}}}, opps);
+  ok(dcc.anomaly === '' && dcc.route === 'cold', 'Determine Caller Context: clean cold match');
+  const ctx = JSON.parse(dcc.context_json);
+  ok(ctx.call_duration === DUR, 'Call Router Context carries call_duration');
+  ok(ctx.call_recording_url === REC, 'Call Router Context carries call_recording_url');
+  ok(ctx.stage_id === DAY2 && ctx.opp_id === 'OPP1', 'Call Router Context keeps its existing keys');
+
+  // 3. Dispatcher Prep + Gate reads that ctx back off the contact and puts both on the contract.
+  const disp = wf('workflows/call-disposition/Dispatcher.json');
+  const contact = { id:'C1', city:'Austin', firstName:'Bob', companyName:'Acme Plumbing', customFields: cfArr({
+    'HW0eBfoQPW2mwxX8aY7Q': dcc.context_json, 'BD9TmgEynOEy6bCvZshm': dcc.state_json,
+    'YxGIrvPl5tfLeYoc7Ldr': 'Cold Good', '2j4uCLLeAbtj8sDTS84o': TXT }) };
+  const gate = runCode$(codeOf(disp,'Prep + Gate'),
+    {'Normalize':{item:{json:{contact_id:'C1', call_id:'wavv-9', is_fallback:false}}}}, { contact });
+  ok(gate.proceed === true, 'Prep + Gate proceeds on a real disposition');
+  ok(gate.call_duration === DUR, 'handler contract carries call_duration');
+  ok(gate.call_recording_url === REC, 'handler contract carries call_recording_url');
+  ok(gate.transcript === TXT, 'handler contract carries transcript');
+
+  // 4. …through both handlers, all the way into the call_log row.
+  for (const p of ['workflows/call-disposition/Cold Handler.json','workflows/call-disposition/Gatekeeper Handler.json']) {
+    const h = wf(p), lbl = p.split('/').pop();
+    const bp = runCode(codeOf(h,'Build Prompt'), {'Call Input':{item:{json:gate}}});
+    const row = effectiveRow(sheetNode(h), runCode(codeOf(h,'Parse + Map Outcome'), {
+      'Build Prompt':{item:{json:bp}}, 'Call Input':{item:{json:gate}},
+      'OpenAI: Classify Call':{item:{json:{choices:[{message:{content:JSON.stringify({summary:'s',outcome:'cold-good',resume_call_at:''})}}]}}} }));
+    ok(row.duration_sec === DUR, `${lbl}: end-to-end duration_sec`);
+    ok(row.recording_url === REC, `${lbl}: end-to-end recording_url`);
+    ok(row.call_transcript === TXT, `${lbl}: end-to-end call_transcript`);
+    assertCallContract(row, `e2e:${lbl}`, {needCallId:true});
+  }
 }
 
 console.log('=== 3) Missed-call handlers: cross-check + contract (each pipeline\'s own stages) ===');
@@ -127,7 +211,7 @@ function stageNameMap(code) {
 for (const p of ['workflows/missed-call/Cold Handler.json','workflows/missed-call/Gatekeeper Handler.json']) {
   const d = wf(p), sheet = sheetNode(d), lbl = p.split('/').pop();
   const wantPipe = p.includes('missed-call/Gatekeeper') ? 'gatekeeper' : 'cold';
-  assertHeaders(sheet, CALL_HEADERS, lbl);
+  assertHeaders(sheet, MISSED_CALL_HEADERS, lbl);
   ok(sheet.parameters.operation === 'append', `${lbl}: op append`);
   for (const [sid,sname] of Object.entries(stageNameMap(codeOf(d,'Build Logs')))) {
     if (!/Day \d/.test(sname)) continue;

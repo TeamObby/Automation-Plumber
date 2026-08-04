@@ -31,6 +31,14 @@
  *     disposition updates the same row instead of adding one. Must be
  *     non-empty and unique per dial. Missed-call rows leave it blank (they
  *     fire once, so they plain-append).
+ *   - duration_sec / recording_url / call_transcript are captured per dial by
+ *     Capture Call Record and threaded through Call Router Context. Only the
+ *     DISPOSITION handlers write them; missed-call rows leave them blank.
+ *     duration_sec must be a bare number-as-text ("47") so USER_ENTERED
+ *     parses it — avg_call_duration_sec on `daily` averages this column.
+ *   - call_transcript is free text: the handler prefixes a leading ' when the
+ *     transcript starts with = + @ or -, so USER_ENTERED cannot read it as a
+ *     formula, and truncates at 45k chars (Sheets caps a cell at 50k).
  */
 
 // ---------------------------------------------------------------- CONFIG
@@ -52,7 +60,7 @@ const CALL_LOG_HEADERS = [
   'from_number', 'pipeline', 'stage_name', 'attempt_no', 'is_mgr',
   'is_missed_variant', 'picked_up', 'duration_sec', 'disposition_source',
   'disposition_slug', 'ai_outcome', 'final_outcome', 'resume_call_at',
-  'recording_url', 'call_id'
+  'recording_url', 'call_id', 'call_transcript'
 ];
 
 const EMAIL_LOG_HEADERS = [
