@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        7952,
-        5904
+        -2896,
+        -9424
       ],
-      "id": "620055cf-77b6-455f-8ef1-bdc64441a5cf",
+      "id": "53c93f44-b958-490b-887a-947181eb7990",
       "name": "Webhook (Call Recorded)",
       "webhookId": "call-recorded-capture",
       "notes": "Repoint the GHL 'Call Recorded' trigger here (was the old Dispatcher)."
@@ -26,10 +26,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8176,
-        5904
+        -2672,
+        -9424
       ],
-      "id": "3a25b8fd-11b2-4046-b006-0cf65c89e6aa",
+      "id": "e2aec0b1-afbd-4022-8544-bcda737c3fd9",
       "name": "Normalize Call"
     },
     {
@@ -60,10 +60,10 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
       "position": [
-        8400,
-        5904
+        -2448,
+        -9424
       ],
-      "id": "e661fe16-947a-4643-95b8-1066a0721948",
+      "id": "96c81be7-7f05-4a0a-9b22-7bb3050e6756",
       "name": "Filter: call was picked up",
       "notes": "Proceeds if any call data is present. Missed calls handled elsewhere."
     },
@@ -95,10 +95,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        8624,
-        5904
+        -2224,
+        -9424
       ],
-      "id": "46268640-9bd8-4898-8fa0-1de7ad5f91a0",
+      "id": "9ea582f9-cc64-467e-8370-beac0485fb32",
       "name": "IF: transcript missing?",
       "notes": "True only when transcript empty AND a recording URL is present."
     },
@@ -116,10 +116,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        8848,
-        5832
+        -2000,
+        -9496
       ],
-      "id": "11dc2ed7-9305-4fc9-bb7f-96309f369edc",
+      "id": "47f1768b-e57a-4d2b-8d09-a186bc7fc3db",
       "name": "Download Recording (MP3)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -152,10 +152,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        9072,
-        5832
+        -1776,
+        -9496
       ],
-      "id": "ee398526-f9d3-4e7c-b26b-e228c3e34b80",
+      "id": "ff168a13-2957-49ca-a013-ffdc82d87198",
       "name": "Transcribe (OpenAI Whisper)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -176,10 +176,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        9296,
-        5832
+        -1552,
+        -9496
       ],
-      "id": "8cff5cb5-085a-475c-8541-fcbbfab97f7a",
+      "id": "474791f9-27c8-4418-8a64-9cf6f0b07b5c",
       "name": "Set Transcript (from audio)"
     },
     {
@@ -190,10 +190,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        9520,
-        5904
+        -1328,
+        -9424
       ],
-      "id": "655a38b9-ec34-451b-895a-130e14be9315",
+      "id": "4a7a32b4-9f02-457e-b895-a1d0f1a22102",
       "name": "Transcript Ready"
     },
     {
@@ -206,10 +206,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        9744,
-        5904
+        -1104,
+        -9424
       ],
-      "id": "5c891842-33e1-45e0-8f1e-e31aa3f26413",
+      "id": "48085359-2159-42cb-a2a1-9fc84e9c501b",
       "name": "GHL: Fetch Opps",
       "retryOnFail": true,
       "maxTries": 4,
@@ -230,10 +230,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        9968,
-        5904
+        -880,
+        -9424
       ],
-      "id": "2844f988-d76e-452e-b5fb-96079dfe93b3",
+      "id": "81454dae-4903-477d-a0eb-39a52f133876",
       "name": "Determine Caller Context"
     },
     {
@@ -250,10 +250,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        10416,
-        5808
+        -432,
+        -9424
       ],
-      "id": "bbca0431-9767-4299-8c0c-0cd6ee5d24b7",
+      "id": "fead8599-fe9f-42cf-9e42-0d2bc0d5f2cc",
       "name": "GHL: Store Context",
       "retryOnFail": true,
       "maxTries": 4,
@@ -273,10 +273,10 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        10640,
-        5808
+        -208,
+        -9424
       ],
-      "id": "d8687ff2-a8f4-46e7-8841-6a82dbf95171",
+      "id": "63fd57bb-ab62-4593-b3f5-4476a0fae5ed",
       "name": "Wait 5m (fallback grace)",
       "webhookId": "capture-fallback-wait"
     },
@@ -290,10 +290,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        10864,
-        5808
+        16,
+        -9424
       ],
-      "id": "c192ce18-1c09-41d4-a65e-defc1e847416",
+      "id": "8fb5a988-d6c4-4844-a5bc-540fe08b2654",
       "name": "GHL: Get Contact (re-read State)",
       "retryOnFail": true,
       "maxTries": 4,
@@ -315,10 +315,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        11088,
-        5808
+        240,
+        -9424
       ],
-      "id": "1f312c12-ee7f-4ebb-b76d-661bf38fdeac",
+      "id": "fcce7d68-006b-4863-963d-23508cfecf43",
       "name": "Check Processed"
     },
     {
@@ -349,10 +349,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11312,
-        5808
+        464,
+        -9424
       ],
-      "id": "1388134c-5859-43ee-9454-c39d554e3928",
+      "id": "f5440f09-16da-4565-9baf-9ba71d97d5d8",
       "name": "IF: not processed?",
       "notes": "TRUE when processed is still false -> fire the fallback. Automation 1 owns this decision."
     },
@@ -379,10 +379,10 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        11536,
-        5712
+        688,
+        -9520
       ],
-      "id": "eebbc349-4318-46dc-adc1-a88883ead7d8",
+      "id": "bc064ecf-52fa-4199-bed2-0909ec55951e",
       "name": "-> Automation 2 (fallback)",
       "notes": "PLACEHOLDER: set the Automation 2 workflow ID here once it is built. Passes {contact_id, call_id, fallback:true} so Auto 2 classifies AI-only."
     },
@@ -391,10 +391,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        11536,
-        5904
+        688,
+        -9328
       ],
-      "id": "c724ac3f-39d5-46d3-b1c6-866f12f58707",
+      "id": "11815a36-e22e-4bfa-8fc0-1e00561bbc37",
       "name": "Done (already processed)"
     },
     {
@@ -425,24 +425,54 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        10192,
-        5904
+        -656,
+        -9328
       ],
-      "id": "522d3f98-8036-4660-89b3-22770c4b22df",
+      "id": "f6f1dc18-5e23-46a6-b6ae-aeb8ad1b292f",
       "name": "IF: anomaly?",
       "notes": "Gate. TRUE when anomaly is non-empty ('multiple' = 2+ call pipelines, 'none' = no call opp) -> capture for later, do NOT store context. FALSE (clean single match) -> Store Context and continue."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Determine Caller Context').item.json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'HW0eBfoQPW2mwxX8aY7Q', value: '' }, { id: 'BD9TmgEynOEy6bCvZshm', value: '' } ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -432,
+        -9232
+      ],
+      "id": "ca7fbe71-a4ea-49a7-9d35-b5814d42b551",
+      "name": "GHL: Clear Context (anomaly)",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      },
+      "notes": "Anomaly = we cannot attribute this call to a caller stage. Blanks Call Router Context + Call Processing State so the PREVIOUS call's context can't be reused: without this the Dispatcher still fires on the disposition webhook, reads the stale ctx, and moves the wrong opp. Deliberately NOT continueRegularOutput — a failed clear must surface, since it leaves the stale-context bug live."
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        10416,
-        6000
+        -208,
+        -9232
       ],
-      "id": "ebeaa78a-c424-4a47-82f4-de50d37861cb",
+      "id": "588622e5-6580-46ed-8e92-5cd0a170d3fc",
       "name": "Anomaly (capture for later)",
-      "notes": "STUB: captures anomalous calls ('none' / 'multiple'). Anomalies STOP here — no context stored, no fallback fired. $json.anomaly distinguishes the two. Expand later (alert / manual-review)."
+      "notes": "STUB: captures anomalous calls ('none' / 'multiple'). Anomalies STOP here — context is CLEARED (previous node), no new context stored, no fallback fired. $json.anomaly distinguishes the two. Expand later (alert / manual-review)."
     },
     {
       "parameters": {
@@ -454,21 +484,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1240,
-        380
+        -656,
+        -9616
       ],
-      "id": "get-contact-transcripts",
+      "id": "00a756dc-58e1-4698-83b8-368b4b06d7a5",
       "name": "GHL: Get Contact (for transcripts)",
       "retryOnFail": true,
       "maxTries": 4,
       "waitBetweenTries": 2000,
-      "onError": "continueRegularOutput",
       "credentials": {
         "httpMultipleHeadersAuth": {
           "id": "DtotRKnzjDewbSsv",
           "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
         }
       },
+      "onError": "continueRegularOutput",
       "notes": "Reads the contact's current Call Transcripts so the append never clobbers history. Non-blocking side branch."
     },
     {
@@ -479,10 +509,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1460,
-        380
+        -432,
+        -9616
       ],
-      "id": "build-call-transcripts",
+      "id": "67357fbc-6f7a-4167-97d5-8e4975e32fbf",
       "name": "Build Call Transcripts",
       "notes": "Appends '[<stamp> <stage_name>] <transcript>' to the existing Call Transcripts. should_write=false (empty transcript or a failed read) -> skip."
     },
@@ -514,10 +544,10 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
       "position": [
-        1680,
-        380
+        -208,
+        -9616
       ],
-      "id": "gate-append-transcript",
+      "id": "a4a63648-0fe0-4300-b001-dc3c2e5cae58",
       "name": "Gate: append transcript?",
       "notes": "Passes only when there's a transcript and the contact read was clean."
     },
@@ -535,21 +565,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1900,
-        380
+        16,
+        -9616
       ],
-      "id": "append-call-transcripts",
+      "id": "e737bddf-10ee-4ab9-b465-fe9caaf54cc3",
       "name": "GHL: Append Call Transcripts",
       "retryOnFail": true,
       "maxTries": 4,
       "waitBetweenTries": 2000,
-      "onError": "continueRegularOutput",
       "credentials": {
         "httpMultipleHeadersAuth": {
           "id": "DtotRKnzjDewbSsv",
           "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
         }
       },
+      "onError": "continueRegularOutput",
       "notes": "Writes ONLY Call Transcripts (RoCuJYeWhST2NJG4p0US) = existing + new line. Additive; does not touch Last Call Transcript or anything else."
     }
   ],
@@ -743,7 +773,7 @@
       "main": [
         [
           {
-            "node": "Anomaly (capture for later)",
+            "node": "GHL: Clear Context (anomaly)",
             "type": "main",
             "index": 0
           }
@@ -789,14 +819,26 @@
           }
         ]
       ]
+    },
+    "GHL: Clear Context (anomaly)": {
+      "main": [
+        [
+          {
+            "node": "Anomaly (capture for later)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "availableInMCP": true
   },
-  "versionId": "b5f3b948-a2d2-4cf5-8259-521c688a8177",
+  "versionId": "f0f3c65b-7131-4d5b-906a-34d9857ae00b",
   "meta": {
     "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
   },

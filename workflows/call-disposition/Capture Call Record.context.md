@@ -27,7 +27,8 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
    **`gatekeeper`** → the Dispatcher sends each to its matching handler.
 3. **IF: anomaly?** — the gate:
    - **anomaly non-empty** (`'none'` = no call opp, or `'multiple'` = 2+ call pipelines) →
-     **Anomaly (capture for later)** stub, and **stop** — nothing is stored, no fallback fires.
+     **GHL: Clear Context (anomaly)** → **Anomaly (capture for later)** stub, and **stop** —
+     no new context is stored, no fallback fires, and the **previous** call's context is wiped.
    - **anomaly empty** (clean single call-pipeline match) → **GHL: Store Context** and continue.
 4. **GHL: Store Context** (PUT contact) — writes, **once** (only on the clean path):
    - **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` =
@@ -55,15 +56,43 @@ Recorded" trigger here** (it currently hits the old `Dispatcher`).
 ## Anomaly handling — blocking gate (lives here, not in the Router)
 `Determine Caller Context` computes `anomaly`: `''` (one call pipeline, normal) · `'none'` (no call
 opp) · `'multiple'` (2+ call pipelines). **IF: anomaly?** then gates the whole flow:
-- **anomaly non-empty** (`'none'` **or** `'multiple'`) → **Anomaly (capture for later)** stub, and
-  the flow **stops**: no context stored, no grace-wait, no fallback. A placeholder to expand later
-  (alert / manual-review); `$json.anomaly` distinguishes the two cases.
+- **anomaly non-empty** (`'none'` **or** `'multiple'`) → **GHL: Clear Context (anomaly)** →
+  **Anomaly (capture for later)** stub, and the flow **stops**: no context stored, no grace-wait, no
+  fallback. The stub is a placeholder to expand later (alert / manual-review); `$json.anomaly`
+  distinguishes the two cases.
 - **anomaly empty** (clean single call-pipeline match) → **GHL: Store Context** → … the normal path.
 
 Rationale: a lead in **0 or 2+ call pipelines** can't be safely attributed to one caller stage, so
 we **don't** want to store a guessed context or fire the fallback for it — better to hold it for
-review. `anomaly` is used only here; it is **not** written to Call Router Context, and the Router
-has no anomaly logic (it never sees these leads).
+review. `anomaly` is used only here; it is **not** written to Call Router Context.
+
+### ⚠️ Why the clear is mandatory, not tidy-up
+Stopping here does **not** stop Automation 2. The Dispatcher is triggered by a **field change**, so
+the moment a rep dispositions this unattributable call, GHL fires the webhook and the Dispatcher runs
+regardless of what Capture decided. If Call Router Context still held the **previous** call's values
+it would read a perfectly valid-looking `route` + `opp_id` and **move the wrong opportunity** — the
+disposition of call B applied to call A's opp.
+
+**GHL: Clear Context (anomaly)** blanks both fields (`''`):
+- **Call Router Context** `HW0eBfoQPW2mwxX8aY7Q` → `Prep + Gate` resolves `route='none'` and
+  `opp_id=''`, so the Switch drops to *other routes / none* and no handler ever runs.
+- **Call Processing State** `BD9TmgEynOEy6bCvZshm` → no stale `processed` / `last_signature` left
+  claiming a call is mid-flight.
+
+Both readers do `JSON.parse(String(cf(X) || '{}'))`, so `''` and `'{}'` behave identically — `''` is
+used because an empty field reads unambiguously in the GHL UI as "no call pending".
+
+The node is deliberately **not** `continueRegularOutput`: a silent failure here restores the exact
+bug it exists to prevent, so it should fail the execution loudly.
+
+**Known trade-off:** a second dial that lands while a previous call is still editable also clears
+that call's context. The common shape is a redial right after a disposition moved the opp out of the
+call pipeline — the lead now has 0 call opps, so call B is `anomaly='none'` and wipes call A's ctx.
+Call A keeps everything it already wrote (opp moved, logs, `call_log` row); what is lost is the
+ability to **re-edit call A's disposition afterwards** — that edit now falls to the no-op branch
+instead of re-processing. Dropping a late edit is the safe failure; moving the wrong opp is not.
+**Last Call Transcript is intentionally left alone** — with `route='none'` no handler reads it, and
+the full history is in the **Call Transcripts** archive either way.
 
 ## Key points
 - **Captures context while the opp is still in the call pipeline** — `caller_N`, `stage_name`, and

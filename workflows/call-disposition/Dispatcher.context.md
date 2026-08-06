@@ -80,8 +80,14 @@ old call-recorded flow would break if half-migrated.
 
 ## TODOs / gotchas
 - Cold and gatekeeper routes wired; conversation/rebooking fall to the **Other routes (build later)** stub.
-- **Anomaly is handled upstream in [Capture Call Record](./Capture%20Call%20Record.context.md)**, not here — a lead in 2+ call
-  pipelines is stopped before any context is stored, so the Router never sees it.
+- **Anomaly is decided upstream in [Capture Call Record](./Capture%20Call%20Record.context.md)**, but
+  this Router **does** see anomalous leads — it is triggered by a field change, so a rep
+  dispositioning an unattributable call fires the webhook no matter what Capture decided. What stops
+  them is that Capture **clears Call Router Context**, so `Prep + Gate` resolves `route='none'` and
+  `opp_id=''` and the Switch drops them into *other routes / none*. There is no anomaly logic here.
+  ⚠️ Anything that reintroduces a stale ctx (or a "helpful" default route) resurrects the bug where a
+  disposition moves the **previous** call's opportunity — see *Why the clear is mandatory* in the
+  Capture context.
 
 ## Related
 - Upstream: [`Capture Call Record`](./Capture%20Call%20Record.context.md) (Automation 1).

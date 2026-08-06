@@ -187,6 +187,35 @@ console.log('=== 2b) Capture -> Dispatcher -> Handler: duration/recording/transc
   ok(gate.call_recording_url === REC, 'handler contract carries call_recording_url');
   ok(gate.transcript === TXT, 'handler contract carries transcript');
 
+  // 3b. ANOMALY: Capture clears ctx + state, so a disposition on an unattributable call
+  //     cannot ride the PREVIOUS call's context into a handler and move the wrong opp.
+  const CTX_F = 'HW0eBfoQPW2mwxX8aY7Q', STATE_F = 'BD9TmgEynOEy6bCvZshm';
+  const clearNode = cap.nodes.find(n => n.name === 'GHL: Clear Context (anomaly)');
+  ok(!!clearNode, 'Capture has a GHL: Clear Context (anomaly) node');
+  ok(cap.connections['IF: anomaly?'].main[0][0].node === 'GHL: Clear Context (anomaly)',
+     'anomaly (true) branch hits the clear before the stub');
+  const cleared = (clearNode.parameters.jsonBody.match(/id: '(\w+)', value: ''/g) || []).join('|');
+  ok(cleared.includes(CTX_F) && cleared.includes(STATE_F),
+     'clear node blanks BOTH Call Router Context and Call Processing State');
+
+  // the two anomaly shapes really do fail the gate that guards Store Context
+  for (const [label, oppList] of [['none', []],
+       ['multiple', [{id:'O1',pipelineId:'9E6y34DlG1Imr8FV42RV',pipelineStageId:DAY2},
+                     {id:'O2',pipelineId:'3onA8GkJnSwgzIGTGSpI',pipelineStageId:'042d9b81-1cb4-4265-a3c0-086b7d9d149d'}]]]) {
+    const a = runCode$(codeOf(cap,'Determine Caller Context'),
+      {'Transcript Ready':{item:{json:tready}}}, {opportunities:oppList});
+    ok(a.anomaly === label, `anomaly '${label}' detected -> Store Context skipped`);
+  }
+
+  // and a cleared contact neutralises the Dispatcher: no route, no opp, nothing to move
+  const wiped = { id:'C1', city:'Austin', customFields: cfArr({ [CTX_F]:'', [STATE_F]:'',
+    'YxGIrvPl5tfLeYoc7Ldr':'Cold Good', '2j4uCLLeAbtj8sDTS84o':TXT }) };
+  const blocked = runCode$(codeOf(disp,'Prep + Gate'),
+    {'Normalize':{item:{json:{contact_id:'C1', call_id:'wavv-anom', is_fallback:false}}}}, { contact: wiped });
+  ok(blocked.route === 'none', 'cleared ctx -> route none (Switch falls to the no-op branch)');
+  ok(blocked.opp_id === '', 'cleared ctx -> no opp_id, so no handler could move anything');
+  ok(blocked.caller_N === 0 && blocked.stage_name === '', 'cleared ctx -> no stale caller stage');
+
   // 4. …through both handlers, all the way into the call_log row.
   for (const p of ['workflows/call-disposition/Cold Handler.json','workflows/call-disposition/Gatekeeper Handler.json']) {
     const h = wf(p), lbl = p.split('/').pop();
