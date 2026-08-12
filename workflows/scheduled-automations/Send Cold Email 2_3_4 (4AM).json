@@ -509,7 +509,7 @@
           "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
         }
       },
-      "notes": "Stop-Emails divert: move opp to Cold Email N Sent (CE2/3/4 Sent). No email sent."
+      "notes": "Two callers, same destination. (1) Stop-Emails divert: no email is sent, advance anyway. (2) Already-stamped recovery: already_sent is true, so this lead was enrolled on an earlier run but the Instantly email_sent webhook never moved it — 'Email Sent -> Move To Sent Stage' missed it. Without this it stalls in Cold Email N forever and is skipped on every later run. Reads sent_stage_id + email_opp_id from 'Build', which runs upstream of the guard, so both branches resolve the target identically. A late webhook is harmless: it resolves the opp by email-pipeline membership, so it either re-moves to the same stage (no-op) or finds nothing to move."
     }
   ],
   "pinData": {},
@@ -657,7 +657,7 @@
         ],
         [
           {
-            "node": "Wait 2s",
+            "node": "GHL: Move to Cold Email N Sent",
             "type": "main",
             "index": 0
           }

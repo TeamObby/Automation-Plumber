@@ -1,0 +1,419 @@
+{
+  "name": "Instantly Event -> GHL Tag (bounced / opened)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instantly_event",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7b2727b6-6d33-4115-ad8b-317c1e78f58f",
+      "name": "Webhook (Instantly Event)",
+      "webhookId": "instantly-event-0001"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = ($json && $json.body) ? $json.body : $json;\nconst ev = String(b.event_type || '').trim();\n// Map Instantly event -> GHL tag to add. Extend this map for more events later.\nconst MAP = {\n  email_bounced: 'email_bounced',\n  email_opened:  'email_opened'\n};\nreturn { json: {\n  event_type: ev,\n  email: String(b.lead_email || b.email || '').trim(),\n  tag: MAP[ev] || ''\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "288930a0-f929-4a37-b569-da4f83f53fc7",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "t1",
+              "leftValue": "={{ $json.tag }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "1a3a853e-a46f-4b19-b840-d5d392f83058",
+      "name": "Known event?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ locationId: 'rzaMhqeo2apNI1p6DG5z', pageLimit: 1, filters: [{ field: 'email', operator: 'eq', value: $('Normalize').item.json.email }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        0
+      ],
+      "id": "efad163c-a75e-45a5-8127-ab3d1184de97",
+      "name": "GHL: Search Contact by Email",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r = $json;\nconst c = (r.contacts && r.contacts[0]) ? r.contacts[0] : (r.contact || r);\nconst cf = id => { const f = (c.customFields || []).find(x => x.id === id); return f ? f.value : ''; };\n\nconst n = $('Normalize').item.json;\nconst is_bounce = n.event_type === 'email_bounced';\n\nconst EMAIL_STEP_NAME_ID = 'WtFfl1nEbMupk2oR4m9e';\nconst STOP_EMAILS_ID     = 'ixRO9dSUHVd6vNTdFa7Q';\nconst EMAIL_PIPELINE_ID  = '1A1RkYaL93s2rqbQ3Opi';\n\n// Bounce target — the same \"Cold Email N Sent\" map `Email Sent -> Move To Sent Stage` uses.\nconst SENT_STAGE = {\n  1: '41849471-6f42-4f40-9692-bbd4d3713d17',   // Cold Email 1 Sent\n  2: 'fdd4f9a4-a626-4866-a904-5053e626306f',   // Cold Email 2 Sent\n  3: '2f599547-4a2b-4ba4-850d-0feb7fcc976c',   // Cold Email 3 Sent\n  4: '39a20e88-ce88-46c6-9e95-8134aa9f269d'    // Cold Email 4 Sent\n};\n// Fallback when email_step_name is empty/stale: derive N from where the email opp sits NOW.\n// Both the `Cold Email N` and `Cold Email N Sent` stage of a step map to the same N.\nconst N_BY_STAGE = {\n  'f9bcbefb-aa83-44d4-ad8b-59a758993045': 1,   // Cold Email 1\n  '41849471-6f42-4f40-9692-bbd4d3713d17': 1,   // Cold Email 1 Sent\n  'e4b13f51-2229-4d47-aa3e-12381a31a8c1': 2,   // Cold Email 2\n  'fdd4f9a4-a626-4866-a904-5053e626306f': 2,   // Cold Email 2 Sent\n  '342b193f-9456-4bcc-a2a7-cb81973500c9': 3,   // Cold Email 3\n  '2f599547-4a2b-4ba4-850d-0feb7fcc976c': 3,   // Cold Email 3 Sent\n  'f3ea4cd2-daf2-4ca2-baaa-301f807d697c': 4,   // Cold Email 4\n  '39a20e88-ce88-46c6-9e95-8134aa9f269d': 4    // Cold Email 4 Sent\n};\n\n// The move is scoped to the EMAIL pipeline on purpose: once the 4:30AM sweep has handed the\n// opp off to a call pipeline there is no email opp left, and a late bounce must NOT yank an\n// actively-called lead back into `Cold Email N Sent`.\nconst oppList  = Array.isArray(c.opportunities) ? c.opportunities : [];\nconst emailOpp = oppList.find(o => o && o.pipelineId === EMAIL_PIPELINE_ID) || {};\nconst email_opp_id       = String(emailOpp.id || '');\nconst email_opp_stage_id = String(emailOpp.pipelineStageId || emailOpp.stageId || '');\n\nconst email_step_name = String(cf(EMAIL_STEP_NAME_ID) || '').trim();\nconst stepN = Number((email_step_name.toLowerCase().match(/^cold email (\\d+)$/) || [])[1] || 0)\n           || N_BY_STAGE[email_opp_stage_id] || 0;\n\n// Only a bounce routes anywhere; an open just tags.\nconst target_sent_stage_id = (is_bounce && SENT_STAGE[stepN]) ? SENT_STAGE[stepN] : '';\n\nreturn { json: {\n  contact_id: (c && c.id) ? String(c.id) : '',\n  tag: n.tag,\n  event_type: n.event_type,\n  is_bounce,\n  email_step_name,\n  email_opp_id,\n  email_opp_stage_id,\n  step_n: stepN,\n  target_sent_stage_id,\n  // Stop Emails is a radio field — the string 'True' is the option value, not a boolean.\n  stop_emails_fields: [{ id: STOP_EMAILS_ID, value: 'True' }]\n}};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "d5487321-e0aa-4fea-a71d-ba928a3877a6",
+      "name": "Build contact + route"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.contact_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "c53946ed-f8f6-42b7-9e1f-bf1e555b42df",
+      "name": "Contact found?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}/tags",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ tags: [ $json.tag ] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        -128
+      ],
+      "id": "038b3505-a5c1-4f50-ace2-93f98570096c",
+      "name": "GHL: Add event tag",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1",
+              "leftValue": "={{ $json.event_type }}",
+              "rightValue": "email_bounced",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        112
+      ],
+      "id": "0f4f0c2f-6a2e-4f2b-9f24-2d1e0d3a7b41",
+      "name": "Bounced?"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: $json.stop_emails_fields }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1568,
+        16
+      ],
+      "id": "8c1b5a90-3e77-4d55-8a1c-6f9f0b2c4d13",
+      "name": "GHL: Set Stop Emails = True",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "m1",
+              "leftValue": "={{ $json.target_sent_stage_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "m2",
+              "leftValue": "={{ $json.email_opp_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        224
+      ],
+      "id": "5d2a7e14-9b30-4c86-b0f1-7a4c8e6d2f95",
+      "name": "Can move opp?"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $json.email_opp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ pipelineId: '1A1RkYaL93s2rqbQ3Opi', pipelineStageId: $json.target_sent_stage_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1792,
+        224
+      ],
+      "id": "2e6c9f38-4a15-49b7-8d0e-c3b7a51f6e08",
+      "name": "GHL: Move Opp -> Cold Email N Sent",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (Instantly Event)": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Known event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known event?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Search Contact by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Search Contact by Email": {
+      "main": [
+        [
+          {
+            "node": "Build contact + route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build contact + route": {
+      "main": [
+        [
+          {
+            "node": "Contact found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact found?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Add event tag",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bounced?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounced?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Set Stop Emails = True",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Can move opp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can move opp?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Move Opp -> Cold Email N Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "c48d4f3b-e9e3-4ccd-b405-7e2f8894db80",
+  "meta": {
+    "instanceId": "9123762ce105bc0ebb4de80ff56788069c043c3b4711ac61b678e6e3c40f687c"
+  },
+  "id": "LivoJrl0ot4luBdT",
+  "tags": []
+}

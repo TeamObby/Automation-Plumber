@@ -15,7 +15,10 @@ on the GHL contact so it isn't enrolled twice.
 3. **GHL: Get Contact** — fetches the full contact (needed for the custom fields; the
    opportunity payload doesn't carry them).
 4. **Not sent yet?** (IF guard) — reads Email Step Name; proceeds only if it is **not**
-   `cold email 1`. Already-enrolled leads short-circuit to **Wait 2s** and loop on.
+   `cold email 1`.
+   - **already `cold email 1` → GHL: Move to Cold Email 1 Sent** → **Wait 2s**
+     (**stuck-lead recovery**, see below). It used to short-circuit straight to **Wait 2s**,
+     which is what let stalled leads accumulate.
 5. **IF: Stop Emails?** — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
    - `True` → **GHL: Move to Cold Email 1 Sent** (`41849471-…`) → **Wait 2s**. **No email** — the
      lead skips Instantly but still advances (4:30AM drains `Cold Email 1 Sent` → Day 1 Call A).
@@ -30,17 +33,50 @@ which is written in step 6 — *after* the Instantly POST. If the GHL PUT fails 
 Instantly POST succeeded, the next run re-enrolls that lead. The opp is **not** moved out of
 the Cold Email 1 stage by this workflow, so leads stay in scope until the field is stamped.
 
+## 🔁 Stuck-lead recovery (the already-stamped branch)
+Instantly's `email_sent` webhook is not perfectly reliable. When it doesn't fire,
+[`Email Sent → Move To Sent Stage`](../email-sent/Email%20Sent%20-_%20Move%20To%20Sent%20Stage.context.md)
+never runs, so the opp stays in `Cold Email 1` **and** the contact already carries
+`email_step_name = cold email 1`. The guard then skips it on every subsequent run: the lead is
+never re-emailed and never advances. It is stuck permanently.
+
+The already-stamped branch now **diverts to `Cold Email 1 Sent`** instead of looping past, so
+4:30AM can drain it to the call pipeline as normal. This reuses the same
+`GHL: Move to Cold Email 1 Sent` node the Stop-Emails path uses — the opp id and target stage
+resolve identically on both branches, so it needed no expression changes, only a rewire.
+
+**A late webhook is harmless.** `Build Logs + Route` in the Email-Sent workflow finds the opp with
+`oppList.find(o => o.pipelineId === EMAIL_PIPELINE_ID)` and its move is gated on
+`email_opp_id notEmpty`. So a webhook arriving after we advanced either re-moves the opp to the
+stage it is already in (idempotent no-op) or, if 4:30AM has since moved it into the call pipeline,
+finds no email-pipeline opp and skips the move. The logging branch still writes its note, event log,
+email history and **Instantly Lead ID** either way.
+
+### ⚠️ The trade-off — enrolled ≠ sent
+`email_step_name` records that we **enrolled** the lead, not that Instantly **sent** it. The branch
+only fires when a lead is still sitting in `Cold Email 1` at the next 3:30AM run, i.e. ~24h after
+enrollment with no send confirmation — normally impossible, since the webhook would have moved it.
+But when Instantly is genuinely slow (**weekend send windows, a paused campaign, daily volume
+caps**), this advances a lead whose email has not gone out yet, and 4:30AM will hand it to a caller
+who assumes the email landed.
+
+That is the accepted cost: an occasional call-before-email is far cheaper than the previous
+behaviour, where stuck leads accumulated forever and silently strangled the whole workflow (below).
+If it proves noisy, the fix is to age-gate the divert on the opportunity's `updatedAt` rather than
+firing on first re-sighting.
+
 ## ⚠️ The ≤100 invariant this workflow relies on
 The pull is unpaginated (`limit=100`), which is safe **only** because the `Cold Email 1` stage
-never exceeds 100 opps. This workflow never removes an opp from that stage — the drain is
+never exceeds 100 opps. The main drain is
 [`Email Sent → Move To Sent Stage`](../email-sent/Email%20Sent%20-_%20Move%20To%20Sent%20Stage.context.md)
-(`CDdLps7wfOjyM9Lx`), an Instantly webhook that moves each opp to `Cold Email 1 Sent` once the
-send is confirmed. **That workflow is load-bearing for this one.**
+(`CDdLps7wfOjyM9Lx`) on send confirmation; the recovery branch above is now a **second** drain, so a
+dropped webhook no longer parks an opp in the stage permanently.
 
-If it stops (or intake grows past 100), the failure here is **silent**: the pull returns 100
-already-sent leads, the `email_step_name` guard skips every one, no new lead is emailed, and the
-run still reports success. (`Send Cold Email 2/3/4` avoids this class of bug entirely by
-paginating — its stages genuinely do accumulate.)
+Before that branch existed the failure was **silent and compounding**: every lead whose webhook was
+missed stayed in the stage forever, the pull filled up with 100 already-sent leads, the guard skipped
+every one, no new lead was emailed, and the run still reported success. Intake growth past 100 can
+still cause this — the recovery branch bounds the stuck-lead contribution, not the volume one.
+(`Send Cold Email 2/3/4` avoids the volume class of bug entirely by paginating.)
 
 ## Instantly payload
 **Campaign is chosen by the lead's `TZ` custom field** (`Q8NyGdyiYyeaakqmPjNT`) — this is the

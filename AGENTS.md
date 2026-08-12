@@ -50,6 +50,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Sent Cold Email to Caller Stages (4:30AM) | `IIyYJxvDyeCmYdur` | [open](https://n8n.meetobby.com/workflow/IIyYJxvDyeCmYdur) | ✅ | ✓ [json+ctx](workflows/scheduled-automations/) |
 | Personalize Call Context (SUB) | `T4Mz1k2fYwCwzp7D` | [open](https://n8n.meetobby.com/workflow/T4Mz1k2fYwCwzp7D) | — (sub-workflow) | ⏳ not pulled |
 | Email Sent → Move To Sent Stage | `CDdLps7wfOjyM9Lx` | [open](https://n8n.meetobby.com/workflow/CDdLps7wfOjyM9Lx) | ✅ (webhook) | ✓ [json+ctx](workflows/email-sent/) — local edits **not yet pushed** |
+| Instantly Event → GHL Tag (bounced / opened) | `LivoJrl0ot4luBdT` | [open](https://n8n.meetobby.com/workflow/LivoJrl0ot4luBdT) | ✅ (webhook) | ✓ [json+ctx](workflows/email-sent/) — bounce branch (Stop Emails + stage move) **not yet pushed** |
 | Create Manual Review Opp | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/manual-review/) |
 | Missed Call - Dispatcher | `WRvTiZWThJTQAU8P` | [open](https://n8n.meetobby.com/workflow/WRvTiZWThJTQAU8P) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
@@ -84,7 +85,12 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
   **Last Call Transcript** `2j4uCLLeAbtj8sDTS84o` (multiline text — Whisper transcript, static input the disposition AI re-reads per update) ·
   **Call Transcripts** `RoCuJYeWhST2NJG4p0US` (multiline text — **all** call transcripts accumulated, one per line `[<stamp> <caller stage name>] <transcript>`; appended once per call by **Capture Call Record**, additive alongside Last Call Transcript. Not read by any automation — an archive.) ·
   **Stop Phone Calls** `KFDw66sjfFaszQx5UX6X` (**radio**, options `True`/`False` — the Cold/Gatekeeper Handler **always writes it**: `True` on a `cold-bad` **or `gatekeeper-bad`** outcome to halt future calls, `False` otherwise.) ·
-  **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` (**radio**, `True`/`False` — `True` ⇒ **no email is sent**: the scheduled senders (`Send Cold Email 1`, `Send Cold Email 2/3/4`) and both Cold Handlers move the opp **straight to `Cold Email N Sent`** instead of enrolling in Instantly, and the missed-call/voicemail email is skipped. Keyed on this field **alone** — every no-email lead **must** carry `Stop Emails=True`, or it stalls in `Cold Email N` before the first call.)
+  **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` (**radio**, `True`/`False` — `True` ⇒ **no email is sent**: the scheduled senders (`Send Cold Email 1`, `Send Cold Email 2/3/4`) and both Cold Handlers move the opp **straight to `Cold Email N Sent`** instead of enrolling in Instantly, and the missed-call/voicemail email is skipped. Keyed on this field **alone** — every no-email lead **must** carry `Stop Emails=True`, or it stalls in `Cold Email N` before the first call.
+  **Written `True` by:** `Sent Cold Email to Caller Stages` (leads out of `No Email Cold Call 1`) ·
+  **`Instantly Event → GHL Tag` on an `email_bounced` event** — a bounced address is dead, so that
+  workflow sets the flag **and** moves the opp to `Cold Email N Sent` in the same breath, precisely
+  because the flag alone would strand the lead in `Cold Email N`. Setting this field anywhere else
+  carries the same obligation.)
 - **`MGR` = "Missed call Google Review".** A lead is MGR **iff the `Missed Call Review` custom
   field (`u9UymBEMP3f7IZqDTwVd`) is non-empty.** It is an **axis independent of "missed call"** —
   the cold-call pipeline has both `(MGR)` and `MGR (missed call)` stage variants, so a lead can
@@ -132,8 +138,11 @@ Reporting layer, fed by the handlers. Setup script: [`metrics/metrics-sheet-setu
   prefixes `'` when it starts with `=`/`+`/`@`/`-` and truncates at 45k (50k cell cap). **Keep that
   guard on any new free-text column.**
 - **Not yet fed:** `from_number` (GHL never sends it), and email engagement events
-  (`opened`/`bounced`/`replied` → those `daily` columns stay 0 until a separate Instantly-events
-  webhook workflow appends them to `email_log`).
+  (`opened`/`bounced`/`replied` → those `daily` columns stay 0). The separate Instantly-events
+  webhook workflow that would supply them **now exists** —
+  [`Instantly Event → GHL Tag`](workflows/email-sent/) — but it only tags/routes and appends
+  **nothing** to `email_log`. Hanging a leaf `Sheet: Log Email` node (append, `event_type` =
+  `opened`/`bounced`) off its tag write is all that's missing.
 - **Test:** [`tests/metrics-logging.test.js`](tests/metrics-logging.test.js) — runs the brain code nodes
   out of the workflow JSON, reconstructs the exact row each Sheets node writes, and asserts the `.gs`
   contract (incl. 3 scrubbed real-execution fixtures). Run `node tests/metrics-logging.test.js` after any edit.
@@ -208,6 +217,21 @@ _Cold call outcomes move here to "Cold Email N+1" via Cold Handler `SEND_NEXT`._
 | Cold Email 3 Sent | `2f599547-4a2b-4ba4-850d-0feb7fcc976c` |
 | Cold Email 4 | `f3ea4cd2-daf2-4ca2-baaa-301f807d697c` |
 | Cold Email 4 Sent | `39a20e88-ce88-46c6-9e95-8134aa9f269d` |
+| **No Email Cold Call 1** | `fae631a1-5f6c-4a47-bee7-c9f78c7744f7` |
+
+**`No Email Cold Call 1` = the call-first lane.** Park a lead here (instead of `Cold Email 1`) to
+start calling immediately without sending cold email 1. `Sent Cold Email to Caller Stages (4:30AM)`
+pulls it as a **fourth** source and treats it exactly like `Cold Email 1 Sent` → `N=1` → Day 1 Call A.
+
+⚠️ **These leads are call-only, permanently.** `Send Cold Email 1 → Instantly: Add to Cold Email 1`
+(`POST /api/v2/leads`) is the **only lead-create point in the system** and the only place the
+TZ→campaign assignment happens; skipping it means the lead has no Instantly record at all. Every
+later Instantly call (`update-interest-status`, `PATCH /leads/{id}`, `subsequence/remove`, the
+missed-call emails) assumes the lead exists, and `Set interest (cold email N)` has **no `onError`**
+— it would error the batch item. So the 4:30AM workflow **forces `Stop Emails=True`** on every lead
+it routes out of this stage, which keeps it on the `Cold Email N Sent` path: Day 1 → Day 2 → Day 3,
+ending after Day 3, with no Instantly involvement. Do **not** clear `Stop Emails` on these leads
+unless you first create them in Instantly.
 
 ### Cold Outbound Call Pipeline — `9E6y34DlG1Imr8FV42RV`
 _Dispatcher route `cold`. 15 stages._
@@ -343,6 +367,7 @@ _Caller flags a lead (Manual Review Items field non-empty) → one opp created h
 | 3:30 AM | **Send Cold Email 1** | `Cold Email 1` → Instantly **campaign** (lead create) | ❌ |
 | 4:00 AM | **Send Cold Email 2/3/4** | `Cold Email 2/3/4` → Instantly **interest code** | ✅ |
 | **webhook** | **Email Sent → Move To Sent Stage** | Instantly confirms send → `Cold Email N` **→ `Cold Email N Sent`** + logs | ✅ |
+| **webhook** | **Instantly Event → GHL Tag** | tags `opened`/`bounced`; a **bounce** ⇒ `Stop Emails=True` + `→ Cold Email N Sent` | ✅ |
 | 4:30 AM | **Sent Cold Email to Caller Stages** | `Cold Email N Sent` → **call pipeline** (Day 1/2/3) | ✅ |
 
 **The senders only *enroll*. `Email Sent → Move To Sent Stage` is what records that an email was
@@ -361,6 +386,11 @@ Other notes:
   to the right subsequence. Each first removes the lead from its current subsequence.
 - Leads also enter `Cold Email 2/3/4` directly from the call-disposition / missed-call **Cold
   Handlers** (`SEND_NEXT`) — that path does not depend on step 1.
+- **A bounce is the email path's exit door.** `Instantly Event → GHL Tag` converts an
+  `email_bounced` lead to **call-only** (`Stop Emails=True` + `→ Cold Email N Sent`), so it leaves
+  the drip at whatever step it bounced on and rejoins at the 4:30AM call handoff. It cannot pull a
+  lead already handed off to a call pipeline back into the email pipeline — the opp lookup is
+  scoped to `1A1RkYaL93s2rqbQ3Opi`, and the 4:30AM sweep moves that same opp out.
 - ⚠️ **Steps 2/3/4 are live while step 1 is not.** See Open questions.
 
 ## Pagination: who needs it and who doesn't

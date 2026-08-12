@@ -13,14 +13,15 @@ Only **Sent 1 / 2 / 3** are swept. `Cold Email 4 Sent` (`39a20e88-…`) is delib
 pulled — email 4 is the end of the sequence, no call follows.
 
 ## Flow
-1. **Schedule 4:30AM** fans out to **three parallel pulls** (email pipeline `1A1RkYaL93s2rqbQ3Opi`,
+1. **Schedule 4:30AM** fans out to **four parallel pulls** (email pipeline `1A1RkYaL93s2rqbQ3Opi`,
    all paginated):
    | Node | Stage | ID | → N |
    |---|---|---|---|
    | Pull Sent Cold Email 1 | Cold Email 1 Sent | `41849471-…` | 1 |
    | Pull Sent Cold Email 2 | Cold Email 2 Sent | `fdd4f9a4-…` | 2 |
    | Pull Sent Cold Email 3 | Cold Email 3 Sent | `2f599547-…` | 3 |
-2. **Combine** (merge ×3) → **Split Out** (`opportunities`).
+   | **Pull No Email Cold Call 1** | **No Email Cold Call 1** | `fae631a1-…` | **1** |
+2. **Combine** (merge ×**4**) → **Split Out** (`opportunities`).
 3. **Detect Pre** (code) — `SENT_TO_N` maps stage → `N`; emits `routable = (1 ≤ N ≤ 3) && contact_id`.
 4. **Is routable?** (filter) → **Loop (batch 10)** → **GHL: Get Contact**.
 5. **Build Route + SUB** (code) — the brain. Picks `target_stage_id` (see matrix) and assembles
@@ -28,11 +29,13 @@ pulled — email 4 is the end of the sequence, no call follows.
 6. **Personalize Call Context (SUB)** — `executeWorkflow` → `T4Mz1k2fYwCwzp7D`, mode `each`.
    Returns `call_context` + `interaction_summary`.
 7. **GHL: Write Call Context + Interaction Summary** (PUT contact).
-8. **GHL: Clear Disposition + Notes** (PUT contact) — **empties Call Disposition
-   (`YxGIrvPl5tfLeYoc7Ldr`) + Call Notes (`kVU8T6Swsh9sF4TWC81U`)** right before the move, so the
-   next call cycle starts clean. Partial PUT — **does not touch** Call Context (`sLGmbbrcmzdlGONFYDSC`),
-   Call Router Context (`HW0eBfoQPW2mwxX8aY7Q`), Call Processing State (`BD9TmgEynOEy6bCvZshm`), or
-   Interaction Summary. Non-blocking (`onError: continue`) so a cleanup hiccup never strands the move.
+8. **GHL: Clear Disposition + Notes** (PUT contact) — serialises the `contact_fields` array built by
+   `Build Route + SUB`. Always **empties Call Disposition (`YxGIrvPl5tfLeYoc7Ldr`) + Call Notes
+   (`kVU8T6Swsh9sF4TWC81U`)** right before the move, so the next call cycle starts clean; for a
+   call-first lead it **also writes Stop Emails (`ixRO9dSUHVd6vNTdFa7Q`) = `True`** (see below).
+   Partial PUT — **does not touch** Call Context (`sLGmbbrcmzdlGONFYDSC`), Call Router Context
+   (`HW0eBfoQPW2mwxX8aY7Q`), Call Processing State (`BD9TmgEynOEy6bCvZshm`), or Interaction Summary.
+   Non-blocking (`onError: continue`) so a cleanup hiccup never strands the move.
 9. **GHL: Move Opp → Cold Call Stage** (PUT opp) — moves it into the **cold OR gatekeeper** call
    pipeline (`target_pipeline_id`, dynamic) at `target_stage_id`. **This is the
    step that drains the `Cold Email N Sent` stages** and **the swap point** where the `gatekeeper`
@@ -64,6 +67,41 @@ gatekeeper stage (see AGENTS.md interchange).
 **N=1 has no missed-call variant** — the lead has not been called yet, so `is_missed` is ignored
 there (the code falls back to the `plain` bucket). All 12 (N × missed × mgr) combinations were
 executed against this matrix and match.
+
+## 📞 The call-first lane (`No Email Cold Call 1`)
+Stage `fae631a1-5f6c-4a47-bee7-c9f78c7744f7` in the **email** pipeline. Park a lead here instead of
+`Cold Email 1` to start calling immediately without sending cold email 1. `Detect Pre` maps it to
+**`N=1`**, so it routes exactly like `Cold Email 1 Sent` → **Day 1 Call A** (or the MGR variant).
+The other two axes behave correctly at N=1 with no special-casing: `is_missed` is ignored (no missed
+variant) and `is_gatekeeper` finds no `STAGE_GK[1]`, so it falls back to the cold lane.
+
+`Detect Pre` also emits **`from_no_email`**, which `Build Route + SUB` uses to append
+**Stop Emails = `True`** to `contact_fields`.
+
+### ⚠️ Why Stop Emails is forced here
+`Send Cold Email 1 → Instantly: Add to Cold Email 1` (`POST /api/v2/leads`) is the **only
+lead-create point in the whole system**, and the only place the TZ→campaign assignment happens.
+A lead that skips it has **no Instantly record at all**, and every later Instantly call assumes one
+exists — `update-interest-status` (keyed on `lead_email`), `PATCH /leads/{instantly_lead_id}`,
+`subsequence/remove`, and the missed-call emails. Worse, `Set interest (cold email N)` in
+`Send Cold Email 2/3/4` has **no `onError`**, so it would error the batch item outright.
+
+Forcing Stop Emails keeps the lead on the *Sent*-stage path, which is entirely email-free.
+Verified by running the real `Parse + Map Outcome` at each N:
+
+| After | `Stop Emails=True` → | 4:30AM picks it up? |
+|---|---|---|
+| Day 1 call | Cold Email 2 **Sent** | yes → Day 2 Call |
+| Day 2 call | Cold Email 3 **Sent** | yes → Day 3 Call |
+| Day 3 call | Cold Email 4 **Sent** | no — sequence ends |
+
+Without it the same leads land in the *unsent* `Cold Email N` stages, where `Send Cold Email 2/3/4`
+picks them up and dies on `Set interest`. **Do not clear Stop Emails on these leads** unless you
+first create them in Instantly.
+
+**Still worth checking:** `Build Route + SUB` passes `email_history` (empty for these leads) into
+`Personalize Call Context (SUB)` (`T4Mz1k2fYwCwzp7D`, not mirrored here). If that prompt assumes a
+cold email preceded the call, the generated Call Context will be wrong for this lane.
 
 **Not targets of this workflow:** `Day 1 Call B` / `B (MGR)` (the caller flow advances A→B), and
 all `(from on hold)` stages (those belong to the resume path).

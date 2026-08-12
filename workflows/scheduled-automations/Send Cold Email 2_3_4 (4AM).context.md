@@ -28,7 +28,9 @@ right subsequence.
 5. **Loop (batch 10)** → **GHL: Get Contact**.
 6. **Build** (code) — the brain. Reads custom fields, computes `interest_value`, `step_name`
    (`cold email N`), `already_sent`, plus **`stop_emails`** and **`sent_stage_id`**.
-7. **Not sent yet?** (IF on `already_sent === false`) — skips → **Wait 2s**, else continues.
+7. **Not sent yet?** (IF on `already_sent === false`) — `false` continues to step 8;
+   **`true` → GHL: Move to Cold Email N Sent** → **Wait 2s** (**stuck-lead recovery**, below).
+   It used to short-circuit straight to **Wait 2s**, which left stalled leads parked forever.
 8. **IF: Stop Emails?** — reads **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q`:
    - `True` → **GHL: Move to Cold Email N Sent** (`sent_stage_id`: CE2→`fdd4f9a4`, CE3→`2f599547`,
      CE4→`39a20e88`) → **Wait 2s**. **No email** — skips Instantly, but 4:30AM still drains it.
@@ -71,10 +73,37 @@ Guarded by `already_sent` (`email_step_name === 'cold email N'`), computed in **
 enforced by **Not sent yet?**. As in step 1, the stamp is written **after** the send, so a
 send-succeeds-then-GHL-PUT-fails window can re-send on the next run. The PUT has 4 retries.
 
-Note this workflow also **does not move the opp out of its stage** — leads accumulate in
-Cold Email 2/3/4 indefinitely. Because the pulls paginate, that does **not** starve new leads
-(every lead is seen every night, already-sent ones are just skipped). It does mean the stages
-grow without bound and burn a `GHL: Get Contact` call per already-sent lead per night.
+## 🔁 Stuck-lead recovery (the already-sent branch)
+Instantly's `email_sent` webhook is not perfectly reliable. When it doesn't fire,
+[`Email Sent → Move To Sent Stage`](../email-sent/Email%20Sent%20-_%20Move%20To%20Sent%20Stage.context.md)
+never runs, so the opp stays in `Cold Email N` **and** the contact already carries
+`email_step_name = cold email N`. `already_sent` is then true on every later run: the lead is never
+re-emailed and never advances — stuck permanently.
+
+The already-sent branch now **diverts to `sent_stage_id`** instead of looping past. It reuses the
+same `GHL: Move to Cold Email N Sent` node as the Stop-Emails path, and needed no expression
+changes: **Build** runs upstream of the guard, so `email_opp_id` and `sent_stage_id` resolve
+identically on both branches.
+
+This also fixes the unbounded-growth problem this workflow used to have. It previously **never**
+moved an opp out of its stage, so Cold Email 2/3/4 accumulated every already-sent lead forever and
+burned a `GHL: Get Contact` call on each one every night. Pagination meant that never starved new
+leads, but the stages grew without bound. Now each already-sent lead is drained on the first run
+that sees it.
+
+**A late webhook is harmless** — `Build Logs + Route` resolves the opp by email-pipeline membership
+and gates its move on `email_opp_id notEmpty`, so it either re-moves to the same stage (no-op) or
+finds nothing to move. The logging branch still writes its note, event log, email history and
+**Instantly Lead ID** regardless.
+
+### ⚠️ The trade-off — enrolled ≠ sent
+`email_step_name` records that we **enrolled** the lead, not that Instantly **sent** it. The branch
+only fires when a lead is still in `Cold Email N` at the next 4AM run — ~24h after enrollment with
+no send confirmation, which normally cannot happen. But when Instantly is genuinely slow (**weekend
+send windows, a paused campaign, daily volume caps**), this advances a lead whose email has not gone
+out, and 4:30AM hands it to a caller who assumes it landed. Accepted cost: an occasional
+call-before-email beats leads stuck forever. If it proves noisy, age-gate the divert on the
+opportunity's `updatedAt` instead of firing on first re-sighting.
 
 ## Error handling
 - `Instantly: Update hi_firstname` and `Instantly: Remove from Subsequence` →
@@ -97,7 +126,8 @@ or the two step-1 workflows were never switched on. Worth confirming.
 
 ## TODOs / gotchas
 - Instantly token is a plaintext secret in three node headers — rotate + move to a credential.
-- Stages never drain (see Idempotency). Harmless today thanks to pagination; still unbounded growth.
+- ~~Stages never drain. Harmless today thanks to pagination; still unbounded growth.~~ **Fixed** —
+  the already-sent branch now drains them (see *Stuck-lead recovery*).
 - `already_sent` compares lowercased/trimmed — safe against casing drift in the GHL field.
 
 ## Related
