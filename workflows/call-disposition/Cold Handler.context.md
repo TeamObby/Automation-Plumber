@@ -118,10 +118,13 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 - **Email-drip group (`continues_drip` / `DRIP_OUTCOMES`) = `cold-good`, `gatekeeper-good`, `voicemail`.** → email
   pipeline `1A1RkYaL93s2rqbQ3Opi`, stage `SEND_NEXT[caller_N]` (N=1/2/3 → Cold Email 2/3/4). The
   sequence continues.
-  - **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` = `True`: the cold branch targets
-    **`SEND_NEXT_SENT[caller_N]`** (Cold Email N **Sent**: `fdd4f9a4`/`2f599547`/`39a20e88`) instead
-    of the unsent stage — so **no cold email is sent** but 4:30AM still drains it to the next call.
-    (Belt-and-suspenders with the sender-side check in `Send Cold Email 2/3/4`.)
+  - **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` = `True` **— or the contact has no `email` address**: the
+    cold branch targets **`SEND_NEXT_SENT[caller_N]`** (Cold Email N **Sent**:
+    `fdd4f9a4`/`2f599547`/`39a20e88`) instead of the unsent stage — so **no cold email is sent** but
+    4:30AM still drains it to the next call. `stop_emails` is computed as `field==='True' || no email`,
+    so a **no-email lead put straight into `Day 1 Call A`** (skipping the `No Email Cold Call 1` stage
+    that sets the flag) still advances correctly and never attempts a blank-email Instantly call. Same
+    guard gates the voicemail/missed-call-email branch. (Belt-and-suspenders with the sender-side check.)
   - **`voicemail`** is treated as a **missed call** (side branch, runs in parallel with the move):
     1. **adds the GHL tag `last_call_missed`** (`GHL: Add Missed-Call Tag`, `POST /contacts/{id}/tags`)
        so it routes to a **`(missed call)` caller stage** later (read by

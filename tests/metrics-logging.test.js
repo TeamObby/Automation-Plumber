@@ -285,7 +285,7 @@ console.log('=== 5) REAL fixtures (from prod executions, identifiers scrubbed) =
     {id:'YxGIrvPl5tfLeYoc7Ldr',value:'Gatekeeper Good'},{id:'7D9N71mEDfipN90zfV0j',value:'prev'},{id:'ZVeEoK85i5EOhWt1HO1F',value:'prev'}
     /* NOTE: u9UymBEMP3f7IZqDTwVd (Missed Call Review) + ixRO9dSUHVd6vNTdFa7Q (Stop Emails) intentionally ABSENT — GHL omits empty fields */
   ];
-  const contact = { id:'CONTACT-A', city:'Orange', companyName:'Example Plumbing Co', firstName:'Owner', customFields:cf };
+  const contact = { id:'CONTACT-A', city:'Orange', companyName:'Example Plumbing Co', firstName:'Owner', email:'owner@example.com', customFields:cf };
   const ci = { route:'cold', is_fallback:false, contact_id:'CONTACT-A', disposition:'Gatekeeper Good', note:'', transcript:'...',
     signature:'gatekeeper-good|', opp_id:'OPP-A', caller_N:1, call_id:'call-uuid-aaa', stage_name:'Day 1 Call A',
     last_event_log_entry:'', last_call_summary_entry:'', last_signature:'gatekeeper-bad|', company_name:'Example Plumbing Co', contact };
