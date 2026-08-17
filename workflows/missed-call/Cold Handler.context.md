@@ -27,7 +27,9 @@ removes the lead from its Instantly subsequence, and refreshes the `hi_firstname
    Missed Call Email 1 / 2** (sets the Instantly interest code that triggers the email). `mc=''` →
    Switch fallback, **not connected** → no email. The gate passes only when **Stop Emails**
    `ixRO9dSUHVd6vNTdFa7Q` is **off** — a `Stop Emails=True` lead is still moved + logged, but the
-   missed-call email is **skipped**.
+   missed-call email is **skipped**. `Build Logs` computes `stop_emails = field==='True' || (contact
+   has no email)`, so a **no-email lead** is also gated here (never a blank-email Instantly call) and
+   its move still targets `SEND_NEXT_SENT[N]` → it keeps advancing through the caller stages.
 
 ## Routing 🎯
 **Two independent decisions.**
