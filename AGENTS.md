@@ -162,6 +162,7 @@ workflows — do **not** fetch them via the `GHL Pipeline Stages (Cached)` sub-w
   | `CT` | Texas | `c2d3708e-de7f-4b06-81d5-db065e174b66` |
   | `AKST` | Alaska | `4905a02f-791b-4dde-baa2-a2eb52a30472` |
   | `HST` | Hawaii | `ac7941aa-a3c7-4849-8140-222b55d94cb2` |
+  | `EST` | Eastern | `d4cdaf82-68a8-427f-95d8-a2330fb5d8f8` |
 - **Test campaign:** `b1f723b8-5cc4-45ab-be45-b8f9f39d7cb5` — _not used; listed for completeness_
 
 | Subsequence | ID |

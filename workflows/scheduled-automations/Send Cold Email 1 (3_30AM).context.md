@@ -84,7 +84,8 @@ lead-*create* point, so it sets which timezone campaign the lead lives in for th
 Map (in the `Instantly: Add to Cold Email 1` node's `campaign:` expression; case/whitespace-tolerant,
 empty/unknown ⇒ **PT default**): `PT`→`995a75d0-4325-4b19-aefe-e69c9a4a86d2` (California) ·
 `CT`→`c2d3708e-de7f-4b06-81d5-db065e174b66` (Texas) · `AKST`→`4905a02f-791b-4dde-baa2-a2eb52a30472`
-(Alaska) · `HST`→`ac7941aa-a3c7-4849-8140-222b55d94cb2` (Hawaii). Downstream steps (Cold Email 2/3/4,
+(Alaska) · `HST`→`ac7941aa-a3c7-4849-8140-222b55d94cb2` (Hawaii) · `EST`→`d4cdaf82-68a8-427f-95d8-a2330fb5d8f8`
+(Eastern). Downstream steps (Cold Email 2/3/4,
 missed-call emails) don't repeat the campaign — they key off the existing lead by email/lead_id. Standard fields from the contact
 (email, first/last name, company, phone, website) plus `custom_variables`:
 
@@ -98,7 +99,7 @@ missed-call emails) don't repeat the campaign — they key off the existing lead
 
 ## GHL custom field IDs
 - Email Step Name `WtFfl1nEbMupk2oR4m9e` — read by the guard, written as `cold email 1`
-- **TZ `Q8NyGdyiYyeaakqmPjNT`** — read; selects the Instantly campaign (`PT`/`CT`/`AKST`/`HST`, default PT)
+- **TZ `Q8NyGdyiYyeaakqmPjNT`** — read; selects the Instantly campaign (`PT`/`CT`/`AKST`/`HST`/`EST`, default PT)
 - Google Stars `E7XjZUePJBrJ99LnCD6e` — read-only
 - Google Reviews `kDel5db3cRFrNjqOwdNp` — read-only
 
