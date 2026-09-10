@@ -69,27 +69,58 @@ const EMAIL_LOG_HEADERS = [
   'instantly_lead_id', 'email_id'
 ];
 
-// call_log column refs:
-//   B date_pt | C contact_id | I attempt_no | L picked_up
-//   M duration_sec | N disposition_source | Q final_outcome
-const C_DATE = 'call_log!$B$2:$B';
-const C_CONTACT = 'call_log!$C$2:$C';
-const C_ATTEMPT = 'call_log!$I$2:$I';
-const C_PICKED = 'call_log!$L$2:$L';
-const C_DUR = 'call_log!$M$2:$M';
-const C_SRC = 'call_log!$N$2:$N';
-const C_OUT = 'call_log!$Q$2:$Q';
+// ---- Column refs — resolved from the REAL header row at build time --------
+// Never hardcode column letters. The daily formulas used to assume a fixed
+// order; when call_log was built with a different header set every outcome
+// metric silently read the wrong column (and read 0). resolveRefs_() looks
+// each column up by NAME and throws if it is missing, so drift fails loudly.
+let C_DATE, C_CONTACT, C_ATTEMPT, C_PICKED, C_DUR, C_SRC, C_OUT;
+let E_DATE, E_STEP, E_TYPE, E_CLASS;
 
-// email_log column refs:
-//   B date_pt | G step | H event_type | I reply_classification
-const E_DATE = 'email_log!$B$2:$B';
-const E_STEP = 'email_log!$G$2:$G';
-const E_TYPE = 'email_log!$H$2:$H';
-const E_CLASS = 'email_log!$I$2:$I';
+/** 0-based index -> A1 column letter (A, B, ... Z, AA, ...). */
+function colLetter_(i) {
+  let s = '';
+  for (i += 1; i > 0; i = Math.floor((i - 1) / 26)) {
+    s = String.fromCharCode(65 + ((i - 1) % 26)) + s;
+  }
+  return s;
+}
 
-// Every distinct date across both logs, newest first. Spills down column A.
-const DATE_SPINE = `IFERROR(SORT(UNIQUE(FILTER(` +
-  `{${C_DATE};${E_DATE}},{${C_DATE};${E_DATE}}<>"")),1,FALSE),"")`;
+/** Full-column A1 ref for `header` on `sheetName`, located by name. */
+function colRef_(ss, sheetName, header) {
+  const sh = ss.getSheetByName(sheetName);
+  if (!sh) throw new Error('Missing sheet: ' + sheetName);
+  const row1 = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+    .map(v => String(v).trim());
+  const i = row1.indexOf(header);
+  if (i < 0) {
+    throw new Error('Column "' + header + '" not found in ' + sheetName +
+      '. Header row is: ' + row1.join(' | '));
+  }
+  const L = colLetter_(i);
+  return sheetName + '!$' + L + '$2:$' + L;
+}
+
+/** Resolve every column ref from the live header rows. Call before building. */
+function resolveRefs_(ss) {
+  C_DATE    = colRef_(ss, 'call_log',  'date_pt');
+  C_CONTACT = colRef_(ss, 'call_log',  'contact_id');
+  C_ATTEMPT = colRef_(ss, 'call_log',  'attempt_no');
+  C_PICKED  = colRef_(ss, 'call_log',  'picked_up');
+  C_DUR     = colRef_(ss, 'call_log',  'duration_sec');
+  C_SRC     = colRef_(ss, 'call_log',  'disposition_source');
+  C_OUT     = colRef_(ss, 'call_log',  'final_outcome');
+  E_DATE    = colRef_(ss, 'email_log', 'date_pt');
+  E_STEP    = colRef_(ss, 'email_log', 'step');
+  E_TYPE    = colRef_(ss, 'email_log', 'event_type');
+  E_CLASS   = colRef_(ss, 'email_log', 'reply_classification');
+}
+
+/** Every distinct date across both logs, newest first. Spills down column A. */
+function dateSpine_() {
+  return `IFERROR(SORT(UNIQUE(FILTER(` +
+    `{${C_DATE};${E_DATE}},{${C_DATE};${E_DATE}}<>"")),1,FALSE),"")`;
+}
 
 /** Count call_log rows on $A2 matching a final_outcome pattern. */
 function outcomeCount_(pattern) {
@@ -118,7 +149,8 @@ function attemptConnects_(n) {
  * The daily tab. Order matters — formulas reference sibling columns by
  * letter, so inserting a column means fixing the ones after it.
  */
-const DAILY_COLUMNS = [
+function dailyColumns_() {
+  return [
   { header: 'date', format: 'yyyy-mm-dd', formula: null },
 
   // ---- calls, overall
@@ -202,7 +234,8 @@ const DAILY_COLUMNS = [
     formula: `IFERROR(COUNTIFS(${C_DATE},$A2,${C_SRC},"ai_fallback")/$D2,"")` },
   { header: 'avg_call_duration_sec', format: '0',
     formula: `IFERROR(AVERAGEIFS(${C_DUR},${C_DATE},$A2,${C_PICKED},TRUE),"")` }
-];
+  ];
+}
 
 // ---------------------------------------------------------------- ENTRY
 function setupMetricsWorkbook() {
@@ -303,12 +336,14 @@ function buildLogSheet_(ss, name, headers) {
 }
 
 function buildDailySheet_(ss) {
+  resolveRefs_(ss);                 // locate every log column by header name
+  const COLS = dailyColumns_();
   const sh = createOrReset_(ss, 'daily');
-  const n = DAILY_COLUMNS.length;
+  const n = COLS.length;
   const rows = MAX_DAILY_ROWS;
 
   sh.getRange(1, 1, 1, n)
-    .setValues([DAILY_COLUMNS.map(c => c.header)])
+    .setValues([COLS.map(c => c.header)])
     .setFontWeight('bold')
     .setBackground(HEADER_BG)
     .setFontColor(HEADER_FG)
@@ -320,18 +355,18 @@ function buildDailySheet_(ss) {
   sh.setRowHeight(1, 34);
 
   // Column A generates itself from the logs, sorted newest-first.
-  sh.getRange(2, 1).setFormula('=' + DATE_SPINE);
+  sh.getRange(2, 1).setFormula('=' + dateSpine_());
 
   // Metric columns are pre-filled down to MAX_DAILY_ROWS and stay blank
   // until the spine above delivers a date into their row.
-  const firstRow = DAILY_COLUMNS.slice(1)
+  const firstRow = COLS.slice(1)
     .map(c => `=IF($A2="","",${c.formula})`);
   sh.getRange(2, 2, 1, n - 1).setFormulas([firstRow]);
   if (rows > 1) {
     sh.getRange(2, 2, 1, n - 1).copyTo(sh.getRange(3, 2, rows - 1, n - 1));
   }
 
-  DAILY_COLUMNS.forEach((c, i) => {
+  COLS.forEach((c, i) => {
     sh.getRange(2, i + 1, rows, 1).setNumberFormat(c.format);
   });
 
