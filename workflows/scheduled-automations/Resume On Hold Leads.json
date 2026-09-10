@@ -116,7 +116,7 @@
     },
     {
       "parameters": {
-        "numberInputs": 3
+        "numberInputs": 4
       },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
@@ -333,6 +333,50 @@
           "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
         }
       }
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=O7LMZpDOFM2SYO65twC5&pipeline_stage_id=83fa9a3b-42dc-44b4-939d-4afad19801c7&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "startAfterId",
+                    "value": "={{ $response.body.meta.startAfterId }}"
+                  },
+                  {
+                    "name": "startAfter",
+                    "value": "={{ $response.body.meta.startAfter }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.opportunities.length < 100 }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -416,
+        292
+      ],
+      "id": "0c8f802d-eeb1-4789-a989-521ed45650ab",
+      "name": "Pull Call-Back-Later",
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -352,6 +396,11 @@
           },
           {
             "node": "Pull Gatekeeper-On-Hold",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pull Call-Back-Later",
             "type": "main",
             "index": 0
           }
@@ -494,6 +543,17 @@
             "node": "Combine",
             "type": "main",
             "index": 2
+          }
+        ]
+      ]
+    },
+    "Pull Call-Back-Later": {
+      "main": [
+        [
+          {
+            "node": "Combine",
+            "type": "main",
+            "index": 3
           }
         ]
       ]

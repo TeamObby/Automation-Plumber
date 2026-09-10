@@ -107,15 +107,16 @@ be **self-correcting**, verified by execution (first run appends, second run rep
   Keeps the rich AI summary.
 
 ## Outcome mapping (Parse + Map Outcome)
-- **17 valid dispositions (slugs):** `cold-good, cold-bad, cold-on-hold, gatekeeper-good,
+- **19 valid dispositions (slugs):** `cold-good, cold-bad, cold-on-hold, gatekeeper-good,
   gatekeeper-bad, gatekeeper-on-hold, conversation-active, conversation-active-on-hold,
   appointment-booked, sales-call, not-interested-right-now-good, not-interested-right-now-bad,
-  do-not-contact, voicemail, call-center, bad-number, not-a-fit`.
+  do-not-contact, voicemail, call-center, hung-up-during-call, call-back-later, bad-number, not-a-fit`.
 - **Disposition wins**; the AI `outcome` (from transcript) is used only when the disposition
   is missing/unrecognized. **Default = `cold-good`.** _(voicemail, call-center, bad-number, not-a-fit
   are recognized but **not** in the AI classifier enum — AI won't infer them; they only arrive via a
   provided disposition.)_
-- **Email-drip group (`continues_drip` / `DRIP_OUTCOMES`) = `cold-good`, `gatekeeper-good`, `voicemail`.** → email
+- **Email-drip group (`continues_drip` / `DRIP_OUTCOMES`) = `cold-good`, `gatekeeper-good`, `voicemail`,
+  `hung-up-during-call`.** → email
   pipeline `1A1RkYaL93s2rqbQ3Opi`, stage `SEND_NEXT[caller_N]` (N=1/2/3 → Cold Email 2/3/4). The
   sequence continues.
   - **Stop Emails** `ixRO9dSUHVd6vNTdFa7Q` = `True` **— or the contact has no `email` address**: the
@@ -149,6 +150,7 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 | `gatekeeper-on-hold` | `e921913e-1530-4186-8ce8-bb3dab47d301` |
 | **`call-center`** | `04546ed9-e0d9-47dc-b61e-c0cd820849d7` |
 | `cold-on-hold` | `54994e3f-1643-46f4-8eeb-ade43712ae2d` |
+| **`call-back-later`** | `83fa9a3b-42dc-44b4-939d-4afad19801c7` (Call Back Later) |
 | `conversation-active` | `edca2ee6-569d-4486-9ecd-4110e9c32882` |
 | `conversation-active-on-hold` | `175c5765-fd68-48d5-a319-8bcc77487703` |
 | `appointment-booked` | `5344bfb7-9370-401e-8767-32bbdcc73778` |
@@ -160,18 +162,23 @@ be **self-correcting**, verified by execution (first run appends, second run rep
 | **`not-a-fit`** | `1d34796e-811a-4bb3-afcb-61b59446a31e` |
 
 ### resume_call_at (on-hold only)
-- Set **only** for `cold-on-hold`, `gatekeeper-on-hold`, `conversation-active-on-hold`.
+- Set **only** for `cold-on-hold`, `gatekeeper-on-hold`, `conversation-active-on-hold`,
+  **`call-back-later`**.
   "On hold" = the lead asked to be contacted again after a date/time.
 - The **AI** produces it: parse from `latest_note` first (human-written, any format),
   falling back to the transcript. Relative phrases resolved against today (PT).
 - Format: **`YYYY-MM-DD`**, or **`YYYY-MM-DD HH:mm`** if a time is present (always carries a
   date; if the time is later *today*, it uses today's date). Written as text to the
   **Resume Call At** custom field. A format guard rejects anything that isn't a date/date-time.
+- ⚠️ **`call-back-later` is not in the AI's enum** (the AI would never emit it), so `Build Prompt`
+  explicitly asks for a date whenever the **caller disposition** is `call-back-later`. Without that
+  the lead would land in the Call Back Later stage with an empty `Resume Call At` and
+  `Resume On Hold Leads` would never bring it back.
 
 ### next_caller_stage (on-hold only)
 - Saves **where to resume the lead** once the hold passes (Next Caller Stage field
   `Tj0yopYbErXbwsTYTsCX`, text).
-- **`cold-on-hold` & `gatekeeper-on-hold`** → `cold_call_{N}` where N = `caller_N` (1-3;
+- **`cold-on-hold`, `gatekeeper-on-hold` & `call-back-later`** → `cold_call_{N}` where N = `caller_N` (1-3;
   N=0 → **defaults to `cold_call_1`**). Keep cold-calling — DM not yet reached.
 - **`conversation-active-on-hold`** → `day_1_attempt_1` — resume the Active Conversation
   Call cadence at Day 1, 1st Attempt.

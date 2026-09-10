@@ -60,7 +60,7 @@ const CALL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','fr
 // transcript (no pickup, nothing to transcribe), so they leave that cell untouched.
 const MISSED_CALL_HEADERS = CALL_HEADERS.filter(h => h !== 'call_transcript');
 const EMAIL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','campaign_id','step','event_type','reply_classification','instantly_lead_id','email_id'];
-const KNOWN = ['cold-good','cold-bad','cold-on-hold','gatekeeper-good','gatekeeper-bad','gatekeeper-on-hold','conversation-active','conversation-active-on-hold','appointment-booked','sales-call','not-interested-right-now-good','not-interested-right-now-bad','do-not-contact','voicemail','call-center'];
+const KNOWN = ['cold-good','cold-bad','cold-on-hold','gatekeeper-good','gatekeeper-bad','gatekeeper-on-hold','conversation-active','conversation-active-on-hold','appointment-booked','sales-call','not-interested-right-now-good','not-interested-right-now-bad','do-not-contact','voicemail','call-center','hung-up-during-call','call-back-later'];
 
 const assertHeaders = (sheet, headers, label) =>
   ok(JSON.stringify(Object.keys(sheet.parameters.columns.value).sort()) === JSON.stringify([...headers].sort()),

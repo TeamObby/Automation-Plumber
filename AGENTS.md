@@ -189,6 +189,7 @@ _All non-cold call outcomes land here (see Cold Handler `STAGE_SLUG`)._
 | Call Center | `04546ed9-e0d9-47dc-b61e-c0cd820849d7` |
 | Cold Bad | `8ecc2327-779f-4250-8d54-4554b49087f9` |
 | Cold On Hold | `54994e3f-1643-46f4-8eeb-ade43712ae2d` |
+| Call Back Later | `83fa9a3b-42dc-44b4-939d-4afad19801c7` |
 | Conversation Active | `edca2ee6-569d-4486-9ecd-4110e9c32882` |
 | Conversation Active On Hold | `175c5765-fd68-48d5-a319-8bcc77487703` |
 | Appointment Booked | `5344bfb7-9370-401e-8767-32bbdcc73778` |

@@ -24,7 +24,7 @@
  *               valueInputMode USER_ENTERED so Sheets parses it.
  *   - picked_up must be boolean TRUE / FALSE, not the strings "true"/"yes".
  *   - attempt_no must be the number 1, 2, or 3 (cadence position).
- *   - final_outcome must be one of the 15 known slugs, lowercase-hyphenated.
+ *   - final_outcome must be one of the 19 known slugs, lowercase-hyphenated.
  *   - disposition_source must be exactly "human" or "ai_fallback".
  *   - call_id (call_log) is the dedup key for dispositioned calls: the
  *     Cold/Gatekeeper Handler uses append-OR-update on it, so a re-edited
