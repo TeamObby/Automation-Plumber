@@ -44,7 +44,7 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Call Disposition - Cold Handler (Automation 3) | `toFDNpFhy0ZyxfxN` | [open](https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — rebuild + gatekeeper tag; not yet pushed |
 | Call Disposition - Gatekeeper Handler (Automation 3, gk twin) | `WhSS3Awo5K8XuRbQ` | [open](https://n8n.meetobby.com/workflow/WhSS3Awo5K8XuRbQ) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — copy of Cold Handler, gatekeeper `MCE_BY_STAGE` |
 | GHL Pipeline Stages (Cached) | `ny7jwqGX1Du9aXNC` | [open](https://n8n.meetobby.com/workflow/ny7jwqGX1Du9aXNC) | ✅ | ⏳ not pulled — **no longer called by any mirrored workflow** (see below) |
-| Resume On Hold Leads | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/scheduled-automations/) |
+| Resume On Hold Leads | `gLmoAnyKn6AlsIFZ` | [open](https://n8n.meetobby.com/workflow/gLmoAnyKn6AlsIFZ) | ❌ **imported but never activated — 0 executions ever** | ✓ [json+ctx](workflows/scheduled-automations/) — ⚠️ no on-hold lead has ever resumed; activating will sweep the whole backlog at once |
 | New to Cold Email 1 Stage (3AM) | `WYYQ7p3wJ3QhBTrQ` | [open](https://n8n.meetobby.com/workflow/WYYQ7p3wJ3QhBTrQ) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
 | Send Cold Email 2/3/4 (4AM) | `0iXr4fHGqptYGJpg` | [open](https://n8n.meetobby.com/workflow/0iXr4fHGqptYGJpg) | ✅ | ✓ [json+ctx](workflows/scheduled-automations/) |
 | Sent Cold Email to Caller Stages (4:30AM) | `IIyYJxvDyeCmYdur` | [open](https://n8n.meetobby.com/workflow/IIyYJxvDyeCmYdur) | ✅ | ✓ [json+ctx](workflows/scheduled-automations/) |
