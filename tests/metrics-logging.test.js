@@ -55,7 +55,7 @@ function effectiveRow(sheet, out) {
   return row;
 }
 
-const CALL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','from_number','pipeline','stage_name','attempt_no','is_mgr','is_missed_variant','picked_up','duration_sec','disposition_source','disposition_slug','ai_outcome','final_outcome','resume_call_at','recording_url','call_id','call_transcript'];
+const CALL_HEADERS = ['timestamp_pt','date_pt','contact_id','company','city','from_number','pipeline','stage_name','attempt_no','is_mgr','is_missed_variant','picked_up','duration_sec','disposition_source','disposition_slug','ai_outcome','final_outcome','resume_call_at','recording_url','call_id','call_transcript','ghl_link'];
 // Missed-call handlers map every call_log column EXCEPT call_transcript — they never see a
 // transcript (no pickup, nothing to transcribe), so they leave that cell untouched.
 const MISSED_CALL_HEADERS = CALL_HEADERS.filter(h => h !== 'call_transcript');

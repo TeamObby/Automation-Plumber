@@ -60,7 +60,7 @@ const CALL_LOG_HEADERS = [
   'from_number', 'pipeline', 'stage_name', 'attempt_no', 'is_mgr',
   'is_missed_variant', 'picked_up', 'duration_sec', 'disposition_source',
   'disposition_slug', 'ai_outcome', 'final_outcome', 'resume_call_at',
-  'recording_url', 'call_id', 'call_transcript'
+  'recording_url', 'call_id', 'call_transcript', 'ghl_link'
 ];
 
 const EMAIL_LOG_HEADERS = [
