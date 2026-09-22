@@ -34,7 +34,7 @@ he asked for it** — with four deliberate deviations, all listed at the bottom.
 | Date screened, stale after two weeks (~25:20) | `Date Screened`, 14-day sweep | exact |
 | **Followers** so he can filter (~33:55, ~45:01, ~57:25) | §5/§6 — follower per block on the opportunity | exact (plus tags, see deviations) |
 | Filter on the **opportunity** (~24:25) | §7 board filter | exact — and verified it is the only filter the board has |
-| Separate pipeline: Attempt 1–4, owner verified, gatekeeper, not sure (~56:33) | §2.1 | exact, plus one stage (see deviations) |
+| Separate pipeline: Attempt 1–4, owner verified, gatekeeper, not sure (~56:33) | §2.1 | exact, plus two terminal stages (see deviations) |
 | Pipeline pinned to the top so nobody mis-clicks (~57:13) | §2.1 | exact |
 | Screener must not reach his pipeline (~48:42) | Only Assigned Data + `screening` guard | exact |
 | Stage moves automatically from their selection (~56:51) | §9 event 2 | exact |
@@ -46,8 +46,10 @@ he asked for it** — with four deliberate deviations, all listed at the bottom.
 
 ### The four places I went beyond him
 
-1. **Stage 9 "Disqualified"** — his eight stages have no home for wrong number / not a plumber /
-   do-not-call, and leaving them in the ladder re-dials dead numbers.
+1. **Two terminal stages he did not list — "Exhausted" and "Disqualified."** Stages mean the call
+   *due* (his existing convention), so a lead must leave the ladder when its four attempts run out,
+   and the dead-end outcomes (wrong number, not a plumber, do-not-call) need somewhere to rest.
+   Without them, dead numbers stay in the dialling queue forever.
 2. **Tags as well as followers** — he asked for followers, which only work on the opportunity
    board. Tags are what the contact Smart List and WAVV dialling lists can filter on, so both get
    written. His filter works either way; nothing is taken away.
@@ -105,28 +107,29 @@ assigned Smart List.
 
 ### 2.1 Pipeline `Screener — Plumbers` — pinned to the top of the pipeline list
 
-| # | Stage |
-|---|---|
-| 1 | To Screen |
-| 2 | Attempt 1 |
-| 3 | Attempt 2 |
-| 4 | Attempt 3 |
-| 5 | Attempt 4 — *terminal: four dials, never reached* |
-| 6 | Owner Verified |
-| 7 | Gatekeeper |
-| 8 | Not Sure |
-| 9 | Disqualified — *wrong number, not a plumber, do-not-call* |
+**A stage is the call that is due, not the call that happened** — the same convention as the
+existing cold pipeline, where `Day 1 Call A` means *this* is the call to make next. So a freshly
+imported lead starts in **Attempt 1**, and there is no separate "to screen" stage.
 
-Stages 1–8 are Kevin's list verbatim (~56:33). Only stage 6 leaves the pipeline; 7, 8, 9 and a
-full Attempt 4 are terminal and nothing happens to them.
+| # | Stage | Meaning |
+|---|---|---|
+| 1 | **Attempt 1** | imported, first call due |
+| 2 | **Attempt 2** | one dial, nobody reached — second call due |
+| 3 | **Attempt 3** | second call due failed — third due |
+| 4 | **Attempt 4** | last call due |
+| 5 | **Owner Verified** | the only exit into Kevin's machine |
+| 6 | **Gatekeeper** | a human answered, not the owner |
+| 7 | **Not Sure** | human answered, owner unclear; also where AI/screener disagreements land |
+| 8 | **Exhausted** | four dials, never reached a human |
+| 9 | **Disqualified** | wrong number, not a plumber, do-not-call |
 
-**Stage 9 is mine, not Kevin's** — three of the outcomes the screener can pick (wrong number, not
-a plumber, do-not-call) have nowhere to rest in his eight, and leaving them in the Attempt ladder
-would put dead numbers back in the dialling queue. One stage is cheaper than filtering them out
-of every list.
+**The dialling queue is stages 1–4.** Everything below is terminal, and only **Owner Verified**
+leaves the pipeline.
 
-**The dialling queue is stages 1–4 only** (To Screen, Attempt 1–3). A contact reaches Attempt 4
-after its fourth dial, so Attempt 4 means *done*, not *due*.
+Kevin's list (~56:33) was "Attempt 1, 2, 3, maybe 4. Owner verified, gatekeeper, not sure." The
+last two stages are mine: with *due* semantics a lead has to leave the ladder when it runs out of
+attempts (**Exhausted**), and the three dead-end outcomes the screener can pick need somewhere to
+rest (**Disqualified**) — otherwise dead numbers stay in the queue and get dialled forever.
 
 ### 2.2 Custom fields (contact)
 
@@ -134,7 +137,7 @@ after its fourth dial, so Attempt 4 means *done*, not *due*.
 |---|---|---|---|
 | **`Screener Outcome`** | **single-select dropdown** | **the screener** | the only thing a human types; also the webhook trigger (§2.5) |
 | `Date Screened` | DATE | n8n | freshness |
-| `Screen Attempts` | NUMBER | n8n | 1–4, drives the stage |
+| `Screen Attempts` | NUMBER | n8n | dials made so far (0–4); drives the stage |
 | `Screen Noise` | TEXT (`busy` / `quiet`) | n8n | derived from the outcome, for the gold list |
 | `Screen AI Verdict` | TEXT | n8n | where the AI parks its verdict so it can meet the screener's mark (§4.1) |
 
@@ -253,7 +256,7 @@ we will have — which matters with two of them.
 |---|---|
 | Ownership | contact **Owner** = Screener A or B, set by n8n at import; same owner on the screener opportunity |
 | Access | role **Only Assigned Data** — neither can open the other's contacts, or Kevin's |
-| Daily queue | Smart List: `Opportunity pipeline = Screener — Plumbers` **AND** `Opportunity stage = To Screen / Attempt 1 / 2 / 3` **AND** `Owner = me` ✅ all three filters verified |
+| Daily queue | Smart List: `Opportunity pipeline = Screener — Plumbers` **AND** `Opportunity stage = Attempt 1 / 2 / 3 / 4` **AND** `Owner = me` ✅ all three filters verified |
 | Attribution | recorded call → `userId`; disposition note → their own `From:` number; no-answer → the contact's owner |
 | Reporting | tags `screener-a` / `screener-b` |
 
@@ -336,7 +339,7 @@ Kevin's pipelines.**
 |---|---|---|
 | **0 — Isolation** | the 4 GHL If/Else branches, 2 n8n filters, `screening` tag | On a tagged test contact: a real WAVV call, a disposition and a no-answer each produce **no** opportunity move, **no** email, **no** `last_call_missed` — and the `wavv-*` tags are still cleaned up |
 | **0b — Seats** | buy the 2nd WAVV seat; two people dial the same GHL account at once | Both dial simultaneously without breaking the demo connection (Mahir expects "a few hours of fixing", ~53:11) |
-| **1 — Container** | pipeline + 8 stages, 4 custom fields, tags, `Screener Outcome` dropdown, 2 screener users, 8 block users, numbers, recording + transcription on | A screener can open their Smart List and dial; a test call writes a note we can read |
+| **1 — Container** | pipeline + 9 stages, 4 custom fields, tags, `Screener Outcome` dropdown, 2 screener users, 8 block users, numbers, recording + transcription on | A screener can open their Smart List and dial; a test call writes a note we can read |
 | **2 — Capture + AI** | n8n 1–3 | 20 role-played calls land in the right stage; a call where the screener marks **before** the AI finishes, and one where they mark **after**, both end in the same place; a voicemail bumps the attempt |
 | **3 — Output** | n8n 4–5, Kevin's board filter + Smart Lists, `screen_log` | Kevin filters `Follower = PT 10-11` and sees only fresh owner-verified leads |
 | **4 — Measure** | listen to the first 50 real calls against the AI verdicts | Accuracy known per screener; only then tune prompts or change the model |
@@ -347,7 +350,7 @@ Kevin's pipelines.**
 |---|---|---|---|
 | 1 | call recorded (answered) | `/webhook/screener-call` | store transcript + timestamp + recording + `userId`, dedupe on `call_id`, run the AI → write `Screen AI Verdict` → compare (§4.1) |
 | 2 | **`Screener Outcome` changed** (the screener's pick) | `/webhook/screener-outcome` | write `Screen Noise`, compare with `Screen AI Verdict` → stage, tags, block tag + follower, `Date Screened` |
-| 3 | tag `wavv-no-answer` / `wavv-canceled` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → Attempt N (park at 4) |
+| 3 | tag `wavv-no-answer` / `wavv-canceled` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → next Attempt stage; after the 4th dial → **Exhausted** |
 | 4 | WAVV note with an **auto**-disposition (`Voicemail`, `Bad Number`) | `/webhook/screener-disposition` | `Voicemail` → attempt +1; `Bad Number` → **Disqualified** |
 
 ⚠️ **Event 4 is not optional.** WAVV tags a voicemail `wavv-voicemail`, and **no GHL workflow
@@ -361,9 +364,9 @@ Attempt stage forever.
 |---|---|---|---|
 | 1 | `Screener: Capture Call` | event 1 | transcript, AI verdict, `Screen AI Verdict`, then compare |
 | 2 | `Screener: Mark + Compare` | event 2 | the shared compare step → stage, tags, follower, `Date Screened` |
-| 3 | `Screener: Attempt Counter` | events 3 and 4 | `Screen Attempts` +1 → Attempt stage, or Wrong Number on `Bad Number` |
+| 3 | `Screener: Attempt Counter` | events 3 and 4 | `Screen Attempts` +1 → next Attempt stage or **Exhausted**; `Bad Number` → **Disqualified** |
 | 4 | `Screener: Graduate` | stage = Owner Verified | §8 |
-| 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to To Screen with `screening` re-added |
+| 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to **Attempt 1** with `screening` re-added |
 | 6 | `screen_log` leaf | on 1, 2, 3 | date, contact, screener, attempt, `Screener Outcome`, busy/quiet, AI verdict, match, block, duration |
 
 Workflows 1 and 2 share one compare step — build it once as a sub-workflow and call it from both,
@@ -385,7 +388,7 @@ the other to start.
 | Order | Task | Done when |
 |---|---|---|
 | 1 | **The four guard branches** (§1) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
-| 2 | Pipeline + 8 stages, pinned to the top | stage IDs handed to Mohimenul (§10.3) |
+| 2 | Pipeline + 9 stages, pinned to the top | stage IDs handed to Mohimenul (§10.3) |
 | 3 | the `Screener Outcome` **dropdown** (exact option spellings), the other 4 fields, all tags | field IDs + option strings handed over |
 | 4 | 2 screener users (Only Assigned Data, **not** admin), 8 block users | screener can log in and see only their own list |
 | 5 | Numbers per screener, recording + transcription on, Trust Hub registration | a test call produces a recording and a transcript |
@@ -453,7 +456,7 @@ writes code against it.
 
 ## 11. Only Kevin can decide
 
-Settled and built in: 4 attempts · the 8 stages · pipeline at the top · busy-or-quiet the only
+Settled and built in: 4 attempts · the 9 stages · pipeline at the top · busy-or-quiet the only
 extra mark · screened-out leads get nothing · "septic pumping" script · 14-day freshness ·
 tags **and** followers · no round-robin (n8n splits).
 
@@ -513,5 +516,5 @@ tags **and** followers · no round-robin (n8n splits).
   dialer, and an entry there routes screener calls into his Cold Handler.
 - **The five missing dispositions** (above) are a live gap in Kevin's *existing* system, not this
   one, but they will confuse anyone reading the caller manual. Worth fixing in the same WAVV session.
-- **An empty To Screen stage is a signal, not a failure** — it means buy more leads (~54:31). Put
+- **An empty Attempt 1 stage is a signal, not a failure** — it means buy more leads (~54:31). Put
   the count in the daily summary.
