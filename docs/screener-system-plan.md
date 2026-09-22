@@ -18,6 +18,81 @@ Companions: [`ghl-automations.md`](ghl-automations.md) · [`AGENTS.md`](../AGENT
 
 ---
 
+## Build status — 2026-09-22
+
+> **For Mohimenul:** everything in **✅ Built** exists in the live GHL account right now, with the
+> real IDs below — you can code against them today. Your half (n8n + the AI tagger) is untouched
+> and listed under **Mohimenul's part**.
+
+### ✅ Built (Hridoy's half, done by Claude)
+
+**Pipeline `Screener — Plumbers`** — `CvDwpavqkHSRhg5Bn3L4`
+
+| # | Stage | Stage ID |
+|---|---|---|
+| 1 | Attempt 1 | `7ff9193f-1e0a-4c93-9626-a6aab22b666b` |
+| 2 | Attempt 2 | `d3d8862e-bc2e-443f-97e6-f77e577ac09e` |
+| 3 | Attempt 3 | `abb54fb0-dbfc-44d9-aa21-796b91b7540b` |
+| 4 | Attempt 4 | `ec53d2ba-8322-45d6-9d60-283cc4fc016e` |
+| 5 | Owner Verified | `c8e33d9d-fd1b-46f6-87a6-7cc47841642f` |
+| 6 | Gatekeeper | `f83777fa-1dc0-4163-aa84-ef501126d82b` |
+| 7 | Not Sure | `0c160182-e74d-4ace-9d3b-c4404043ef4b` |
+| 8 | Exhausted | `c1db8172-84bf-45a1-8f0e-5625157574a5` |
+| 9 | Disqualified | `65f9e1b4-8688-456d-845e-ebe0781101b9` |
+
+**Custom fields** — all on the **Contact** object, in a new folder **`Screener`**
+
+| Field | ID | Key | Type |
+|---|---|---|---|
+| Screener Outcome | `iTZa77JWntQs2QBuo9QU` | `contact.screener_outcome` | SINGLE_OPTIONS |
+| Date Screened | `MUkHW8R17PIksrSnpz6g` | `contact.date_screened` | DATE |
+| Screen Attempts | `vcqKnq23gN5wIIHqRww4` | `contact.screen_attempts` | NUMERICAL |
+| Screen Noise | `AbbR6jH9PFMLJCRdCqMp` | `contact.screen_noise` | TEXT |
+| Screen AI Verdict | `boOwqb5qGOmbWBopWvTv` | `contact.screen_ai_verdict` | LARGE_TEXT |
+
+**`Screener Outcome` options — copy these strings exactly** (plain hyphen, not an en dash):
+
+`Owner - Busy` · `Owner - Quiet` · `Gatekeeper` · `Not Sure` · `Wrong Number` ·
+`Not A Plumber` · `Do Not Call`
+
+**Tags (17)** — `screening` · `owner-confirmed` · `screen-busy` · `screen-quiet` ·
+`screen-mismatch` · `screener-a` · `screener-b` · `screened-pt-06-07` … `screened-pt-15-16`
+
+### ⬜ Not built, and why
+
+| Item | Why it stopped | Who unblocks it |
+|---|---|---|
+| **2 screener users + 8 block users** | Creating a GHL user sends a real invite email, and I have no addresses to use. The existing label-users follow a pattern (`pacific@gmail.com`, `alaska@gmail.com`…) — pick the same style. Make them `ACCOUNT-USER`, role **Only Assigned Data**, never admin | Hridoy |
+| **Smart Lists** | The filter UI needs the users to exist (screener queues), and the tag-value picker is awkward to drive reliably. Recipe below — about 30 seconds each by hand | Hridoy |
+| **The four guard edits** (§1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
+| **WAVV: 2nd/3rd seat, screener numbers** | Costs money; `Seats Used: 1/1` | Kevin |
+| **Team dispositions decision** (§2.5) | Needs the seats before it can be tested | Kevin + Hridoy |
+
+**Smart List recipe** (Contacts → Filters → set → Save as Smart List):
+
+- *Kevin, per block:* `Tag` is `owner-confirmed` **AND** `Tag` is `screened-pt-10-11` → save as
+  "Kevin — Owner @ PT 10-11", then clone for each block.
+- *Gold:* the same plus `Tag` is `screen-busy`.
+- *Each screener:* `Opportunity pipeline` is `Screener — Plumbers` **AND** `Opportunity stage` is
+  `Attempt 1/2/3/4` **AND** `Owner` is that screener.
+- ⚠️ UI quirk: the box next to the field name is the **operator** ("Is"); the value picker is the
+  separate "Please select" box to its right. Typing the tag into the wrong one leaves
+  "Value cannot be empty".
+
+### Mohimenul's part — unchanged and unblocked
+
+Nothing of the n8n half has been built, by design (§10.2). You can start now:
+
+1. The **stage and field IDs above** are real — no mocking needed for the write-back.
+2. For the **inbound** side, mock the payload: copy the `customData` list from the live
+   `Call Recorded Trigger` in [`ghl-automations.md`](ghl-automations.md) and POST it to your
+   webhook by hand. Hridoy wires the real GHL triggers when the guards go in.
+3. Build the six workflows in §9. Keep them **inactive** until the guards exist — until then a
+   screener call would still reach Kevin's automations.
+4. The compare step (§4.1) is shared by two paths — build it once as a sub-workflow.
+
+---
+
 ## 0. Does this match what Kevin asked for?
 
 Checked line by line against the 2026-09-22 meeting. **Everything he asked for is in, in the form
@@ -27,7 +102,7 @@ he asked for it** — with four deliberate deviations, all listed at the bottom.
 |---|---|---|
 | Screener calls first with the septic-pumping script (~23:34, ~59:59) | §3, unchanged wording | exact |
 | Owner / gatekeeper / **not sure** — the third option he added after Mohimenul's objection (~44:12) | §2.5 dropdown, stages 6–8 | exact |
-| Background noise = busy owner = highest-value contact (~24:32, ~43:20) | `Owner – Busy` / `Owner – Quiet`, `screen-busy` tag, Gold list | exact |
+| Background noise = busy owner = highest-value contact (~24:32, ~43:20) | `Owner - Busy` / `Owner - Quiet`, `screen-busy` tag, Gold list | exact |
 | Drop male/female and "sounds like an owner" (~43:41) | not built | exact |
 | "We have to create a custom field… it can't be empty" (~41:45) | §2.5 `Screener Outcome` | exact — and this is why the mark is a field, not a WAVV disposition |
 | Tag the **hour** the owner was reached, always Pacific (~24:47, ~34:07) | §6, ten blocks | exact |
@@ -158,7 +233,7 @@ rest (**Disqualified**) — otherwise dead numbers stay in the queue and get dia
 
 **Field `Screener Outcome`** — contact, single-select dropdown, options:
 
-`Owner – Busy` · `Owner – Quiet` · `Gatekeeper` · `Not Sure` · `Wrong Number` ·
+`Owner - Busy` · `Owner - Quiet` · `Gatekeeper` · `Not Sure` · `Wrong Number` ·
 `Not A Plumber` · `Do Not Call`
 
 One pick per answered call. Unanswered calls need no mark at all — WAVV auto-dispositions those
@@ -211,7 +286,7 @@ documents (§12) — a real bug in the existing system, for the same WAVV sessio
 ## 3. What the screener does, per call
 
 **Answered call → one pick** in the `Screener Outcome` dropdown on the contact:
-`Owner – Busy`, `Owner – Quiet`, `Gatekeeper`, `Not Sure`, `Wrong Number`, `Not A Plumber`,
+`Owner - Busy`, `Owner - Quiet`, `Gatekeeper`, `Not Sure`, `Wrong Number`, `Not A Plumber`,
 `Do Not Call`.
 
 **Unanswered call → nothing.** WAVV auto-dispositions it (`No Answer`, `Voicemail`, `Bad Number`)
@@ -256,9 +331,9 @@ This is why the verdict needs its own field rather than living inside one workfl
 
 | Screener | AI | Result |
 |---|---|---|
-| `Owner – Busy` / `Owner – Quiet` | owner reached | **Owner Verified** |
+| `Owner - Busy` / `Owner - Quiet` | owner reached | **Owner Verified** |
 | `Gatekeeper` | not the owner | **Gatekeeper** |
-| `Owner – …` | not the owner / unclear / low confidence | **Not Sure** + `screen-mismatch` |
+| `Owner - …` | not the owner / unclear / low confidence | **Not Sure** + `screen-mismatch` |
 | `Gatekeeper` or `Not Sure` | owner reached | **Not Sure** + `screen-mismatch` |
 | nothing marked | anything | **Not Sure** + `screen-mismatch` |
 
@@ -443,7 +518,7 @@ One short doc or Slack message, filled in by Hridoy, consumed by Mohimenul:
 | Payload body for each | Mohimenul specifies, Hridoy wires | `contact_id`, `call_id`, `ghl_user_id`, timestamp, transcript, recording URL; for the outcome event: `contact_id` + the new `Screener Outcome` value |
 | Pipeline + 9 stage IDs | Hridoy | `Owner Verified = …` |
 | 4 custom field IDs | Hridoy | `Date Screened = …` |
-| Exact tag spellings **and dropdown option strings** | both agree once | `screened-pt-10-11` not `screened_pt_10_11`; `Owner – Busy` (en dash) not `Owner - Busy` — n8n compares these literally |
+| Exact tag spellings **and dropdown option strings** | both agree once | `screened-pt-10-11` not `screened_pt_10_11`; `Owner - Busy` with a plain hyphen (this is what was created) — n8n compares these literally |
 | Screener user IDs + block user IDs | Hridoy | for the guards and the follower writes |
 | A test contact that may be tagged repeatedly | Hridoy | — |
 
