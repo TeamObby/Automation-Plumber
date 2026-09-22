@@ -179,6 +179,25 @@ The first draft of this spec used `S:`-namespaced WAVV dispositions. Four reason
    changed → webhook" is exactly how `Manual Review Items Changed` and `Call Disposition OR Note
    Updated` already work in this account. No note parsing, no tag round-trip.
 
+#### The upgrade path: WAVV team dispositions (checked in the agency account)
+
+In **agency → WAVV Admin → Call Dispositions** everything is editable (the sub-account view is
+read-only), and there is a switch: **"Team Dispositions — allow custom dispositions at the team
+level"**, currently **off**. WAVV's Team page already has **Groups** (`All Members`, `Ungrouped`,
+`Group_1`), so the mechanism a screener group would use exists.
+
+If that switch does what its label says, the screeners could get **their own disposition list**
+on their own group — no `S:` prefix, nothing added to the menu Kevin sees, and the modal pops up
+by itself so the mark cannot be forgotten. That would beat the custom field on enforcement.
+
+**Why it is not the plan today:** WAVV shows **Seats Used: 1/1** — the screener seats do not exist
+yet, so a group-scoped list cannot be tested, and the switch is agency-wide (it would touch
+Kevin's dialer too). Decide after the seats are bought:
+
+- if team dispositions work per group → move the **outcome** into the dialer modal and keep the
+  field for busy/quiet (or use combined options and retire the field);
+- if not → the field stays exactly as specified. Nothing else in the plan changes either way.
+
 **What we give up:** WAVV's modal pops up by itself; a custom field does not, so the habit is not
 forced. Covered by the cross-check (a missing mark → **Not Sure** + `screen-mismatch`) and by a
 daily count of answered-but-unmarked calls per screener.
@@ -490,8 +509,10 @@ tags **and** followers · no round-robin (n8n splits).
 | Account already uses label-users | Settings → My Staff | ✅ 7 of 8 users are labels — and all are `ACCOUNT-ADMIN` |
 | WAVV auto-dispositions unanswered calls | WAVV docs | ✅ No Answer / Voicemail / Bad Number, no prompt |
 | Closing the modal with no pick is detectable | WAVV docs + live list | ✅ `[System] None` → `wavv-none` |
-| **WAVV disposition list** | WAVV Manager → Settings → Call Dispositions | ⚠️ **14 user dispositions live.** `Cold Bad`, `Cold On Hold`, `Appointment Booked`, `Not Interested Right Now Good/Bad` are **absent** — the caller manual documents five dispositions the dialer cannot produce |
-| Adding new WAVV dispositions | same page | ⚠️ disabled in the sub-account — dispositions are edited from the **main (agency) GHL account**. Moot for the screener now (§2.5) |
+| **WAVV disposition list** | sub-account WAVV Manager → Settings → Call Dispositions | ⚠️ **14 user dispositions live.** `Cold Bad`, `Cold On Hold`, `Appointment Booked`, `Not Interested Right Now Good/Bad` are **absent** — the caller manual documents five dispositions the dialer cannot produce |
+| Adding new WAVV dispositions | agency → **WAVV Admin** → Call Dispositions | ✅ fully editable there (read-only in the sub-account) |
+| "Team Dispositions — allow custom dispositions at the team level" | same page | ✅ exists, currently **off**; WAVV Groups exist (`Group_1`) — the upgrade path in §2.5 |
+| WAVV seats in use | WAVV Manager → Team | ⚠️ **1/1** — a seat per screener must be bought before anything can be tested |
 | No GHL workflow listens to `wavv-voicemail` | read every live workflow's trigger | ⚠️ true — hence event 4 in §9 |
 | Two WAVV seats dialing one GHL account | not testable without the seat | ❓ **blocked** — Phase 0b |
 
