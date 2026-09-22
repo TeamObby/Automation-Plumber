@@ -18,6 +18,52 @@ Companions: [`ghl-automations.md`](ghl-automations.md) · [`AGENTS.md`](../AGENT
 
 ---
 
+## 0. Does this match what Kevin asked for?
+
+Checked line by line against the 2026-09-22 meeting. **Everything he asked for is in, in the form
+he asked for it** — with four deliberate deviations, all listed at the bottom.
+
+| Kevin asked (timestamp) | Where it lives | Match |
+|---|---|---|
+| Screener calls first with the septic-pumping script (~23:34, ~59:59) | §3, unchanged wording | exact |
+| Owner / gatekeeper / **not sure** — the third option he added after Mohimenul's objection (~44:12) | §2.5 dropdown, stages 6–8 | exact |
+| Background noise = busy owner = highest-value contact (~24:32, ~43:20) | `Owner – Busy` / `Owner – Quiet`, `screen-busy` tag, Gold list | exact |
+| Drop male/female and "sounds like an owner" (~43:41) | not built | exact |
+| "We have to create a custom field… it can't be empty" (~41:45) | §2.5 `Screener Outcome` | exact — and this is why the mark is a field, not a WAVV disposition |
+| Tag the **hour** the owner was reached, always Pacific (~24:47, ~34:07) | §6, ten blocks | exact |
+| Date screened, stale after two weeks (~25:20) | `Date Screened`, 14-day sweep | exact |
+| **Followers** so he can filter (~33:55, ~45:01, ~57:25) | §5/§6 — follower per block on the opportunity | exact (plus tags, see deviations) |
+| Filter on the **opportunity** (~24:25) | §7 board filter | exact — and verified it is the only filter the board has |
+| Separate pipeline: Attempt 1–4, owner verified, gatekeeper, not sure (~56:33) | §2.1 | exact, plus one stage (see deviations) |
+| Pipeline pinned to the top so nobody mis-clicks (~57:13) | §2.1 | exact |
+| Screener must not reach his pipeline (~48:42) | Only Assigned Data + `screening` guard | exact |
+| Stage moves automatically from their selection (~56:51) | §9 event 2 | exact |
+| AI cross-checks and flags disagreement (~44:34, ~57:43) | §4.3 | exact |
+| Two WAVV seats, screener's own numbers, faster rotation (~47:42) | §5 | exact |
+| Nothing traceable back to us; screened-out leads get nothing (~46:44, ~47:26) | §3 conduct, terminal stages | exact |
+| Stop using mobile-phone-type as the filter (~45:08) | see deviations | noted |
+| List/ICP work is the higher priority (~62:53) | §9 priority note | exact |
+
+### The four places I went beyond him
+
+1. **Stage 9 "Disqualified"** — his eight stages have no home for wrong number / not a plumber /
+   do-not-call, and leaving them in the ladder re-dials dead numbers.
+2. **Tags as well as followers** — he asked for followers, which only work on the opportunity
+   board. Tags are what the contact Smart List and WAVV dialling lists can filter on, so both get
+   written. His filter works either way; nothing is taken away.
+3. **No follower for "owner verified"** — he described one (~54:19), but only graduated leads ever
+   get an opportunity in his pipelines, so the block follower already implies it. *If he wants the
+   explicit filter anyway, add one `Owner Verified` label-user; it is one extra node.*
+4. **The screener dismisses WAVV's disposition modal** (§3) — he never covered what the screener
+   does with the menu that pops up after every answered call. Their mark is the field.
+
+Also worth telling him: he said he will stop filtering by **mobile phone type** (~45:08). The
+`Copy - Final - Add Timezone Followers` workflow still adds a line-type follower to every
+opportunity, spending one of the ten follower slots per record. It can be switched off once the
+screener data replaces it.
+
+---
+
 ## 1. Who is calling — and why the guard is built the way it is
 
 | Event | Fires | Identifies the caller? |
@@ -65,13 +111,22 @@ assigned Smart List.
 | 2 | Attempt 1 |
 | 3 | Attempt 2 |
 | 4 | Attempt 3 |
-| 5 | Attempt 4 |
+| 5 | Attempt 4 — *terminal: four dials, never reached* |
 | 6 | Owner Verified |
 | 7 | Gatekeeper |
 | 8 | Not Sure |
+| 9 | Disqualified — *wrong number, not a plumber, do-not-call* |
 
-Kevin's list verbatim (~56:33). Only stage 6 leaves the pipeline. 7 and 8 are terminal and nothing
-happens to them.
+Stages 1–8 are Kevin's list verbatim (~56:33). Only stage 6 leaves the pipeline; 7, 8, 9 and a
+full Attempt 4 are terminal and nothing happens to them.
+
+**Stage 9 is mine, not Kevin's** — three of the outcomes the screener can pick (wrong number, not
+a plumber, do-not-call) have nowhere to rest in his eight, and leaving them in the Attempt ladder
+would put dead numbers back in the dialling queue. One stage is cheaper than filtering them out
+of every list.
+
+**The dialling queue is stages 1–4 only** (To Screen, Attempt 1–3). A contact reaches Attempt 4
+after its fourth dial, so Attempt 4 means *done*, not *due*.
 
 ### 2.2 Custom fields (contact)
 
@@ -198,7 +253,7 @@ we will have — which matters with two of them.
 |---|---|
 | Ownership | contact **Owner** = Screener A or B, set by n8n at import; same owner on the screener opportunity |
 | Access | role **Only Assigned Data** — neither can open the other's contacts, or Kevin's |
-| Daily queue | Smart List: `Opportunity pipeline = Screener — Plumbers` **AND** `Opportunity stage = To Screen / Attempt 1-4` **AND** `Owner = me` ✅ all three filters verified |
+| Daily queue | Smart List: `Opportunity pipeline = Screener — Plumbers` **AND** `Opportunity stage = To Screen / Attempt 1 / 2 / 3` **AND** `Owner = me` ✅ all three filters verified |
 | Attribution | recorded call → `userId`; disposition note → their own `From:` number; no-answer → the contact's owner |
 | Reporting | tags `screener-a` / `screener-b` |
 
@@ -293,7 +348,7 @@ Kevin's pipelines.**
 | 1 | call recorded (answered) | `/webhook/screener-call` | store transcript + timestamp + recording + `userId`, dedupe on `call_id`, run the AI → write `Screen AI Verdict` → compare (§4.1) |
 | 2 | **`Screener Outcome` changed** (the screener's pick) | `/webhook/screener-outcome` | write `Screen Noise`, compare with `Screen AI Verdict` → stage, tags, block tag + follower, `Date Screened` |
 | 3 | tag `wavv-no-answer` / `wavv-canceled` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → Attempt N (park at 4) |
-| 4 | WAVV note with an **auto**-disposition (`Voicemail`, `Bad Number`) | `/webhook/screener-disposition` | `Voicemail` → attempt +1; `Bad Number` → mark and stop dialling |
+| 4 | WAVV note with an **auto**-disposition (`Voicemail`, `Bad Number`) | `/webhook/screener-disposition` | `Voicemail` → attempt +1; `Bad Number` → **Disqualified** |
 
 ⚠️ **Event 4 is not optional.** WAVV tags a voicemail `wavv-voicemail`, and **no GHL workflow
 listens to that tag** — `Call No Answer` only fires on `wavv-no-answer` / `wavv-canceled`. Without
