@@ -36,7 +36,7 @@ Two of them do housekeeping *before* the harmful part, and that housekeeping mus
 | Workflow (id) | Insert If/Else | Screener branch does | Why there |
 |---|---|---|---|
 | **Call No Answer** `0092952f-83d2-44aa-bd9c-829d350c08ce` | **between step 1 (*Remove Tag*) and step 2 (*Add Tag* `last_call_missed`)** | POST `/webhook/screener-no-answer` | Blocking the whole thing strands `wavv-no-answer` on the contact; the next dial re-adds a tag that is already there, the trigger does not fire, and **attempt 2 becomes invisible** |
-| **Capture Wavv Disposition** `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | on **Branch A only**; **Branch B (wavv-tag cleanup) runs for everyone** | POST `/webhook/screener-disposition` with `{{note.body}}` | Branch A writes **Call Disposition** → Dispatcher → Cold/Gatekeeper Handler → moves the opp, sends the next cold email, sets Stop Phone Calls |
+| **Capture Wavv Disposition** `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | on **Branch A only**; **Branch B (wavv-tag cleanup) runs for everyone** | POST `/webhook/screener-disposition` (kept as a safety net; the primary mark is the field, §2.5) | Branch A writes **Call Disposition** → Dispatcher → Cold/Gatekeeper Handler → moves the opp, sends the next cold email, sets Stop Phone Calls |
 | **Call Recorded Trigger** `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | first step | POST `/webhook/screener-call` (same payload it already builds) | else Capture Call Record writes a Call Router Context for a call Kevin never made |
 | **Move Leads Into Cadence** `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | first step | stop | fires on entry to Client Acq → New |
 
@@ -77,10 +77,10 @@ happens to them.
 
 | Field | Type | Written by | Used for |
 |---|---|---|---|
+| **`Screener Outcome`** | **single-select dropdown** | **the screener** | the only thing a human types; also the webhook trigger (§2.5) |
 | `Date Screened` | DATE | n8n | freshness |
-| `Screener Result` | TEXT | n8n | the `S:` disposition, reporting |
 | `Screen Attempts` | NUMBER | n8n | 1–4, drives the stage |
-| `Screen Noise` | TEXT (`busy` / `quiet`) | n8n | the gold list |
+| `Screen Noise` | TEXT (`busy` / `quiet`) | n8n | derived from the outcome, for the gold list |
 
 ### 2.3 Tags
 
@@ -95,34 +95,46 @@ happens to them.
   (PT/CT/ET/AT/HT, PhoneType ×2) — see §12.
   ⚠️ Those existing 7 are all `ACCOUNT-ADMIN`, which is worth downgrading while we are in there.
 
-### 2.5 WAVV dispositions — needs the WAVV account owner
+### 2.5 The screener's mark: **a GHL custom field, not a WAVV disposition**
 
-Namespaced `S:` because the list is shared with Kevin's. Give each the tag `wavv-s-…` so the
-existing Branch B cleanup sweeps them up automatically.
+**Field `Screener Outcome`** — contact, single-select dropdown, options:
 
-| Disposition | Tag | Call Outcome |
-|---|---|---|
-| S: Owner | `wavv-s-owner` | Other |
-| S: Gatekeeper | `wavv-s-gatekeeper` | Other |
-| S: Not Sure | `wavv-s-not-sure` | Other |
-| S: Busy (answered, noisy) | `wavv-s-busy` | Other |
-| S: Quiet (answered, silent) | `wavv-s-quiet` | Other |
-| S: Wrong Number | `wavv-s-wrong-number` | Bad Number |
-| S: Not A Plumber | `wavv-s-not-a-plumber` | Other |
-| S: DNC | `wavv-s-dnc` | Do Not Contact |
+`Owner – Busy` · `Owner – Quiet` · `Gatekeeper` · `Not Sure` · `Wrong Number` ·
+`Not A Plumber` · `Do Not Call`
 
-⚠️ **Two live findings that change this section** (§12): the WAVV settings page shows **14 user
-dispositions**, and **"Add New Disposition" is disabled for the current login** — so an account
-owner has to add these. WAVV also auto-dispositions unanswered calls (`[System] No Answer`,
-`Voicemail`, `Bad Number`) without prompting, so the finer no-answer split is not the screener's
-to make; we take WAVV's automatic ones.
+One pick per answered call. Unanswered calls need no mark at all — WAVV auto-dispositions those
+(`[System] No Answer`, `Voicemail`, `Bad Number`) and the Attempt ladder runs off that tag (§1).
+
+#### Why not WAVV dispositions
+
+The first draft of this spec used `S:`-namespaced WAVV dispositions. Four reasons it is wrong:
+
+1. **A call has one disposition.** The screener must record *two* facts — who answered **and**
+   busy/quiet. That needs combinatorial entries (`S: Owner – Busy`, `S: Owner – Quiet`, …) or a
+   second click that WAVV does not offer. One dropdown holds both cleanly.
+2. **We cannot create them.** "Add New Disposition" is **disabled** for the current login (§12);
+   it needs the WAVV account owner. The custom field can be created today.
+3. **The disposition list is shared with Kevin.** Thirteen `S:` entries would appear in the menu
+   he sees after every sales call — one mis-click puts a screener label on a real prospect.
+4. **The trigger is already a proven pattern here.** "Contact Changed → `Screener Outcome` has
+   changed → webhook" is exactly how `Manual Review Items Changed` and `Call Disposition OR Note
+   Updated` already work in this account. No note parsing, no tag round-trip.
+
+**What we give up:** WAVV's modal pops up by itself; a custom field does not, so the habit is not
+forced. Covered by the cross-check (a missing mark → **Not Sure** + `screen-mismatch`) and by a
+daily count of answered-but-unmarked calls per screener.
+
+**Unchanged:** WAVV still owns unanswered calls, so no WAVV admin work is needed to start.
+Worth doing separately: Kevin's own disposition list is missing five entries the caller manual
+documents (§12) — a real bug in the existing system, for the same WAVV session.
 
 ---
 
 ## 3. What the screener does, per call
 
-**Answered call → two clicks:** the outcome (`S: Owner` / `S: Gatekeeper` / `S: Not Sure`) and
-the noise (`S: Busy` / `S: Quiet`).
+**Answered call → one pick** in the `Screener Outcome` dropdown on the contact:
+`Owner – Busy`, `Owner – Quiet`, `Gatekeeper`, `Not Sure`, `Wrong Number`, `Not A Plumber`,
+`Do Not Call`.
 
 **Unanswered call → nothing.** WAVV auto-dispositions it and the system counts the attempt.
 
@@ -133,7 +145,7 @@ gold list — a noisy background means the owner is in a truck, working, worth 2
 **Call conduct** — *"the screener cannot be connected to anything that comes back to us"* (~46:44):
 never leave a voicemail · never name Obby or WaterLine · no demo, no selling · never dial outside
 **8am–9pm in the lead's own local time** (the `TZ` field gates the list) · if asked to be removed,
-`S: DNC` and stop.
+pick `Do Not Call` and stop.
 
 ---
 
@@ -147,11 +159,11 @@ AI's; ear-only facts are the screener's.** Nobody is asked twice for the same th
 
 | Screener | AI | Result |
 |---|---|---|
-| `S: Owner` | owner reached | **Owner Verified** |
-| `S: Gatekeeper` | not the owner | **Gatekeeper** |
-| `S: Owner` | not the owner / unclear / low confidence | **Not Sure** + `screen-mismatch` |
-| `S: Gatekeeper` or `S: Not Sure` | owner reached | **Not Sure** + `screen-mismatch` |
-| nothing (`wavv-none`) | anything | **Not Sure** + `screen-mismatch` |
+| `Owner – Busy` / `Owner – Quiet` | owner reached | **Owner Verified** |
+| `Gatekeeper` | not the owner | **Gatekeeper** |
+| `Owner – …` | not the owner / unclear / low confidence | **Not Sure** + `screen-mismatch` |
+| `Gatekeeper` or `Not Sure` | owner reached | **Not Sure** + `screen-mismatch` |
+| nothing marked | anything | **Not Sure** + `screen-mismatch` |
 
 Exactly Kevin's ask at ~57:43. The per-screener mismatch rate is also the fairest quality measure
 we will have — which matters with two of them.
@@ -249,7 +261,7 @@ Kevin's pipelines.**
 |---|---|---|
 | **0 — Isolation** | the 4 GHL If/Else branches, 2 n8n filters, `screening` tag | On a tagged test contact: a real WAVV call, a disposition and a no-answer each produce **no** opportunity move, **no** email, **no** `last_call_missed` — and the `wavv-*` tags are still cleaned up |
 | **0b — Seats** | buy the 2nd WAVV seat; two people dial the same GHL account at once | Both dial simultaneously without breaking the demo connection (Mahir expects "a few hours of fixing", ~53:11) |
-| **1 — Container** | pipeline + 8 stages, 4 custom fields, tags, 2 screener users, 8 block users, numbers, recording + transcription on, WAVV `S:` dispositions | A screener can open their Smart List and dial; a test call writes a note we can read |
+| **1 — Container** | pipeline + 8 stages, 4 custom fields, tags, `Screener Outcome` dropdown, 2 screener users, 8 block users, numbers, recording + transcription on | A screener can open their Smart List and dial; a test call writes a note we can read |
 | **2 — Capture + AI** | n8n 1–3 (below) | 20 role-played calls land in the right stage with the right tags; mismatches flag |
 | **3 — Output** | n8n 4–5, Kevin's board filter + Smart Lists, `screen_log` | Kevin filters `Follower = PT 10-11` and sees only fresh owner-verified leads |
 | **4 — Measure** | listen to the first 50 real calls against the AI verdicts | Accuracy known per screener; only then tune prompts or change the model |
@@ -259,11 +271,11 @@ Kevin's pipelines.**
 | # | Name | Trigger | Does |
 |---|---|---|---|
 | 1 | `Screener: Capture Call` | `/webhook/screener-call` | transcript + timestamp + recording + `userId`; dedupe on `call_id` |
-| 2 | `Screener: Classify + Mark` | after 1, and `/webhook/screener-disposition` | AI verdict → cross-check → fields, tags, block tag + follower, stage move, `Date Screened` |
+| 2 | `Screener: Classify + Mark` | after 1, and `/webhook/screener-outcome` (fired by *Contact Changed → `Screener Outcome`*) | AI verdict → cross-check → fields, tags, block tag + follower, stage move, `Date Screened` |
 | 3 | `Screener: No Answer` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → move to Attempt N (or park at 4) |
 | 4 | `Screener: Graduate` | stage = Owner Verified | §8 |
 | 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to To Screen with `screening` re-added |
-| 6 | `screen_log` leaf | on 2 and 3 | date, contact, screener, attempt, `S:` disposition, busy/quiet, AI verdict, match, block, duration |
+| 6 | `screen_log` leaf | on 2 and 3 | date, contact, screener, attempt, `Screener Outcome`, busy/quiet, AI verdict, match, block, duration |
 
 > **Priority:** Kevin called the list/ICP work first and the screener second (~62:53). Build
 > alongside; do not let this push the list back.
@@ -328,7 +340,7 @@ writes code against it.
 
 | Item | Owner | Note |
 |---|---|---|
-| WAVV `S:` dispositions | **Kevin / WAVV account owner** | "Add New Disposition" is disabled for the current login (§12). Also worth fixing the five missing dispositions in Kevin's own list while in there |
+| The five dispositions missing from Kevin's own WAVV list | **Kevin / WAVV account owner** | not a screener blocker any more (§2.5), but a real bug in the existing system |
 | 2nd WAVV seat + two seats dialling one GHL account | **Ridoy with Mahir** | Phase 0b — the only unknown that could reshape the build |
 | Decisions in §11 | **Kevin** | recording policy is the one that blocks Phase 2 |
 | First 50-call review | **Kevin + Mohimenul** | — |
@@ -389,8 +401,8 @@ tags **and** followers · no round-robin (n8n splits).
 
 ### If a blocked item goes badly
 
-- **WAVV won't take the `S:` dispositions** → the screener marks two dropdown custom fields on the
-  contact instead (~10s per call, weaker enforcement). Nothing else changes.
+- ~~WAVV won't take the `S:` dispositions~~ → resolved: the mark is a GHL custom field (§2.5), so
+  no WAVV admin work is needed to start.
 - **Two seats can't dial one GHL account** → screeners move to a **separate GHL sub-account** and
   the tagger matches back by phone number. This is the only failure that reshapes the build, which
   is why it is tested in Phase 0b, before anything is built on top.
@@ -404,8 +416,8 @@ tags **and** followers · no round-robin (n8n splits).
 - **Stacked block followers** corrupt Kevin's list silently — the list still looks full.
 - **Busy/quiet is the only irreplaceable human mark.** If screeners get lazy, the gold list is
   worthless; the `screen-mismatch` queue is what makes that visible.
-- **The shared WAVV disposition list** — anyone adding a screener disposition without the `S:`
-  prefix routes screener calls into Kevin's Cold Handler.
+- **Do not add screener options to the WAVV disposition list** (§2.5). It is shared with Kevin's
+  dialer, and an entry there routes screener calls into his Cold Handler.
 - **The five missing dispositions** (above) are a live gap in Kevin's *existing* system, not this
   one, but they will confuse anyone reading the caller manual. Worth fixing in the same WAVV session.
 - **An empty To Screen stage is a signal, not a failure** — it means buy more leads (~54:31). Put
