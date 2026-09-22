@@ -36,7 +36,7 @@ Two of them do housekeeping *before* the harmful part, and that housekeeping mus
 | Workflow (id) | Insert If/Else | Screener branch does | Why there |
 |---|---|---|---|
 | **Call No Answer** `0092952f-83d2-44aa-bd9c-829d350c08ce` | **between step 1 (*Remove Tag*) and step 2 (*Add Tag* `last_call_missed`)** | POST `/webhook/screener-no-answer` | Blocking the whole thing strands `wavv-no-answer` on the contact; the next dial re-adds a tag that is already there, the trigger does not fire, and **attempt 2 becomes invisible** |
-| **Capture Wavv Disposition** `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | on **Branch A only**; **Branch B (wavv-tag cleanup) runs for everyone** | POST `/webhook/screener-disposition` (kept as a safety net; the primary mark is the field, §2.5) | Branch A writes **Call Disposition** → Dispatcher → Cold/Gatekeeper Handler → moves the opp, sends the next cold email, sets Stop Phone Calls |
+| **Capture Wavv Disposition** `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | on **Branch A only**; **Branch B (wavv-tag cleanup) runs for everyone** | POST `/webhook/screener-disposition` with `{{note.body}}` — **load-bearing**: this is the only path that carries WAVV's **auto**-dispositions (`Voicemail`, `Bad Number`), which nothing else listens to | Branch A writes **Call Disposition** → Dispatcher → Cold/Gatekeeper Handler → moves the opp, sends the next cold email, sets Stop Phone Calls |
 | **Call Recorded Trigger** `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | first step | POST `/webhook/screener-call` (same payload it already builds) | else Capture Call Record writes a Call Router Context for a call Kevin never made |
 | **Move Leads Into Cadence** `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | first step | stop | fires on entry to Client Acq → New |
 
@@ -81,6 +81,7 @@ happens to them.
 | `Date Screened` | DATE | n8n | freshness |
 | `Screen Attempts` | NUMBER | n8n | 1–4, drives the stage |
 | `Screen Noise` | TEXT (`busy` / `quiet`) | n8n | derived from the outcome, for the gold list |
+| `Screen AI Verdict` | TEXT | n8n | where the AI parks its verdict so it can meet the screener's mark (§4.1) |
 
 ### 2.3 Tags
 
@@ -136,7 +137,13 @@ documents (§12) — a real bug in the existing system, for the same WAVV sessio
 `Owner – Busy`, `Owner – Quiet`, `Gatekeeper`, `Not Sure`, `Wrong Number`, `Not A Plumber`,
 `Do Not Call`.
 
-**Unanswered call → nothing.** WAVV auto-dispositions it and the system counts the attempt.
+**Unanswered call → nothing.** WAVV auto-dispositions it (`No Answer`, `Voicemail`, `Bad Number`)
+and the system counts the attempt by itself.
+
+**The WAVV disposition modal still pops up after an answered call**, showing *Kevin's* 14
+dispositions. Screeners **dismiss it** — that writes `wavv-none`, which is harmless because the
+guard (§1) stops it reaching Kevin's automations. Their mark is the `Screener Outcome` field, not
+that menu.
 
 That is the entire job. Kevin narrowed it to this himself (~43:41) after dropping male/female and
 "sounds like an owner". Busy/quiet stays because no machine can hear it, and it is what marks the
@@ -154,6 +161,19 @@ pick `Do Not Call` and stop.
 Mohimenul's tagger reads the transcript and returns `call_outcome`, `owner_reached`, `confidence`,
 `evidence_quote`, `owner_name`. The split (Ridoy, ~59:05): **transcript-readable facts are the
 AI's; ear-only facts are the screener's.** Nobody is asked twice for the same thing.
+
+### 4.1 The two marks arrive at different times
+
+The AI verdict comes from the **recorded call** (seconds after hang-up). The screener's pick comes
+from a **field change** (whenever they get to it). Neither can wait for the other, so:
+
+- whichever arrives first is written to the contact — the AI to `Screen AI Verdict`, the screener
+  to `Screener Outcome`;
+- **both paths end in the same compare step**, which runs only when both values are present;
+- if the screener's mark is still missing when the next call to that contact starts, the compare
+  runs anyway with "nothing marked" and the contact lands in **Not Sure** + `screen-mismatch`.
+
+This is why the verdict needs its own field rather than living inside one workflow run.
 
 ### Cross-check — the screener's mark wins, the AI catches mistakes
 
@@ -262,20 +282,37 @@ Kevin's pipelines.**
 | **0 — Isolation** | the 4 GHL If/Else branches, 2 n8n filters, `screening` tag | On a tagged test contact: a real WAVV call, a disposition and a no-answer each produce **no** opportunity move, **no** email, **no** `last_call_missed` — and the `wavv-*` tags are still cleaned up |
 | **0b — Seats** | buy the 2nd WAVV seat; two people dial the same GHL account at once | Both dial simultaneously without breaking the demo connection (Mahir expects "a few hours of fixing", ~53:11) |
 | **1 — Container** | pipeline + 8 stages, 4 custom fields, tags, `Screener Outcome` dropdown, 2 screener users, 8 block users, numbers, recording + transcription on | A screener can open their Smart List and dial; a test call writes a note we can read |
-| **2 — Capture + AI** | n8n 1–3 (below) | 20 role-played calls land in the right stage with the right tags; mismatches flag |
+| **2 — Capture + AI** | n8n 1–3 | 20 role-played calls land in the right stage; a call where the screener marks **before** the AI finishes, and one where they mark **after**, both end in the same place; a voicemail bumps the attempt |
 | **3 — Output** | n8n 4–5, Kevin's board filter + Smart Lists, `screen_log` | Kevin filters `Follower = PT 10-11` and sees only fresh owner-verified leads |
 | **4 — Measure** | listen to the first 50 real calls against the AI verdicts | Accuracy known per screener; only then tune prompts or change the model |
 
+### Every inbound event, and what handles it
+
+| # | Event in GHL | Webhook | n8n does |
+|---|---|---|---|
+| 1 | call recorded (answered) | `/webhook/screener-call` | store transcript + timestamp + recording + `userId`, dedupe on `call_id`, run the AI → write `Screen AI Verdict` → compare (§4.1) |
+| 2 | **`Screener Outcome` changed** (the screener's pick) | `/webhook/screener-outcome` | write `Screen Noise`, compare with `Screen AI Verdict` → stage, tags, block tag + follower, `Date Screened` |
+| 3 | tag `wavv-no-answer` / `wavv-canceled` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → Attempt N (park at 4) |
+| 4 | WAVV note with an **auto**-disposition (`Voicemail`, `Bad Number`) | `/webhook/screener-disposition` | `Voicemail` → attempt +1; `Bad Number` → mark and stop dialling |
+
+⚠️ **Event 4 is not optional.** WAVV tags a voicemail `wavv-voicemail`, and **no GHL workflow
+listens to that tag** — `Call No Answer` only fires on `wavv-no-answer` / `wavv-canceled`. Without
+the note path, a voicemail dial would never count as an attempt and the lead would sit in the same
+Attempt stage forever.
+
 ### The n8n workflows
 
-| # | Name | Trigger | Does |
+| # | Name | Fed by | Does |
 |---|---|---|---|
-| 1 | `Screener: Capture Call` | `/webhook/screener-call` | transcript + timestamp + recording + `userId`; dedupe on `call_id` |
-| 2 | `Screener: Classify + Mark` | after 1, and `/webhook/screener-outcome` (fired by *Contact Changed → `Screener Outcome`*) | AI verdict → cross-check → fields, tags, block tag + follower, stage move, `Date Screened` |
-| 3 | `Screener: No Answer` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → move to Attempt N (or park at 4) |
+| 1 | `Screener: Capture Call` | event 1 | transcript, AI verdict, `Screen AI Verdict`, then compare |
+| 2 | `Screener: Mark + Compare` | event 2 | the shared compare step → stage, tags, follower, `Date Screened` |
+| 3 | `Screener: Attempt Counter` | events 3 and 4 | `Screen Attempts` +1 → Attempt stage, or Wrong Number on `Bad Number` |
 | 4 | `Screener: Graduate` | stage = Owner Verified | §8 |
 | 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to To Screen with `screening` re-added |
-| 6 | `screen_log` leaf | on 2 and 3 | date, contact, screener, attempt, `Screener Outcome`, busy/quiet, AI verdict, match, block, duration |
+| 6 | `screen_log` leaf | on 1, 2, 3 | date, contact, screener, attempt, `Screener Outcome`, busy/quiet, AI verdict, match, block, duration |
+
+Workflows 1 and 2 share one compare step — build it once as a sub-workflow and call it from both,
+or the two paths will drift apart.
 
 > **Priority:** Kevin called the list/ICP work first and the screener second (~62:53). Build
 > alongside; do not let this push the list back.
@@ -294,10 +331,10 @@ the other to start.
 |---|---|---|
 | 1 | **The four guard branches** (§1) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
 | 2 | Pipeline + 8 stages, pinned to the top | stage IDs handed to Mohimenul (§10.3) |
-| 3 | 4 custom fields, all tags | field IDs handed over |
+| 3 | the `Screener Outcome` **dropdown** (exact option spellings), the other 4 fields, all tags | field IDs + option strings handed over |
 | 4 | 2 screener users (Only Assigned Data, **not** admin), 8 block users | screener can log in and see only their own list |
 | 5 | Numbers per screener, recording + transcription on, Trust Hub registration | a test call produces a recording and a transcript |
-| 6 | The 4 new GHL workflows that POST to Mohimenul's webhooks | he sees real payloads |
+| 6 | The GHL workflows that POST to Mohimenul's 4 webhooks — including the new **Contact Changed → `Screener Outcome`** one | he sees real payloads for all four events |
 | 7 | Kevin's board filter + the block Smart Lists | Kevin can filter `Follower = PT 10-11` |
 
 Then Ridoy moves to the **list/ICP work**, which is Kevin's actual first priority (~62:53).
@@ -325,11 +362,11 @@ One short doc or Slack message, filled in by Ridoy, consumed by Mohimenul:
 
 | Thing | Who provides | Example |
 |---|---|---|
-| Webhook paths | Mohimenul | `/webhook/screener-call`, `/webhook/screener-disposition`, `/webhook/screener-no-answer` |
-| Payload body for each | Mohimenul specifies, Ridoy wires | `contact_id`, `call_id`, `ghl_user_id`, timestamp, transcript, recording URL |
+| Webhook paths (all four, §9) | Mohimenul | `/webhook/screener-call`, `/webhook/screener-outcome`, `/webhook/screener-no-answer`, `/webhook/screener-disposition` |
+| Payload body for each | Mohimenul specifies, Ridoy wires | `contact_id`, `call_id`, `ghl_user_id`, timestamp, transcript, recording URL; for the outcome event: `contact_id` + the new `Screener Outcome` value |
 | Pipeline + 8 stage IDs | Ridoy | `Owner Verified = …` |
 | 4 custom field IDs | Ridoy | `Date Screened = …` |
-| Exact tag spellings | both agree once | `screened-pt-10-11`, not `screened_pt_10_11` |
+| Exact tag spellings **and dropdown option strings** | both agree once | `screened-pt-10-11` not `screened_pt_10_11`; `Owner – Busy` (en dash) not `Owner - Busy` — n8n compares these literally |
 | Screener user IDs + block user IDs | Ridoy | for the guards and the follower writes |
 | A test contact that may be tagged repeatedly | Ridoy | — |
 
@@ -396,7 +433,8 @@ tags **and** followers · no round-robin (n8n splits).
 | WAVV auto-dispositions unanswered calls | WAVV docs | ✅ No Answer / Voicemail / Bad Number, no prompt |
 | Closing the modal with no pick is detectable | WAVV docs + live list | ✅ `[System] None` → `wavv-none` |
 | **WAVV disposition list** | WAVV Manager → Settings → Call Dispositions | ⚠️ **14 user dispositions live.** `Cold Bad`, `Cold On Hold`, `Appointment Booked`, `Not Interested Right Now Good/Bad` are **absent** — the caller manual documents five dispositions the dialer cannot produce |
-| Adding new WAVV dispositions | same page | ⚠️ **"Add New Disposition" is disabled for this login** — needs the WAVV account owner |
+| Adding new WAVV dispositions | same page | ⚠️ disabled in the sub-account — dispositions are edited from the **main (agency) GHL account**. Moot for the screener now (§2.5) |
+| No GHL workflow listens to `wavv-voicemail` | read every live workflow's trigger | ⚠️ true — hence event 4 in §9 |
 | Two WAVV seats dialing one GHL account | not testable without the seat | ❓ **blocked** — Phase 0b |
 
 ### If a blocked item goes badly
