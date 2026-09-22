@@ -1,0 +1,8 @@
+# Claude Code local (per-user) settings — not shared
+.claude/settings.local.json
+
+# Node deps (e.g. `npm i luxon` for tests/metrics-logging.test.js)
+node_modules/
+
+# Playwright MCP browser logs/output — local only
+.playwright-mcp/

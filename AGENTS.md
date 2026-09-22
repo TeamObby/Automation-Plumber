@@ -60,6 +60,10 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 ---
 
 ## Shared references (GHL / GoHighLevel)
+> **The GHL side of the system** — which GHL workflow fires each n8n webhook, and the
+> tag/opportunity side effects no n8n JSON records — is mapped in
+> [`docs/ghl-automations.md`](docs/ghl-automations.md) (read live from GHL, 2026-09-22).
+
 - **location_id:** `rzaMhqeo2apNI1p6DG5z`
 - **Call pipelines** (dispatcher routing, priority order):
   rebooking `smoNRUaagZYOElKFLwtp` > conversation `TwW6o0JdPXUlcwvX0EvI` > cold `9E6y34DlG1Imr8FV42RV`
