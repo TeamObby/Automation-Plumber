@@ -270,14 +270,80 @@ Kevin's pipelines.**
 
 ---
 
-## 10. Who does what
+## 10. Dividing the work between Ridoy and Mohimenul
 
-| Person | Owns |
-|---|---|
-| **Ridoy** | the 4 guard edits, pipeline, fields, tags, users, numbers, Smart Lists, Kevin's board filter |
-| **Mohimenul** | n8n 1–6, the AI prompt and its accuracy report |
-| **WAVV account owner** | the `S:` dispositions (the Add button is disabled for the current login), the 2nd seat |
-| **Kevin** | §11, and the first 50-call review |
+**Split by system boundary, not by phase.** One person owns everything inside GHL/WAVV, the other
+owns everything inside n8n. They meet at a written contract (§10.3), so neither has to wait for
+the other to start.
+
+### 10.1 Ridoy — GHL and WAVV
+
+| Order | Task | Done when |
+|---|---|---|
+| 1 | **The four guard branches** (§1) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
+| 2 | Pipeline + 8 stages, pinned to the top | stage IDs handed to Mohimenul (§10.3) |
+| 3 | 4 custom fields, all tags | field IDs handed over |
+| 4 | 2 screener users (Only Assigned Data, **not** admin), 8 block users | screener can log in and see only their own list |
+| 5 | Numbers per screener, recording + transcription on, Trust Hub registration | a test call produces a recording and a transcript |
+| 6 | The 4 new GHL workflows that POST to Mohimenul's webhooks | he sees real payloads |
+| 7 | Kevin's board filter + the block Smart Lists | Kevin can filter `Follower = PT 10-11` |
+
+Then Ridoy moves to the **list/ICP work**, which is Kevin's actual first priority (~62:53).
+
+### 10.2 Mohimenul — n8n and the AI
+
+| Order | Task | Done when |
+|---|---|---|
+| 1 | `Screener: Capture Call` + dedupe on `call_id` | a mock payload lands and is stored |
+| 2 | The classifier: prompt, strict JSON schema, 8 hand-written transcripts | verdicts are stable on the test set |
+| 3 | Pacific hour-block computation | a UTC timestamp maps to the right `PT xx-xx` |
+| 4 | `Screener: Classify + Mark` — cross-check, fields, tags, follower, stage move | 20 role-played calls land in the right stage |
+| 5 | `Screener: No Answer` — attempt counter and ladder | four no-answers walk a contact to Attempt 4 |
+| 6 | `Screener: Graduate` (§8) | a graduated lead appears correctly in Kevin's pipeline |
+| 7 | `Screener: Stale Sweep` + `screen_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself |
+| 8 | Accuracy report on the first 50 real calls | per-screener mismatch rate known |
+
+**Mohimenul is not blocked by Ridoy.** Items 1–3 are built against a **mock payload** — copy the
+`customData` list from the live `Call Recorded Trigger` (see [`ghl-automations.md`](ghl-automations.md))
+and post it by hand. Only item 4 onwards needs the real fields and stage IDs.
+
+### 10.3 The contract between them — agree this before either starts
+
+One short doc or Slack message, filled in by Ridoy, consumed by Mohimenul:
+
+| Thing | Who provides | Example |
+|---|---|---|
+| Webhook paths | Mohimenul | `/webhook/screener-call`, `/webhook/screener-disposition`, `/webhook/screener-no-answer` |
+| Payload body for each | Mohimenul specifies, Ridoy wires | `contact_id`, `call_id`, `ghl_user_id`, timestamp, transcript, recording URL |
+| Pipeline + 8 stage IDs | Ridoy | `Owner Verified = …` |
+| 4 custom field IDs | Ridoy | `Date Screened = …` |
+| Exact tag spellings | both agree once | `screened-pt-10-11`, not `screened_pt_10_11` |
+| Screener user IDs + block user IDs | Ridoy | for the guards and the follower writes |
+| A test contact that may be tagged repeatedly | Ridoy | — |
+
+Names are the classic place two people silently disagree; fix the spelling **before** anyone
+writes code against it.
+
+### 10.4 Shared, and who chases it
+
+| Item | Owner | Note |
+|---|---|---|
+| WAVV `S:` dispositions | **Kevin / WAVV account owner** | "Add New Disposition" is disabled for the current login (§12). Also worth fixing the five missing dispositions in Kevin's own list while in there |
+| 2nd WAVV seat + two seats dialling one GHL account | **Ridoy with Mahir** | Phase 0b — the only unknown that could reshape the build |
+| Decisions in §11 | **Kevin** | recording policy is the one that blocks Phase 2 |
+| First 50-call review | **Kevin + Mohimenul** | — |
+
+### 10.5 How to work in parallel without collisions
+
+- **One joint session, 30 minutes, at the end of Phase 1:** fire one real screener call and watch
+  it travel — GHL trigger → webhook → n8n → tag on the contact. Everything after that is tuning.
+- **Daily 15 minutes** while both are building, to sync contract changes.
+- **Repo discipline:** both edit this repo, so pull before you start, and keep each workflow's
+  `context.md` updated in the same commit as its `.json`. Ridoy also updates
+  [`ghl-automations.md`](ghl-automations.md) whenever he changes a GHL workflow — that file is the
+  only record of the GHL side.
+- **Nobody edits the other's system.** If Mohimenul needs a GHL change, he asks; if Ridoy needs an
+  n8n change, he asks. The guards especially: a half-applied guard is worse than none.
 
 ---
 
