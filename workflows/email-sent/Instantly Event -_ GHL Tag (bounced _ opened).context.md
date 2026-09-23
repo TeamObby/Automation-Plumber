@@ -2,7 +2,6 @@
 
 - **n8n ID:** `LivoJrl0ot4luBdT` · **URL:** https://n8n.meetobby.com/workflow/LivoJrl0ot4luBdT
 - **Folder:** email-sent · **Status:** **Active ✅** (webhook — no schedule)
-- ⚠️ **Local edits not yet pushed** — the bounce branch below exists only in this repo.
 
 ## Purpose
 The **engagement-event** counterpart to
@@ -113,7 +112,7 @@ is already in. That's a no-op, not a bug.
 ## Sync state
 Local `.json` has the bounce branch (`Bounced?`, `GHL: Set Stop Emails = True`, `Can move opp?`,
 `GHL: Move Opp → Cold Email N Sent`) and the `Build contact + tag` → **`Build contact + route`**
-rename — **not yet pushed**. Needs `update_workflow` on `LivoJrl0ot4luBdT`.
+rename — **live** (checked 2026-09-23; local `.json` matches).
 
 ## TODOs / gotchas
 - ⚠️ **`email_log` is still not fed by this workflow.** AGENTS.md predicts engagement events

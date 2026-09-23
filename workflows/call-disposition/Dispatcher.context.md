@@ -1,7 +1,7 @@
 # Call Disposition — Dispatcher (Router)  [Automation 2]
 
 - **n8n ID:** `SfI5Hx6mlc4Qh3D1` · **URL:** https://n8n.meetobby.com/workflow/SfI5Hx6mlc4Qh3D1
-- **Folder:** call-disposition · **Status:** Inactive ❌ — **not yet pushed**
+- **Folder:** call-disposition · **Status:** Active ✅ (webhook) — matches live (checked 2026-09-23)
 - **Role:** Automation 2 of the multi-update rebuild.
 
 > **Thin Router for disposition/note updates.** **[Capture Call Record](./Capture%20Call%20Record.context.md)**

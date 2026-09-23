@@ -1,8 +1,8 @@
 # Create Manual Review Opp
 
-- **n8n ID:** _pending import_ · **File:** `Create Manual Review Opp.json`
+- **n8n ID:** `fO5MOoKwzPPXNTgL` · **URL:** https://n8n.meetobby.com/workflow/fO5MOoKwzPPXNTgL · **File:** `Create Manual Review Opp.json`
 - **Folder:** `workflows/manual-review/`
-- **Status:** inactive (not yet imported)
+- **Status:** Active ✅ — ⚠️ MCP access is **off** on this workflow, so it can't be pulled or diffed; enable it in the workflow settings to verify the local copy
 - **Trigger:** Webhook (POST `/webhook/manual-review-opp`), called by a GHL workflow.
 
 ## Purpose

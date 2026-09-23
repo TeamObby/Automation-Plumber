@@ -1,0 +1,700 @@
+{
+  "id": "jQaCWO08lddHg9fN",
+  "name": "Screener: Capture Call",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Webhook (Screener Call Recorded)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "screener-call",
+        "options": {}
+      }
+    },
+    {
+      "name": "Normalize Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// GHL \"Call Recorded\" webhook for a screener call. WAVV's fields arrive under customData.\nconst b = ($json && $json.body) ? $json.body : $json;\nconst cd = b.customData || {};\nconst s = v => String(v == null ? '' : v).trim();\n\n// The hour block the owner was reached in: always Pacific, even for an Eastern lead (spec §6).\n// Ten blocks, PT 06-07 … PT 15-16. A call answered outside them gets no block.\nfunction ptBlock(iso) {\n  const t = Date.parse(iso);\n  if (!iso || isNaN(t)) return '';\n  const h = Number(new Intl.DateTimeFormat('en-US', {\n    timeZone: 'America/Los_Angeles', hour: '2-digit', hourCycle: 'h23'\n  }).format(new Date(t)));\n  if (!(h >= 6 && h <= 15)) return '';\n  const p = n => String(n).padStart(2, '0');\n  return 'PT ' + p(h) + '-' + p(h + 1);\n}\n\nconst answered_at   = s(cd.call_answered_at_timestamp);\nconst transcript    = s(cd.call_transcript);\nconst recording_url = s(cd.call_recording_url);\nconst pt_block      = ptBlock(answered_at);\n\nreturn { json: {\n  call_id:        s(cd.call_id),\n  contact_id:     s(b.contact_id || cd.contact_id),\n  contact_name:   s(cd.contact_name || b.full_name || b.company_name),\n  ghl_user_id:    s(cd.ghl_user_id),\n  wavv_caller_id: s(cd.wavv_caller_id),\n  answered_at,\n  duration_sec:   Number(s(cd.call_duration_seconds)) || 0,\n  recording_url,\n  transcript,\n  transcript_source: transcript ? 'wavv' : '',\n  pt_block,\n  // Tag spelling is part of the Hridoy/Mohimenul contract: 'PT 10-11' -> 'screened-pt-10-11'.\n  pt_block_tag:   pt_block ? 'screened-' + pt_block.toLowerCase().replace(' ', '-') : '',\n  is_pickup:      !!answered_at,\n  needs_transcription: !transcript && !!recording_url,\n  received_at:    new Date().toISOString()\n}};\n"
+      }
+    },
+    {
+      "name": "Filter: answered call with id",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.call_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "leftValue": "={{ $json.is_pickup }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Dedupe: no successful row for call_id",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3WK4mrEYwvDeDUVO",
+          "cachedResultName": "screener_calls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "call_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.call_id }}"
+            },
+            {
+              "keyName": "ai_ok",
+              "condition": "eq",
+              "keyValue": "={{ true }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "IF: transcript missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needs_transcription }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Download Recording (MP3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        160
+      ],
+      "parameters": {
+        "url": "={{ $('Normalize Call').first().json.recording_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Transcribe (OpenAI Whisper)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "openAiApi": {
+          "id": "B4xA6dDfoOhHJMOo",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "name": "Set Transcript (from audio)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Whisper fallback result. A failed download/transcription arrives as an item with no text,\n// so the transcript stays empty and the classifier answers 'unclear' instead of guessing.\nreturn { json: {\n  ...$('Normalize Call').first().json,\n  transcript: String(($json && $json.text) || '').trim(),\n  transcript_source: 'whisper'\n}};\n"
+      }
+    },
+    {
+      "name": "Transcript Ready",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Fan-in point: WAVV transcript (IF false branch) or the Whisper fallback (true branch).\nconst n = $('Normalize Call').first().json;\nreturn { json: {\n  ...n,\n  transcript: String(($json && $json.transcript) || '').trim(),\n  transcript_source: String(($json && $json.transcript_source) || n.transcript_source || '')\n}};\n"
+      }
+    },
+    {
+      "name": "Screener: Classify Transcript",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "LbGY5ptzldJjnTZJ",
+          "cachedResultName": "Screener: Classify Transcript"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "transcript": "={{ $json.transcript }}",
+            "contact_name": "={{ $json.contact_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "transcript",
+              "displayName": "transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "contact_name",
+              "displayName": "contact_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "Build Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// One row per call in screener_calls. The AI verdict is stored next to the call so the\n// compare step (screener's mark vs AI) can read it back whichever arrives first (spec §4.1).\nconst t = $('Transcript Ready').first().json;   // one webhook = one call = one item\nconst v = $json;\nreturn { json: {\n  call_id: t.call_id, contact_id: t.contact_id, contact_name: t.contact_name,\n  ghl_user_id: t.ghl_user_id, wavv_caller_id: t.wavv_caller_id,\n  answered_at: t.answered_at, pt_block: t.pt_block, pt_block_tag: t.pt_block_tag,\n  duration_sec: t.duration_sec, recording_url: t.recording_url,\n  transcript: t.transcript, transcript_source: t.transcript_source,\n  ai_call_outcome: v.call_outcome, ai_owner_reached: v.owner_reached,\n  ai_confidence: v.confidence, ai_evidence_quote: v.evidence_quote,\n  ai_quote_verified: !!v.quote_verified, ai_owner_name: v.owner_name,\n  ai_model: v.model, ai_error: v.ai_error,\n  // Only a clean verdict blocks a replay of this call_id; a failed one is retried (Dedupe node).\n  ai_ok: !v.ai_error,\n  received_at: t.received_at\n}};\n"
+      }
+    },
+    {
+      "name": "Store: screener_calls (upsert on call_id)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3WK4mrEYwvDeDUVO",
+          "cachedResultName": "screener_calls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "call_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.call_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ai_ok",
+              "displayName": "ai_ok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "call_id",
+              "displayName": "call_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "contact_name",
+              "displayName": "contact_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ghl_user_id",
+              "displayName": "ghl_user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "wavv_caller_id",
+              "displayName": "wavv_caller_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "answered_at",
+              "displayName": "answered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pt_block",
+              "displayName": "pt_block",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pt_block_tag",
+              "displayName": "pt_block_tag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "duration_sec",
+              "displayName": "duration_sec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recording_url",
+              "displayName": "recording_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "transcript",
+              "displayName": "transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "transcript_source",
+              "displayName": "transcript_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_call_outcome",
+              "displayName": "ai_call_outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_owner_reached",
+              "displayName": "ai_owner_reached",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_confidence",
+              "displayName": "ai_confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_evidence_quote",
+              "displayName": "ai_evidence_quote",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_quote_verified",
+              "displayName": "ai_quote_verified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_owner_name",
+              "displayName": "ai_owner_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_model",
+              "displayName": "ai_model",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ai_error",
+              "displayName": "ai_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "received_at",
+              "displayName": "received_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Capture Call  (spec §9 event 1 · §10.2 items 1–3)\nGHL Call Recorded (screener calls only, once Hridoy wires the trigger) → normalize + Pacific hour block → dedupe on call_id → Whisper only if WAVV sent no transcript → AI verdict → one row in data table screener_calls.\nWrites NOTHING to GHL yet: the Screen AI Verdict field write + compare with the screener's mark is item 4 (Classify + Mark). Keep INACTIVE until the four GHL guard branches exist.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "Webhook (Screener Call Recorded)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Call": {
+      "main": [
+        [
+          {
+            "node": "Filter: answered call with id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: answered call with id": {
+      "main": [
+        [
+          {
+            "node": "Dedupe: no successful row for call_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Recording (MP3)": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (OpenAI Whisper)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe (OpenAI Whisper)": {
+      "main": [
+        [
+          {
+            "node": "Set Transcript (from audio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Transcript (from audio)": {
+      "main": [
+        [
+          {
+            "node": "Transcript Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: transcript missing?": {
+      "main": [
+        [
+          {
+            "node": "Download Recording (MP3)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transcript Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe: no successful row for call_id": {
+      "main": [
+        [
+          {
+            "node": "IF: transcript missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcript Ready": {
+      "main": [
+        [
+          {
+            "node": "Screener: Classify Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screener: Classify Transcript": {
+      "main": [
+        [
+          {
+            "node": "Build Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Row": {
+      "main": [
+        [
+          {
+            "node": "Store: screener_calls (upsert on call_id)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}

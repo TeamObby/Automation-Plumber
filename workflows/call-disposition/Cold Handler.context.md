@@ -1,7 +1,7 @@
 # Call Disposition — Cold Handler  [Automation 3]
 
 - **n8n ID:** `toFDNpFhy0ZyxfxN` · **URL:** https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN
-- **Folder:** call-disposition · **Status:** Active ✅ (sub-workflow) — **not yet pushed**
+- **Folder:** call-disposition · **Status:** Active ✅ (sub-workflow) — matches live (checked 2026-09-23)
 - **Role:** Automation 3 of the multi-update rebuild.
 
 > ⚠️ **Has a gatekeeper twin — edit both.** [`Gatekeeper Handler`](./Gatekeeper%20Handler.context.md)

@@ -79,9 +79,21 @@ Companions: [`ghl-automations.md`](ghl-automations.md) · [`AGENTS.md`](../AGENT
   separate "Please select" box to its right. Typing the tag into the wrong one leaves
   "Value cannot be empty".
 
-### Mohimenul's part — unchanged and unblocked
+### Mohimenul's part — items 1–3 built (2026-09-23)
 
-Nothing of the n8n half has been built, by design (§10.2). You can start now:
+| §10.2 item | Built as | Proof |
+|---|---|---|
+| 1 Capture + dedupe | `Screener: Capture Call` `jQaCWO08lddHg9fN` (**inactive**) → data table `screener_calls` `3WK4mrEYwvDeDUVO` | mock of the real payload stored (exec 122325); identical re-POST stopped at dedupe (exec 122339) |
+| 2 Classifier | `Screener: Classify Transcript` `LbGY5ptzldJjnTZJ` (`gpt-4.1-mini`, strict JSON schema, temp 0) + `Screener: Classifier Eval` `FMUXvDBXsigHA4vb` | 8 transcripts × 3 runs: **8/8 stable, 8/8 correct** (exec 122342) |
+| 3 Pacific hour block | inside `Normalize Call` | `tests/screener.test.js` — both DST transitions, both block edges, tag spelling |
+
+**For Hridoy — the contract for event 1:** webhook **`POST /webhook/screener-call`**, same body the
+live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl_user_id`,
+`wavv_caller_id`, `call_answered_at_timestamp`, `call_transcript`, `call_recording_url`,
+`call_duration_seconds`, `contact_name`). Hour-block tags are spelled `screened-pt-10-11`.
+
+Next on this side: item 4 (`Screener: Classify + Mark` — needs the real screener/block user IDs
+for the follower writes), then 5–7. Original notes, still valid:
 
 1. The **stage and field IDs above** are real — no mocking needed for the write-back.
 2. For the **inbound** side, mock the payload: copy the `customData` list from the live

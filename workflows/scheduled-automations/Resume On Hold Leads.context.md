@@ -1,8 +1,9 @@
 # Resume On Hold Leads
 
-- **n8n ID:** _pending import_ · **File:** `Resume On Hold Leads.json`
+- **n8n ID:** `gLmoAnyKn6AlsIFZ` · **URL:** https://n8n.meetobby.com/workflow/gLmoAnyKn6AlsIFZ · **File:** `Resume On Hold Leads.json`
 - **Folder:** `workflows/scheduled-automations/`
-- **Status:** inactive (built 2026-07-06, not yet imported)
+- **Status:** Inactive ❌ — imported, **never activated (0 executions)**; nodes match live (checked 2026-09-23).
+  ⚠️ The live settings came back **without** `timezone`, while local sets `America/Los_Angeles`. The MCP may simply not return it — **confirm the timezone in the n8n UI before activating**, or the 08:00–22:00 window runs in the instance's zone
 - **Trigger:** Schedule — every 30 min, **08:00–22:00 PT** (workflow timezone = America/Los_Angeles)
 
 ## Purpose

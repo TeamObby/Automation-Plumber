@@ -36,12 +36,16 @@ that captures intent/why/gotchas the code alone can't.
 Every workflow we track. The URL/ID is the pointer any future chat uses to pull or edit
 it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is the map.)
 
+**Last drift check: 2026-09-23.** Every mirrored workflow except `Create Manual Review Opp` was
+pulled live and compared node by node: code, bodies and connections match the local `.json`.
+Credentials are not compared — the MCP omits them.
+
 | Workflow | ID | URL | Active | Local |
 |---|---|---|---|---|
-| Call Disposition - Capture Call Record (Automation 1) | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/call-disposition/) |
+| Call Disposition - Capture Call Record (Automation 1) | `8o1qYsV2ZXmyvTbr` | [open](https://n8n.meetobby.com/workflow/8o1qYsV2ZXmyvTbr) | ✅ (webhook) | ✓ [json+ctx](workflows/call-disposition/) |
 | Call Disposition - Capture Wavv Disposition | `zSOjEBiz3e7gbeBp` | [open](https://n8n.meetobby.com/workflow/zSOjEBiz3e7gbeBp) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — WAVV note → Call Disposition/Notes fields |
-| Call Disposition - Dispatcher/Router (Automation 2) | `SfI5Hx6mlc4Qh3D1` | [open](https://n8n.meetobby.com/workflow/SfI5Hx6mlc4Qh3D1) | ❌ | ✓ [json+ctx](workflows/call-disposition/) — repurposed for disposition/note updates; not yet pushed |
-| Call Disposition - Cold Handler (Automation 3) | `toFDNpFhy0ZyxfxN` | [open](https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — rebuild + gatekeeper tag; not yet pushed |
+| Call Disposition - Dispatcher/Router (Automation 2) | `SfI5Hx6mlc4Qh3D1` | [open](https://n8n.meetobby.com/workflow/SfI5Hx6mlc4Qh3D1) | ✅ (webhook) | ✓ [json+ctx](workflows/call-disposition/) — repurposed for disposition/note updates |
+| Call Disposition - Cold Handler (Automation 3) | `toFDNpFhy0ZyxfxN` | [open](https://n8n.meetobby.com/workflow/toFDNpFhy0ZyxfxN) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — rebuild + gatekeeper tag |
 | Call Disposition - Gatekeeper Handler (Automation 3, gk twin) | `WhSS3Awo5K8XuRbQ` | [open](https://n8n.meetobby.com/workflow/WhSS3Awo5K8XuRbQ) | ✅ | ✓ [json+ctx](workflows/call-disposition/) — copy of Cold Handler, gatekeeper `MCE_BY_STAGE` |
 | GHL Pipeline Stages (Cached) | `ny7jwqGX1Du9aXNC` | [open](https://n8n.meetobby.com/workflow/ny7jwqGX1Du9aXNC) | ✅ | ⏳ not pulled — **no longer called by any mirrored workflow** (see below) |
 | Resume On Hold Leads | `gLmoAnyKn6AlsIFZ` | [open](https://n8n.meetobby.com/workflow/gLmoAnyKn6AlsIFZ) | ❌ **imported but never activated — 0 executions ever** | ✓ [json+ctx](workflows/scheduled-automations/) — ⚠️ no on-hold lead has ever resumed; activating will sweep the whole backlog at once |
@@ -49,13 +53,16 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
 | Send Cold Email 2/3/4 (4AM) | `0iXr4fHGqptYGJpg` | [open](https://n8n.meetobby.com/workflow/0iXr4fHGqptYGJpg) | ✅ | ✓ [json+ctx](workflows/scheduled-automations/) |
 | Sent Cold Email to Caller Stages (4:30AM) | `IIyYJxvDyeCmYdur` | [open](https://n8n.meetobby.com/workflow/IIyYJxvDyeCmYdur) | ✅ | ✓ [json+ctx](workflows/scheduled-automations/) |
 | Personalize Call Context (SUB) | `T4Mz1k2fYwCwzp7D` | [open](https://n8n.meetobby.com/workflow/T4Mz1k2fYwCwzp7D) | — (sub-workflow) | ⏳ not pulled |
-| Email Sent → Move To Sent Stage | `CDdLps7wfOjyM9Lx` | [open](https://n8n.meetobby.com/workflow/CDdLps7wfOjyM9Lx) | ✅ (webhook) | ✓ [json+ctx](workflows/email-sent/) — local edits **not yet pushed** |
-| Instantly Event → GHL Tag (bounced / opened) | `LivoJrl0ot4luBdT` | [open](https://n8n.meetobby.com/workflow/LivoJrl0ot4luBdT) | ✅ (webhook) | ✓ [json+ctx](workflows/email-sent/) — bounce branch (Stop Emails + stage move) **not yet pushed** |
-| Create Manual Review Opp | _pending import_ | — | 🆕 built, not imported | ✓ [json+ctx](workflows/manual-review/) |
+| Email Sent → Move To Sent Stage | `CDdLps7wfOjyM9Lx` | [open](https://n8n.meetobby.com/workflow/CDdLps7wfOjyM9Lx) | ✅ (webhook) | ✓ [json+ctx](workflows/email-sent/) |
+| Instantly Event → GHL Tag (bounced / opened) | `LivoJrl0ot4luBdT` | [open](https://n8n.meetobby.com/workflow/LivoJrl0ot4luBdT) | ✅ (webhook) | ✓ [json+ctx](workflows/email-sent/) — incl. bounce branch (Stop Emails + stage move) |
+| Create Manual Review Opp | `fO5MOoKwzPPXNTgL` | [open](https://n8n.meetobby.com/workflow/fO5MOoKwzPPXNTgL) | ✅ (webhook) | ✓ [json+ctx](workflows/manual-review/) — ⚠️ **MCP access is off** on this workflow, so the local copy can't be checked against live |
 | Missed Call - Dispatcher | `WRvTiZWThJTQAU8P` | [open](https://n8n.meetobby.com/workflow/WRvTiZWThJTQAU8P) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Gatekeeper Handler (gk twin) | `rcrCVXDZp8ix9pKp` | [open](https://n8n.meetobby.com/workflow/rcrCVXDZp8ix9pKp) | ✅ | ✓ [json+ctx](workflows/missed-call/) — copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps |
 | Send Cold Email 1 (3:30AM) | `6wdNiXnexS3zT5b2` | [open](https://n8n.meetobby.com/workflow/6wdNiXnexS3zT5b2) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
+| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3; writes only to data table `screener_calls` |
+| Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | [open](https://n8n.meetobby.com/workflow/LbGY5ptzldJjnTZJ) | — (sub-workflow) | ✓ [json+ctx](workflows/screener/) — spec item 2; who answered, `gpt-4.1-mini`, strict schema |
+| Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | [open](https://n8n.meetobby.com/workflow/FMUXvDBXsigHA4vb) | — (manual test harness) | ✓ [json+ctx](workflows/screener/) — 8 transcripts × 3 runs; last run 8/8 stable + correct |
 
 ---
 
@@ -113,6 +120,13 @@ it via the MCP. (Subfolders in n8n are ignored on purpose — this flat list is 
   log normally but trigger **no** cold-stage move.
 - **Credentials in use:** GHL `httpMultipleHeadersAuth` → `DtotRKnzjDewbSsv`
   ("GHL [ Waterline Growth subaccount ]") · OpenAI `openAiApi` → `B4xA6dDfoOhHJMOo`
+
+## Screener data (n8n data table)
+- **`screener_calls`** `3WK4mrEYwvDeDUVO` — one row per answered screener call (upsert on `call_id`), written by
+  `Screener: Capture Call`: caller identity, Pacific hour block + tag, transcript, and the AI verdict
+  (`ai_call_outcome`, `ai_owner_reached`, `ai_confidence`, `ai_evidence_quote`, `ai_quote_verified`, `ai_ok`).
+  Only rows with `ai_ok = true` block a replay of the same call; failed rows are retried.
+  Read by the compare step (spec §4.1, item 4 — not built yet). Column list in the Capture context file.
 
 ## Metrics workbook (Google Sheets)
 Reporting layer, fed by the handlers. Setup script: [`metrics/metrics-sheet-setup.gs`](metrics/metrics-sheet-setup.gs)
@@ -428,6 +442,17 @@ before archiving.**
 - **The email sequence has no entry point right now.** `Send Cold Email 2/3/4` is **Active**, but
   both step-1 workflows (`New to Cold Email 1 Stage`, `Send Cold Email 1`) are **Inactive** — steps
   2/3/4 run nightly while step 1 never fires. Confirm whether email 1 is intentionally paused.
+- **`Email Sent → Move To Sent Stage` has 0 executions** in the whole retained history (≈2026-09-10
+  → 2026-09-23), while `Instantly Event → GHL Tag` received 18 events in the same window. Either no
+  cold email went out from these campaigns in that window, or Instantly's `email_sent` webhook is not
+  pointed at `/webhook/email_sent`. This is the load-bearing workflow above — check the Instantly
+  webhook config before re-activating step 1.
+- **`Sent Cold Email to Caller Stages` has an unpublished draft** (live `versionId` ≠
+  `activeVersionId` on 2026-09-23). Node content looked the same on read; publish or discard it so
+  the editor and the running version agree.
+- **Neither gatekeeper handler has ever run** (`WhSS3Awo5K8XuRbQ`, `rcrCVXDZp8ix9pKp`: 0 executions).
+  The Dispatcher calls the Cold Handler with `autoMapInputData` but the Gatekeeper Handler with an
+  empty `defineBelow` mapping — test the gatekeeper route end to end before relying on it.
 
 ## ⚠️ Security backlog
 - **Cold Handler** has a hardcoded **Instantly** bearer token in a node header — move to
