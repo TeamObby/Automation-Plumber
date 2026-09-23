@@ -109,21 +109,106 @@ a second Google Voice number and split them.
   separate "Please select" box to its right. Typing the tag into the wrong one leaves
   "Value cannot be empty".
 
-### Mohimenul's part — items 1–3 built (2026-09-23)
+### Mohimenul's part — items 1–4 built (2026-09-23)
 
 | §10.2 item | Built as | Proof |
 |---|---|---|
 | 1 Capture + dedupe | `Screener: Capture Call` `jQaCWO08lddHg9fN` (**inactive**) → data table `screener_calls` `3WK4mrEYwvDeDUVO` | mock of the real payload stored (exec 122325); identical re-POST stopped at dedupe (exec 122339) |
 | 2 Classifier | `Screener: Classify Transcript` `LbGY5ptzldJjnTZJ` (`gpt-4.1-mini`, strict JSON schema, temp 0) + `Screener: Classifier Eval` `FMUXvDBXsigHA4vb` | 8 transcripts × 3 runs: **8/8 stable, 8/8 correct** (exec 122342) |
 | 3 Pacific hour block | inside `Normalize Call` | `tests/screener.test.js` — both DST transitions, both block edges, tag spelling |
+| 4 Classify + Mark | `Screener: Compare Step` `3pwiQXC8etTcKf5Z` (shared sub-workflow) + `Screener: Mark + Compare` `zVCzfADKZqPWV6hk` + `Screener: Write-back Retry` `IvxTYaChixQOiNzt` | built, **not yet proven** — its "done when" is 20 role-played calls, which needs the guards |
 
 **For Hridoy — the contract for event 1:** webhook **`POST /webhook/screener-call`**, same body the
 live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl_user_id`,
 `wavv_caller_id`, `call_answered_at_timestamp`, `call_transcript`, `call_recording_url`,
 `call_duration_seconds`, `contact_name`). Hour-block tags are spelled `screened-pt-10-11`.
 
-Next on this side: item 4 (`Screener: Classify + Mark` — needs the real screener/block user IDs
-for the follower writes), then 5–7. Original notes, still valid:
+**Next on this side: items 5, 6, 7.** Item 5 is the gap that blocks a live test — nothing listens on
+`/webhook/screener-no-answer`, so an unanswered dial never advances the Attempt stage, and the
+ladder (not the recorded-call path) is what walks a lead to Attempt 4.
+
+#### ⚠️ Two things waiting for you in item 4
+
+1. **`BLOCK_USER` in the Compare Step's `Decide` node is still all `''`.** Until it is filled in, no
+   lead ever gets a block follower — and the follower is exactly how Kevin filters his board. The
+   users exist; paste this in:
+
+   ```js
+   const BLOCK_USER = {
+     'PT 06-07': 'ZU6NEmag5FFcYAYwtu75', 'PT 07-08': 'QKMhxRVQX45dq2bxF5a5',
+     'PT 08-09': 'u24gWdO3FlXhwjwhm6sE', 'PT 09-10': 'hdIv63msJcYjhwfIJ4eg',
+     'PT 10-11': 'T4p1bK3yo6Bl14OK1LP3', 'PT 11-12': 'nTHz8ZbvpMxoWqsyJsLs',
+     'PT 12-13': 'u1v0arwCtQw8kr9FSYIT', 'PT 13-14': '7KI79ZeuhHa1WrmFSaPH',
+     'PT 14-15': 'j5w26gAQTznnaAgqRePi', 'PT 15-16': 'QlDlzTUPYag7RxkJ2B5Q'
+   };
+   ```
+
+2. **The `screen_log` sheet exists now** — see below. Your `Report` node already computes every
+   column it needs; right now it throws them away.
+
+#### The `screen_log` sheet — built, empty, waiting for you (item 7)
+
+**[WaterLine — Screener Log](https://docs.google.com/spreadsheets/d/1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8/edit)**
+· spreadsheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` · tab **`screen_log`** gid `892532160`
+· tab `accuracy` gid `604528574` (all formulas — do not write to it).
+
+A **separate** workbook from Kevin's "Plumber Campaign Metrics" on purpose: the screener is isolated
+from his campaign everywhere else, and re-running that workbook's setup script would clear his live
+call rows. Source of truth for the schema is
+[`metrics/screener-log-sheet-setup.gs`](../metrics/screener-log-sheet-setup.gs); the same contract is
+repeated in [`AGENTS.md`](../AGENTS.md).
+
+**Node config** — one `n8n-nodes-base.googleSheets` v4.7 node per writer, credential
+`googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU` (the same team@meetobby account the campaign logs use),
+`cellFormat: USER_ENTERED`, `onError: continueRegularOutput` (a Sheets hiccup must never break a GHL
+write-back), hung off the terminal node exactly like `Sheet: Log Call` in the Cold Handler.
+
+**Where the rows come from**
+
+| Writer | Op | When |
+|---|---|---|
+| `Screener: Compare Step` → after `Report` | **appendOrUpdate on `call_id`** | every run, including `action: wait` — a waiting run logs the row with `match` **blank**, and the second run (the other half arriving) updates that same row |
+| `Screener: Attempt Counter` (item 5) | **append** | a no-answer / voicemail / bad-number dial. No `call_id` exists for these, so they plain-append |
+
+**Columns, in this exact order**
+
+| # | Column | Value |
+|---|---|---|
+| 1 | `timestamp_pt` | now, Pacific, `yyyy-MM-dd HH:mm:ss` |
+| 2 | `date_pt` | Pacific date of the call, `yyyy-MM-dd` — a real date, not text |
+| 3 | `contact_id` | `plan.contact_id` |
+| 4 | `company` | contact's company name (read it in the same GHL fetch the compare already does) |
+| 5 | `screener` | display name of the dialling user — resolve `ghl_user_id` once and cache it |
+| 6 | `screener_user_id` | `ghl_user_id` from the call row |
+| 7 | `attempt_no` | `Screen Attempts` after this event, as a **number** |
+| 8 | `event` | `call` · `no-answer` · `voicemail` · `bad-number` |
+| 9 | `duration_sec` | number |
+| 10 | `pt_block` | `PT 09-10`; blank outside 06:00–16:00 PT |
+| 11 | `screener_outcome` | `plan.mark` — the screener's own pick, spelled exactly as the GHL dropdown |
+| 12 | `noise` | `busy` / `quiet` / blank |
+| 13 | `ai_call_outcome` | `plan.ai_outcome` |
+| 14 | `ai_owner_reached` | verdict `owner_reached` |
+| 15 | `ai_confidence` | number |
+| 16 | `ai_quote_verified` | boolean TRUE / FALSE |
+| 17 | `match` | `!plan.mismatch` as a boolean — **blank while the compare is still waiting** |
+| 18 | `result_stage` | `plan.result` (`Owner Verified`, `Gatekeeper`, `Not Sure`, `Disqualified`) |
+| 19 | `reason` | `plan.reason` |
+| 20 | `recording_url` | from the call row |
+| 21 | `call_id` | the dedupe key; blank on ladder rows |
+| 22 | `ghl_link` | contact URL, same shape as `call_log`'s |
+
+**The contract — break it and the `accuracy` tab silently reads 0** (this is the exact trap the
+campaign workbook hit): real dates, real booleans for `match` and `ai_quote_verified` (never the
+strings `"true"`/`"yes"`), numbers for `attempt_no` / `duration_sec` / `ai_confidence`, `event` from
+the four words above, `screener_outcome` spelled exactly as the dropdown, `pt_block` as `PT 09-10`.
+
+**Blank `match` matters.** A run that writes `match = FALSE` while it is only *waiting* for the other
+half would count as a screener error and poison the accuracy number — the whole point of the tab.
+
+⚠️ Never re-run `setupScreenerLog()` once there are rows: it **clears** `screen_log`. Use
+`rebuildAccuracyOnly()`.
+
+Original notes, still valid:
 
 1. The **stage and field IDs above** are real — no mocking needed for the write-back.
 2. For the **inbound** side, mock the payload: copy the `customData` list from the live
