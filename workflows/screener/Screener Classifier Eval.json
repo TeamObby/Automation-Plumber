@@ -1,0 +1,149 @@
+{
+  "id": "FMUXvDBXsigHA4vb",
+  "name": "Screener: Classifier Eval",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Run Eval",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Load Fixtures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The 8 hand-written screener transcripts (tests/fixtures/screener-transcripts.json), each run\n// RUNS times: agreement across runs = stability, agreement with 'expect' = correctness.\nconst RUNS = 3;\nconst FIXTURES = [\n  {\n    \"id\": \"owner-explicit\",\n    \"contact_name\": \"Ramirez Plumbing\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"owner\"\n      ],\n      \"owner_reached\": [\n        \"yes\"\n      ]\n    },\n    \"transcript\": \"Ramirez Plumbing. Hi, quick question, do you guys do septic pumping? Septic, no, we don't pump septic, I just do repairs and drains. It's just me and my son, I own the shop. Okay, got it, do you know anyone who does? Try Valley Septic over on 4th. Great, thanks. Yep, have a good one.\"\n  },\n  {\n    \"id\": \"owner-implicit-authority\",\n    \"contact_name\": \"Dave's Rooter\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"owner\"\n      ],\n      \"owner_reached\": [\n        \"yes\"\n      ]\n    },\n    \"transcript\": \"Yeah this is Dave. Hi Dave, do you do septic pumping? I don't have a pump truck but I can come out and locate the tank for you, I'd do it myself Thursday morning, I charge a hundred fifty for that. Oh okay, let me think about it. Sure, you got my cell now, just text me. Thanks. Yep.\"\n  },\n  {\n    \"id\": \"gatekeeper-receptionist\",\n    \"contact_name\": \"Summit Plumbing & Heating\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"gatekeeper\"\n      ],\n      \"owner_reached\": [\n        \"no\"\n      ]\n    },\n    \"transcript\": \"Thank you for calling Summit Plumbing and Heating, this is Karen, how can I help you? Hi, do you do septic pumping? Let me check, I don't think we do but I'd have to ask Greg, he's the owner, he's out on a job right now. Can I take your number and have him call you back? That's okay, I'll call back. Okay, have a great day.\"\n  },\n  {\n    \"id\": \"gatekeeper-answering-service\",\n    \"contact_name\": \"Blue Line Plumbing\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"gatekeeper\"\n      ],\n      \"owner_reached\": [\n        \"no\"\n      ]\n    },\n    \"transcript\": \"Hello, you've reached the answering service for Blue Line Plumbing. I can take a message and someone will get back to you. Oh, I just wanted to know if you do septic pumping. I'm not sure, I just take messages for them. Can I get your name and number? No that's fine, thank you. Okay, bye.\"\n  },\n  {\n    \"id\": \"voicemail\",\n    \"contact_name\": \"Coastal Drain Pros\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"voicemail\"\n      ],\n      \"owner_reached\": [\n        \"no\"\n      ]\n    },\n    \"transcript\": \"Hi, you've reached Coastal Drain Pros. We're either on another call or out on a job. Please leave your name, number and a brief message after the tone and we'll call you back as soon as possible. Thanks. Beep.\"\n  },\n  {\n    \"id\": \"wrong-number\",\n    \"contact_name\": \"Hernandez Plumbing Co\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"wrong_number\"\n      ],\n      \"owner_reached\": [\n        \"no\"\n      ]\n    },\n    \"transcript\": \"Hello? Hi, is this Hernandez Plumbing? No, this is a personal number, you've got the wrong number. Oh, sorry about that. No problem. Bye.\"\n  },\n  {\n    \"id\": \"not-a-plumber\",\n    \"contact_name\": \"Bright Home Services\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"not_a_plumber\"\n      ],\n      \"owner_reached\": [\n        \"no\",\n        \"unclear\"\n      ]\n    },\n    \"transcript\": \"Bright Home Services. Hi, do you guys do septic pumping? No, we're electricians, we don't do any plumbing at all. Oh okay, my mistake. No worries, bye.\"\n  },\n  {\n    \"id\": \"ambiguous-name-only\",\n    \"contact_name\": \"Apex Plumbing\",\n    \"expect\": {\n      \"call_outcome\": [\n        \"unclear\"\n      ],\n      \"owner_reached\": [\n        \"unclear\"\n      ]\n    },\n    \"transcript\": \"Apex Plumbing. Hi, do you do septic pumping? Nope, sorry, we don't do that. Okay, thanks anyway. Mhm, bye.\"\n  }\n];\nconst out = [];\nfor (const f of FIXTURES) for (let r = 1; r <= RUNS; r++) out.push({ json: { ...f, run: r } });\nreturn out;\n"
+      }
+    },
+    {
+      "name": "Screener: Classify Transcript",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "LbGY5ptzldJjnTZJ",
+          "cachedResultName": "Screener: Classify Transcript"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "transcript": "={{ $json.transcript }}",
+            "contact_name": "={{ $json.contact_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "transcript",
+              "displayName": "transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "contact_name",
+              "displayName": "contact_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "Score Stability + Accuracy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pair each verdict with its fixture (Execute Sub-workflow in 'each' mode keeps item order).\nconst fx  = $('Load Fixtures').all().map(i => i.json);\nconst out = $input.all().map(i => i.json);\nconst byId = {};\nfx.forEach((f, i) => { (byId[f.id] = byId[f.id] || { expect: f.expect, runs: [] }).runs.push(out[i] || {}); });\n\nconst cases = Object.entries(byId).map(([id, c]) => {\n  const labels = c.runs.map(r => r.call_outcome + '/' + r.owner_reached);\n  const stable = new Set(labels).size === 1;\n  const correct = c.runs.every(r => c.expect.call_outcome.includes(r.call_outcome) && c.expect.owner_reached.includes(r.owner_reached));\n  return {\n    id, stable, correct,\n    labels: [...new Set(labels)].join(' | '),\n    expected: c.expect.call_outcome.join('|') + '/' + c.expect.owner_reached.join('|'),\n    confidence: c.runs.map(r => r.confidence).join(', '),\n    quotes_verified: c.runs.filter(r => r.quote_verified).length + '/' + c.runs.length,\n    evidence_quote: c.runs[0].evidence_quote || '',\n    ai_error: c.runs.map(r => r.ai_error).filter(Boolean).join('; ')\n  };\n});\nreturn [{ json: {\n  passed: cases.every(c => c.stable && c.correct),\n  stable: cases.filter(c => c.stable).length,\n  correct: cases.filter(c => c.correct).length,\n  total: cases.length,\n  cases\n} }];\n"
+      }
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Classifier Eval\nTest harness, not part of the live flow. Runs the 8 hand-written transcripts (tests/fixtures/screener-transcripts.json) through the classifier 3x each. \"Done\" for spec §10.2 item 2 = passed:true (every case stable across runs AND matching its expected label). Re-run after any prompt or model change.",
+        "color": 3
+      }
+    }
+  ],
+  "connections": {
+    "Run Eval": {
+      "main": [
+        [
+          {
+            "node": "Load Fixtures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixtures": {
+      "main": [
+        [
+          {
+            "node": "Screener: Classify Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screener: Classify Transcript": {
+      "main": [
+        [
+          {
+            "node": "Score Stability + Accuracy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}
