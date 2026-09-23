@@ -211,6 +211,50 @@ Second layer in n8n (defence in depth): `Capture Call Record` filters `ghl_user_
 screener users; `Capture Wavv Disposition` filters the parsed `From:` against the screener number
 pool; `Dispatcher`'s `Prep + Gate` adds `screening` to its stop conditions.
 
+### How to apply each guard in the GHL builder — mechanics, tested 2026-09-23
+
+Learned by building `Screener Outcome Changed` and by a throwaway draft (since deleted). These are
+the details that decide whether an edit lands or silently does nothing.
+
+**1. A trigger filter cannot express "does not have tag `screening`".** On the **Contact tag**
+trigger the filter row is only *Tag added / Tag removed → select a tag*: it picks **which tag fires
+the trigger** and offers **no operator**. So `Call No Answer` cannot be guarded at its trigger — it
+needs an **If/Else inside the workflow**. (On **Contact changed** the filter *does* take an
+operator: field + `Has changed` / `Has changed to`.)
+
+**2. GHL drops an incomplete filter without telling you.** First attempt saved a trigger with a
+field but no operator: the canvas showed the trigger, the API returned an **empty trigger list**.
+Always confirm through the API after saving:
+
+```
+GET backend.leadconnectorhq.com/workflow/<locationId>/trigger?workflowId=<id>     → triggers + conditions
+GET backend.leadconnectorhq.com/workflow/<locationId>/<id>?includeScheduledPauseInfo=true → workflowData.templates
+```
+
+**Trust those two, never the canvas.**
+
+**3. Option labels are split by the search highlighter.** In the field picker `Screener Outcome`
+renders as `Screener` + `Outcome` in separate nodes — match on a parent's combined text.
+
+**4. The webhook URL box is rich text, not an input**, and typing opens a merge-field popup that
+intercepts clicks on everything below it. Dismiss it before clicking Save.
+
+**5. Custom-data values become chips** — `{{contact.id}}` renders as a `Contact.ID` token. That is
+correct and is what gets posted.
+
+**Still unknown, and the reason `Call No Answer` is done together:** what happens to the steps
+*below* the insertion point when an If/Else goes in mid-workflow — do they re-parent into the first
+branch, or detach? Procedure that is safe either way:
+
+1. Work at a quiet hour: editing a **published** workflow applies as you save.
+2. Insert the If/Else after *Remove Tag* and configure **both branches fully** before touching the
+   existing steps.
+3. Re-read the workflow through the API; see where `Add Tag last_call_missed` and the webhook
+   actually sit.
+4. If they are not inside the "no `screening` tag" branch, delete and recreate them there — both
+   are trivial actions — then re-read the API again.
+5. Test on the tagged test contact before walking away.
+
 **The Attempt ladder comes from the no-answer path**, not the recorded-call path — an unanswered
 dial produces no recording. That is the whole reason `Call No Answer` keeps running.
 
