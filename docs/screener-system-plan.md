@@ -547,7 +547,7 @@ Attempt stage forever.
 | 3 | `Screener: Attempt Counter` | events 3 and 4 | `Screen Attempts` +1 → next Attempt stage or **Exhausted**; `Bad Number` → **Disqualified** |
 | 4 | `Screener: Graduate` | stage = Owner Verified | §8 |
 | 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to **Attempt 1** with `screening` re-added |
-| 6 | `screen_log` leaf | on 1, 2, 3 | date, contact, screener, attempt, `Screener Outcome`, busy/quiet, AI verdict, match, block, duration |
+| 6 | `screen_log` leaf | on 1, 2, 3 | appends to the **"WaterLine — Screener Log"** sheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` (tab `screen_log`, **built and empty** — columns and data contract in [`AGENTS.md`](../AGENTS.md)). Write it from the Compare Step's `Report` node and from the attempt ladder, appendOrUpdate on `call_id`; the ladder rows have none and plain-append. A separate workbook from Kevin's metrics on purpose — its `accuracy` tab is the per-screener match rate item 8 asks for |
 
 Workflows 1 and 2 share one compare step — build it once as a sub-workflow and call it from both,
 or the two paths will drift apart.
@@ -587,7 +587,7 @@ Then Hridoy moves to the **list/ICP work**, which is Kevin's actual first priori
 | 4 | `Screener: Classify + Mark` — cross-check, fields, tags, follower, stage move | 20 role-played calls land in the right stage |
 | 5 | `Screener: No Answer` — attempt counter and ladder | four no-answers walk a contact to Attempt 4 |
 | 6 | `Screener: Graduate` (§8) | a graduated lead appears correctly in Kevin's pipeline |
-| 7 | `Screener: Stale Sweep` + `screen_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself |
+| 7 | `Screener: Stale Sweep` + `screen_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself, **and** a marked call shows up as a row in `screen_log` with `match` set |
 | 8 | Accuracy report on the first 50 real calls | per-screener mismatch rate known |
 
 **Mohimenul is not blocked by Hridoy.** Items 1–3 are built against a **mock payload** — copy the

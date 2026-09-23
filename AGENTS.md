@@ -128,6 +128,33 @@ Credentials are not compared — the MCP omits them.
   Only rows with `ai_ok = true` block a replay of the same call; failed rows are retried.
   Read by the compare step (spec §4.1, item 4 — not built yet). Column list in the Capture context file.
 
+## Screener log workbook (Google Sheets)
+Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated
+from Kevin's campaign everywhere else, and this log answers "is the screener marking calls correctly",
+not "how is the campaign doing". Setup script:
+[`metrics/screener-log-sheet-setup.gs`](metrics/screener-log-sheet-setup.gs) (builds `screen_log` and a
+100%-formula `accuracy` tab). Built 2026-09-23; both tabs are empty and waiting for n8n.
+- **Spreadsheet:** "WaterLine — Screener Log" `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` ·
+  `screen_log` gid `892532160` · `accuracy` gid `604528574`
+- **Bound Apps Script:** "Screener Log Setup" `1Z3LfH496my3HBQfctuQf1eBuOJayXfk_X9vmlGELSWn6bgI-P3sny2fB`
+  (authorised on team@meetobby.com; the OAuth grant is still listed under the project's old name,
+  "Untitled project").
+- **Credential to write it:** the existing `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
+- **Who writes it (Mohimenul, §10.2 item 7, not built yet):** the **Compare Step's `Report`** node and
+  the attempt-ladder path, `cellFormat: USER_ENTERED`, **appendOrUpdate on `call_id`** so a re-marked
+  call updates its row. The ladder's rows have no `call_id` and plain-append.
+- **Columns:** `timestamp_pt`, `date_pt`, `contact_id`, `company`, `screener`, `screener_user_id`,
+  `attempt_no`, `event`, `duration_sec`, `pt_block`, `screener_outcome`, `noise`, `ai_call_outcome`,
+  `ai_owner_reached`, `ai_confidence`, `ai_quote_verified`, `match`, `result_stage`, `reason`,
+  `recording_url`, `call_id`, `ghl_link`.
+- **Contract (same trap as the campaign workbook — break it and `accuracy` silently reads 0):** real
+  dates, real booleans for `match` / `ai_quote_verified`, numbers for `attempt_no` / `duration_sec` /
+  `ai_confidence`, `event` one of `call` / `no-answer` / `voicemail` / `bad-number`, `screener_outcome`
+  spelled exactly as the GHL dropdown, `pt_block` as `PT 09-10`. **Leave `match` blank while the
+  compare step is still waiting**, so a pending row is not counted as a miss.
+- Re-running `setupScreenerLog()` **clears** `screen_log`. Once there is live data use
+  `rebuildAccuracyOnly()`.
+
 ## Metrics workbook (Google Sheets)
 Reporting layer, fed by the handlers. Setup script: [`metrics/metrics-sheet-setup.gs`](metrics/metrics-sheet-setup.gs)
 (builds `call_log`, `email_log`, and a 100%-formula `daily` tab).

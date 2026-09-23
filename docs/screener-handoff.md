@@ -75,9 +75,20 @@ blocks duplicate phone numbers.
 | n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
 | n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
+| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow — **`BLOCK_USER` map still empty** |
+| n8n | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | item 4, inactive |
+| n8n | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | retries failed GHL writes, inactive |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
 `/webhook/screener-disposition`
+
+**Screener log sheet** (2026-09-23, built and empty): "WaterLine — Screener Log"
+`1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` · tab `screen_log` gid `892532160` · `accuracy` gid
+`604528574` · bound script "Screener Log Setup"
+`1Z3LfH496my3HBQfctuQf1eBuOJayXfk_X9vmlGELSWn6bgI-P3sny2fB` · source
+[`metrics/screener-log-sheet-setup.gs`](../metrics/screener-log-sheet-setup.gs). Columns and the data
+contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workbook on purpose.
+⚠️ `setupScreenerLog()` **clears** `screen_log` — after live data, only `rebuildAccuracyOnly()`.
 
 ---
 
@@ -89,7 +100,11 @@ Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/s
    `screening` and must **not** create a Kevin opportunity.
 4. **Smart Lists** — Kevin's ten block lists + Gold; screener queues need the screener users.
 5. **Two screener users** — after hiring; role *Only Assigned Data*.
-6. **Mohimenul:** items 4–7 (Classify + Mark, attempt ladder, graduate, stale sweep + `screen_log`).
+6. **Mohimenul:** item 4 is **built** (Compare Step + Mark + Compare + Write-back Retry) but unproven —
+   its "done when" is 20 role-played calls, which needs the guards. Items **5–7 are not built**:
+   attempt ladder (`/webhook/screener-no-answer` has no listener), graduate, stale sweep + `screen_log`.
+   Two things he needs from us: the ten block-user IDs for `BLOCK_USER` in the Compare Step's `Decide`
+   node (still all `''`, so no lead ever gets a block follower), and the `screen_log` sheet contract.
 7. **Kevin:** 2nd/3rd WAVV seat + numbers + Trust Hub, recording policy for CA/WA/NV, team-disposition
    decision, hiring.
 
