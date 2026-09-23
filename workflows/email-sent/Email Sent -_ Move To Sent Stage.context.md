@@ -2,7 +2,6 @@
 
 - **n8n ID:** `CDdLps7wfOjyM9Lx` · **URL:** https://n8n.meetobby.com/workflow/CDdLps7wfOjyM9Lx
 - **Folder:** email-sent · **Status:** **Active ✅** (webhook — no schedule)
-- ⚠️ **Local edits not yet pushed** — see [Sync state](#sync-state).
 
 ## Purpose
 **The missing link between "enrolled in Instantly" and "actually emailed."** Fires when Instantly
@@ -96,7 +95,7 @@ terminal write) and **appends** one row to the **`email_log`** tab (*Plumber Cam
 - **Instantly:** ⚠️ **hardcoded bearer token** in two node headers — move to a credential + rotate.
 
 ## Sync state
-Local `.json` has edits **not yet pushed** to the live n8n instance — needs re-import.
+Local `.json` matches live (checked 2026-09-23).
 
 ## TODOs / gotchas
 - Instantly token is a plaintext secret in two node headers — rotate + move to a credential.

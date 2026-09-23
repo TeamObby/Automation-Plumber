@@ -1,7 +1,7 @@
 # Capture Wavv Disposition
 
 - **n8n ID:** `zSOjEBiz3e7gbeBp` · **URL:** https://n8n.meetobby.com/workflow/zSOjEBiz3e7gbeBp
-- **Folder:** call-disposition · **Status:** Active ✅ (webhook) — **not yet pushed**
+- **Folder:** call-disposition · **Status:** Active ✅ (webhook) — matches live (checked 2026-09-23)
 - **Role:** the **WAVV → fields adapter** for the multi-update call-disposition rebuild.
 
 ## Purpose
