@@ -58,12 +58,26 @@ Companions: [`ghl-automations.md`](ghl-automations.md) · [`AGENTS.md`](../AGENT
 **Tags (17)** — `screening` · `owner-confirmed` · `screen-busy` · `screen-quiet` ·
 `screen-mismatch` · `screener-a` · `screener-b` · `screened-pt-06-07` … `screened-pt-15-16`
 
+**Test rig (2026-09-23)** — for Mohimenul's role-played calls:
+
+| Thing | Value |
+|---|---|
+| Test contact | **Dana Happy** `2Z5mwZe5RT4NQdNW85vj`, phone **(805) 265-3731** — the team's Google Voice number, so test calls ring us |
+| Tag | `screening` applied |
+| Opportunity | `FAstcBVvrgbpds2gQIV3` in `Screener — Plumbers` → **Attempt 1** |
+
+⚠️ This contact is **also** the AI-receptionist demo record (tags `obby-demo`, `obby-sms`,
+`listened-demo`, …). It was reused deliberately: GHL blocks duplicate phone numbers, and that
+number was already on this contact. If screener tests and receptionist demos start colliding, get
+a second Google Voice number and split them.
+
 ### ⬜ Not built, and why
 
 | Item | Why it stopped | Who unblocks it |
 |---|---|---|
 | **2 screener users + 8 block users** | Creating a GHL user sends a real invite email, and I have no addresses to use. The existing label-users follow a pattern (`pacific@gmail.com`, `alaska@gmail.com`…) — pick the same style. Make them `ACCOUNT-USER`, role **Only Assigned Data**, never admin | Hridoy |
 | **Smart Lists** | The filter UI needs the users to exist (screener queues), and the tag-value picker is awkward to drive reliably. Recipe below — about 30 seconds each by hand | Hridoy |
+| **GHL workflow: `Screener Outcome` changed → webhook** | Started: empty draft `29535603-03a9-470c-8d98-0cde44df6c04`. The *Contact changed* trigger exists, but its **Add filters** panel would not open under automation, and saving the trigger with **no** field filter would fire on *every* contact change in the account and flood the webhook. Left unconfigured on purpose | Hridoy: pick `Screener Outcome` in Add filters → add Webhook action POST `https://n8n.meetobby.com/webhook/screener-outcome` sending `contact_id` → publish **only** when Mohimenul's item 4 is live |
 | **The four guard edits** (§1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
 | **WAVV: 2nd/3rd seat, screener numbers** | Costs money; `Seats Used: 1/1` | Kevin |
 | **Team dispositions decision** (§2.5) | Needs the seats before it can be tested | Kevin + Hridoy |
