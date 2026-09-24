@@ -68,12 +68,29 @@ save-first. §8 of the tests replays Codex's exact sequence (`RC,W,RM,F`) and al
   removed; other followers (TZ, line type) are never touched.
 - n8n never writes `Screener Outcome` (the screener's own field).
 
+## Live test on the test rig — 2026-09-24 (Dana Happy `2Z5mwZe5RT4NQdNW85vj`, opp `FAstcBVvrgbpds2gQIV3`)
+Driven with `Screener: Test Rig` (`UvApCCNACHD0uwTu`) playing the screener and mock call webhooks into Capture.
+
+| # | Scenario | Result in GHL (read back through the rig) |
+|---|---|---|
+| B | AI first: owner transcript, PT 10-11 (`TEST-screener-0005`) | verdict saved **before** the read (Decide saw it, sent no re-save) → `wait`, `writeback_ok = true` (exec 123079/123081) |
+| C | screener marks `Owner - Busy` second | **Owner Verified**; tags `owner-confirmed`, `screen-busy`, `screened-pt-10-11`; follower = PT 10-11 user; noise `busy`; Date Screened 2026-09-24 (123083, read 123085) |
+| D | correction → `Gatekeeper` (AI said owner) | **Not Sure** + `screen-mismatch`; owner tags, block tag, follower and noise removed (123087, read 123089) |
+| E | mark first (`Owner - Quiet`), then a gatekeeper transcript (`TEST-screener-0006`) | mark run `wait` + noise `quiet`; call run → **Not Sure** + mismatch (123095, 123097) |
+| F | fast correction Gatekeeper → Owner - Quiet | Gatekeeper, then **Not Sure** (123101, 123104, read 123106) |
+| — | reset (rig) | fields and result tags cleared, followers removed, opp back to **Attempt 1** |
+
+**Found live: GHL's opportunity *search* lags writes by a few seconds** — right after the reset moved the
+opp to Attempt 1, search still returned Not Sure; a read seconds later returned Attempt 1. A direct
+contact read is current immediately (test B). So Decide no longer skips a stage move or follower change
+because search says it is "already there": both are idempotent and always sent (2 extra requests/run).
+Test F did not itself catch search stale (14 s had passed); the fix rests on the reset observation.
+
 ## TODOs / gotchas
 - **`BLOCK_USER`** holds the ten block label-users `PT 06-07` … `PT 15-16` (Hridoy, 2026-09-23;
   deployed 2026-09-24). A block missing from the map still gets its tag; the follower is skipped and noted.
-- **Not yet live-tested against a real contact** — it needs Hridoy's `screening`-tagged test contact
-  with an open Attempt-1 opportunity. Proven so far: GHL credentials and the not-found guard
-  (exec 122457/122458), and Capture → Compare wiring (exec 122459). Offline: `tests/screener.test.js` §7.
+- The spec's acceptance (20 role-played **WAVV** calls) still needs the guards; the n8n side is proven
+  on the test rig above. Offline: `tests/screener.test.js` §7–§9.
 - **Recovery:** GHL never re-sends a webhook, so recovery is **`Screener: Write-back Retry`**
   (`IvxTYaChixQOiNzt`): every 15 min it re-runs this step for rows with `writeback_ok = false`.
   Every caller feeds it: Capture records `ok` on its row; a failed **Mark** run sets the contact's

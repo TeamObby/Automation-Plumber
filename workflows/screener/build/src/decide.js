@@ -123,14 +123,14 @@ if (result) {
   if (!opp && found && found.error) { retry = true; notes.push('opportunity search failed: stage and follower not written'); }
   else if (!opp) notes.push('no open Screener — Plumbers opportunity: stage and follower not written');
   else {
-    if (opp.pipelineStageId !== stage_id) op('move stage -> ' + result, 'PUT', GHL + '/opportunities/' + opp.id, { pipelineId: PIPELINE, pipelineStageId: stage_id });
-    const blockUserIds = Object.values(BLOCK_USER).filter(Boolean);
-    const followers = (opp.followers || []).map(s);
+    // GHL's opportunity SEARCH lags writes by seconds (live test 2026-09-24), so its stage and
+    // followers can be stale: never skip on them. Both writes are idempotent — always send them.
+    op('move stage -> ' + result, 'PUT', GHL + '/opportunities/' + opp.id, { pipelineId: PIPELINE, pipelineStageId: stage_id });
     const wantUser = owner && verdict ? (BLOCK_USER[s(verdict.pt_block)] || '') : '';
     if (owner && blockTag && !wantUser) notes.push('no user id for ' + s(verdict.pt_block) + ': follower skipped');
-    const dropUsers = blockUserIds.filter(u => followers.includes(u) && u !== wantUser);
-    if (dropUsers.length) op('remove block followers', 'DELETE', GHL + '/opportunities/' + opp.id + '/followers', { followers: dropUsers });
-    if (wantUser && !followers.includes(wantUser)) op('add block follower', 'POST', GHL + '/opportunities/' + opp.id + '/followers', { followers: [wantUser] });
+    const dropUsers = Object.values(BLOCK_USER).filter(u => u && u !== wantUser);
+    op('remove other block followers', 'DELETE', GHL + '/opportunities/' + opp.id + '/followers', { followers: dropUsers });
+    if (wantUser) op('add block follower', 'POST', GHL + '/opportunities/' + opp.id + '/followers', { followers: [wantUser] });
   }
 } else if (fields.length) {
   op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, { customFields: fields });

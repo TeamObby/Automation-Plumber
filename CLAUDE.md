@@ -49,6 +49,7 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   `screener_calls`, not to GHL, until the GHL guard branches exist.
   Since item 4, `Screener: Compare Step` does write GHL, but only for contacts tagged `screening`.
   Keep `Screener: Capture Call`, `Screener: Mark + Compare` and `Screener: Write-back Retry` inactive.
+  `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her.
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 
 ## Working on live workflows (n8n MCP)
@@ -61,6 +62,8 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   - A data-table filter with `condition: 'isTrue'` was silently saved without its condition.
     Use `condition: 'eq', keyValue: '={{ true }}'`.
   - `maxTries` / `waitBetweenTries` are dropped on save (n8n defaults apply).
+  - GHL `GET /opportunities/search` lags writes by seconds; `GET /contacts/{id}` does not. Never
+    skip an opportunity write because search says it is already done.
   - An apostrophe in a top-level `//` comment of the SDK code (e.g. `contact's`) breaks the MCP
     parser for everything after it ("Unterminated string constant" at a later line). Keep
     apostrophes out of generator-level comments; inside `jsCode` strings they are fine.

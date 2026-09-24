@@ -283,7 +283,7 @@ ok(stageOf(d) === ST.notSure && opOf(d, 'add tags').body.tags.includes('screen-m
 d = decide({ mark: 'Do Not Call' });
 ok(stageOf(d) === ST.disqualified && opOf(d, 'update contact').body.dnd === true, 'Do Not Call -> Disqualified + DND on the contact');
 d = decide({ mark: 'Gatekeeper', verdict: V({ owner_reached: 'no', call_outcome: 'gatekeeper' }), opps: [ { id: 'O1', pipelineId: 'CvDwpavqkHSRhg5Bn3L4', pipelineStageId: ST.gatekeeper, status: 'open', followers: [] } ] });
-ok(!opOf(d, 'move stage'), 'already in the target stage -> no move');
+ok(stageOf(d) === ST.gatekeeper, 'stage move sent even when search says it is already there (search lags writes)');
 d = decide({ mark: 'Gatekeeper', verdict: V({ owner_reached: 'no', call_outcome: 'gatekeeper' }), opps: [ { id: 'K1', pipelineId: 'OTHER', status: 'open' }, { id: 'O2', pipelineId: 'CvDwpavqkHSRhg5Bn3L4', pipelineStageId: ST.attempt1, status: 'lost' } ] });
 ok(!opOf(d, 'move stage') && d.opp_id === '' && d.notes.some(n => n.includes('no open Screener')), 'no open screener opp -> fields/tags only, reported; Kevin\'s opp never touched');
 ok(d.ops.every(o => o.url.startsWith('https://services.leadconnectorhq.com/')) && d.ops.every(o => ['PUT', 'POST', 'DELETE'].includes(o.method)), 'every op is a GHL write');
@@ -300,13 +300,16 @@ const decideCode = (code, mark, verdict, followers) => run(code, {}, {
   'GHL: Find Screener Opp': item({ opportunities: [ { id: 'O1', pipelineId: 'CvDwpavqkHSRhg5Bn3L4', pipelineStageId: ST.attempt1, status: 'open', followers } ] })
 });
 const decideU = (mark, verdict, followers) => decideCode(DECIDE, mark, verdict, followers);
+const others = keep => Object.values(U).filter(u => u !== keep).sort();
 d = decideU('Owner - Busy', V(), [U['PT 08-09'], 'KEVIN-TZ']);
-ok(JSON.stringify(opOf(d, 'remove block followers').body.followers) === JSON.stringify([U['PT 08-09']]) && JSON.stringify(opOf(d, 'add block follower').body.followers) === JSON.stringify([U['PT 10-11']]),
-   'follower: old block removed, new block added, other followers (TZ) untouched');
-d = decideU('Owner - Busy', V(), [U['PT 10-11']]);
-ok(!opOf(d, 'add block follower') && !opOf(d, 'remove block followers'), 'follower already right -> no request');
+ok(JSON.stringify(opOf(d, 'remove other block followers').body.followers.slice().sort()) === JSON.stringify(others(U['PT 10-11'])) &&
+   JSON.stringify(opOf(d, 'add block follower').body.followers) === JSON.stringify([U['PT 10-11']]),
+   'follower: every other block user removed, the new one added; non-block followers (TZ) never in the request');
+d = decideU('Owner - Busy', V(), []);
+ok(opOf(d, 'add block follower') && opOf(d, 'remove other block followers'), 'follower writes do not depend on the (lagging) search result');
 d = decideU('Gatekeeper', V({ owner_reached: 'no', call_outcome: 'gatekeeper' }), [U['PT 10-11']]);
-ok(JSON.stringify(opOf(d, 'remove block followers').body.followers) === JSON.stringify([U['PT 10-11']]), 'non-owner result removes the block follower');
+ok(JSON.stringify(opOf(d, 'remove other block followers').body.followers.slice().sort()) === JSON.stringify(Object.values(U).sort()) && !opOf(d, 'add block follower'),
+   'non-owner result removes all ten block followers, adds none');
 const DECIDE_GAP = DECIDE.replace("'PT 10-11': 'T4p1bK3yo6Bl14OK1LP3'", "'PT 10-11': ''");
 ok(DECIDE_GAP !== DECIDE, 'test rig: one block blanked');
 d = decideCode(DECIDE_GAP, 'Owner - Busy', V(), []);
@@ -465,6 +468,25 @@ ok(JSON.stringify(conn(retryWf, 'Screener: Compare Step')) === '[["Record Write-
    retryWf.nodes.find(n => n.name === 'Record Write-back').parameters.filters.conditions[0].keyValue === '={{ $json.call_id }}', 'sweep records each call on its own row');
 ok(retryWf.nodes.find(n => n.name === 'Screener: Compare Step').parameters.workflowId.value === require('../workflows/screener/build/ids.json').compare, 'sweep uses the same Compare Step');
 ok(codeOf(retryWf, 'Verdict For Contact') === codeOf(capture, 'Verdict For Contact'), 'sweep builds the verdict exactly as Capture does');
+
+console.log('=== 9) Test rig (manual, hard-wired to the test contact) ===');
+const rigWf = wf('Screener Test Rig.json');
+const RIG = codeOf(rigWf, 'Rig Ops');
+const rig = body => run(RIG, { body });
+const throws = f => { try { f(); return false; } catch (e) { return true; } };
+const rMark = rig({ action: 'mark', outcome: 'Owner - Busy' });
+ok(rMark.ops.length === 1 && rMark.ops[0].body.customFields[0].id === F.outcome && rMark.ops[0].body.customFields[0].value === 'Owner - Busy', 'mark sets only Screener Outcome');
+ok(throws(() => rig({ action: 'mark', outcome: 'Do Not Call' })), 'Do Not Call refused (DND on the demo record)');
+ok(throws(() => rig({ action: 'mark', outcome: 'owner busy' })), 'misspelt outcome refused');
+ok(throws(() => rig({ action: 'delete' })), 'unknown action refused');
+ok(rig({ action: 'read' }).ops.length === 0, 'read writes nothing');
+const rReset = rig({ action: 'reset' });
+ok([rMark, rReset].every(r => r.ops.every(o => o.url.includes('/contacts/2Z5mwZe5RT4NQdNW85vj') || o.url.includes('/opportunities/FAstcBVvrgbpds2gQIV3'))),
+   'every request targets Dana Happy or her screener opp, nothing else');
+ok(rReset.ops.some(o => o.label.includes('Attempt 1') && o.body.pipelineStageId === ST.attempt1), 'reset: opp back to Attempt 1');
+ok(JSON.stringify(rReset.ops.find(o => o.label.includes('followers')).body.followers.slice().sort()) === JSON.stringify(Object.values(U).sort()), 'reset: removes exactly the ten block followers');
+ok(rReset.ops.find(o => o.label.includes('tags')).body.tags.length === 14 && !rReset.ops.find(o => o.label.includes('tags')).body.tags.includes('screening'),
+   'reset: removes the 14 result tags, keeps screening');
 
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

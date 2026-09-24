@@ -65,6 +65,7 @@ Credentials are not compared — the MCP omits them.
 | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | [open](https://n8n.meetobby.com/workflow/FMUXvDBXsigHA4vb) | — (manual test harness) | ✓ [json+ctx](workflows/screener/) — 8 transcripts × 3 runs; last run 8/8 stable + correct |
 | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | [open](https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z) | — (sub-workflow) | ✓ [json+ctx](workflows/screener/) — item 4; mark vs AI → stage, tags, block follower. Writes GHL, only for contacts tagged `screening` |
 | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | [open](https://n8n.meetobby.com/workflow/IvxTYaChixQOiNzt) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4 recovery; every 15 min re-runs the Compare Step for `writeback_ok = false` rows |
+| Screener: Test Rig | `UvApCCNACHD0uwTu` | [open](https://n8n.meetobby.com/workflow/UvApCCNACHD0uwTu) | — (manual only, never activate) | ✓ [json+ctx](workflows/screener/) — hard-wired to test contact Dana Happy: `read` / `mark` (plays the screener) / `reset` |
 | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
 
 ---
