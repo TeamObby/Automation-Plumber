@@ -129,7 +129,8 @@ Credentials are not compared — the MCP omits them.
 - **`screener_calls`** `3WK4mrEYwvDeDUVO` — one row per answered screener call (upsert on `call_id`), written by
   `Screener: Capture Call`: caller identity, Pacific hour block + tag, transcript, and the AI verdict
   (`ai_call_outcome`, `ai_owner_reached`, `ai_confidence`, `ai_evidence_quote`, `ai_quote_verified`, `ai_ok`).
-  `writeback_ok` / `writeback_result` record whether the GHL write-back (Compare Step) finished. A replay of
+  `writeback_ok` / `writeback_result` / `writeback_fail_ms` record whether the GHL write-back (Compare Step) finished;
+  a success only clears a failure recorded before its own run started (versioned on `writeback_fail_ms`). A replay of
   the same call stops only when `ai_ok` **and** `writeback_ok` are true; `ai_ok` alone → the compare is retried
   with the stored verdict (no AI call); otherwise the call is re-classified. GHL never re-sends a webhook, so
   the real recovery is `Screener: Write-back Retry` (every 15 min, rows `writeback_ok = false`, last 48 h).

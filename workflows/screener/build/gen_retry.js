@@ -1,6 +1,6 @@
 const fs=require('fs'); const c=f=>JSON.stringify(fs.readFileSync(__dirname+'/src/'+f,'utf8'));
-const { callCompare, recordWriteback, RESULT_LINE, TABLE } = require('./call_compare.js');
-const code=`import { workflow, node, trigger, sticky, expr } from '@n8n/workflow-sdk';
+const { callCompare, recordOutcome, TABLE } = require('./call_compare.js');
+const code=`import { workflow, node, trigger, ifElse, sticky, expr } from '@n8n/workflow-sdk';
 
 const every = trigger({
   type: 'n8n-nodes-base.scheduleTrigger', version: 1.2,
@@ -30,12 +30,12 @@ const verdictOut = node({
 
 ${callCompare({ pos: [896, 300], verdict: "expr('{{ $json.verdict_json }}')", source: 'retry' })}
 
-const record = ${recordWriteback({ pos: [1120, 300], callId: '$json.call_id', ok: '$json.ok === true', result: "'retry: ' + " + RESULT_LINE })};
+${recordOutcome({ v: 'rec', pos: [1120, 300], callId: '$json.call_id', prefix: 'retry' })}
 
 const note = sticky('## Screener: Write-back Retry  (codex review of item 4)\\nThe durable retry: nothing re-sends GHL webhooks, so every call row whose GHL write-back did not finish (writeback_ok = false: a GHL error, an unreadable contact, or a verdict that could not be saved before the read) is re-run through the Compare Step every 15 min, save-first. Newest call per contact only; rows older than 48 h are left for a human.\\nKeep INACTIVE until the four GHL guard branches exist.', [pending, pick, compare], { color: 5 });
 
 export default workflow('screener-writeback-retry', 'Screener: Write-back Retry')
-  .add(every).to(pending).to(pick).to(verdictOut).to(compare).to(record)
+  .add(every).to(pending).to(pick).to(verdictOut).to(compare).to(recIf.onTrue(recOk).onFalse(recFail))
   .add(note);
 `;
 fs.writeFileSync(__dirname+'/out/retry.sdk.js',code);

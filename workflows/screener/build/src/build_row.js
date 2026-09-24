@@ -14,5 +14,7 @@ return { json: {
   ai_model: v.model, ai_error: v.ai_error,
   // Only a clean verdict blocks a replay of this call_id; a failed one is retried (Route Replay).
   ai_ok: !v.ai_error,
+  // New row: no write-back failure yet. A success may only clear failures older than its run.
+  writeback_fail_ms: 0,
   received_at: t.received_at
 }};

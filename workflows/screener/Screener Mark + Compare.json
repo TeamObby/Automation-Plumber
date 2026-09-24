@@ -231,6 +231,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "writeback_ok": "={{ false }}",
+            "writeback_fail_ms": "={{ Date.now() }}",
             "writeback_result": "={{ 'mark: ' + [$('Screener: Compare Step').first().json.action, $('Screener: Compare Step').first().json.reason].concat($('Screener: Compare Step').first().json.failed || []).filter(Boolean).join(' | ') }}"
           },
           "matchingColumns": [],
@@ -252,6 +253,16 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "writeback_fail_ms",
+              "displayName": "writeback_fail_ms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
               "readOnly": false,
               "removed": false
             }

@@ -1,5 +1,5 @@
 const fs=require('fs'); const c=f=>JSON.stringify(fs.readFileSync(__dirname+'/src/'+f,'utf8'));
-const { callCompare, recordWriteback, TABLE } = require('./call_compare.js');
+const { callCompare, recordFailure, TABLE } = require('./call_compare.js');
 const code=`import { workflow, node, trigger, sticky, expr } from '@n8n/workflow-sdk';
 
 const hook = trigger({
@@ -40,7 +40,7 @@ const latest = node({
   output: [{ id: 4, call_id: '01a0c4d5', contact_id: 'C1' }]
 });
 
-const record = ${recordWriteback({ name: 'Record Mark Failure', pos: [1344, 300], callId: '$json.call_id', ok: 'false',
+const record = ${recordFailure({ name: 'Record Mark Failure', pos: [1344, 300], callId: '$json.call_id',
   result: "'mark: ' + [$('Screener: Compare Step').first().json.action, $('Screener: Compare Step').first().json.reason].concat($('Screener: Compare Step').first().json.failed || []).filter(Boolean).join(' | ')" })};
 
 const note = sticky('## Screener: Mark + Compare  (spec §9 event 2 · §10.2 item 4)\\nGHL Contact Changed → Screener Outcome (the pick the screener made) → the shared Compare Step. The mark itself is re-read from the contact there, so only contact_id matters here. If the compare fails, the newest call row of that contact gets writeback_ok = false so Screener: Write-back Retry reruns it.\\nKeep INACTIVE until the four GHL guard branches exist.', [normalize, compare], { color: 5 });

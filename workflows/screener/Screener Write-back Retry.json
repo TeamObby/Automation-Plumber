@@ -160,12 +160,111 @@
       }
     },
     {
-      "name": "Record Write-back",
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
+      "name": "Write-back ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
       "position": [
         1120,
         300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Record Success (unless a newer failure)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        204
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3WK4mrEYwvDeDUVO",
+          "cachedResultName": "screener_calls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "call_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.call_id }}"
+            },
+            {
+              "keyName": "writeback_fail_ms",
+              "condition": "lt",
+              "keyValue": "={{ $json.run_started_ms }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "writeback_ok": "={{ true }}",
+            "writeback_result": "={{ 'retry: ' + [$json.action, $json.result, $json.reason].concat($json.failed || []).filter(Boolean).join(' | ') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "writeback_ok",
+              "displayName": "writeback_ok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "writeback_result",
+              "displayName": "writeback_result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true
+    },
+    {
+      "name": "Record Failure",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        396
       ],
       "parameters": {
         "resource": "row",
@@ -189,7 +288,8 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "writeback_ok": "={{ $json.ok === true }}",
+            "writeback_ok": "={{ false }}",
+            "writeback_fail_ms": "={{ Date.now() }}",
             "writeback_result": "={{ 'retry: ' + [$json.action, $json.result, $json.reason].concat($json.failed || []).filter(Boolean).join(' | ') }}"
           },
           "matchingColumns": [],
@@ -211,6 +311,16 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "writeback_fail_ms",
+              "displayName": "writeback_fail_ms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
               "readOnly": false,
               "removed": false
             }
@@ -281,11 +391,29 @@
         ]
       ]
     },
+    "Write-back ok?": {
+      "main": [
+        [
+          {
+            "node": "Record Success (unless a newer failure)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Screener: Compare Step": {
       "main": [
         [
           {
-            "node": "Record Write-back",
+            "node": "Write-back ok?",
             "type": "main",
             "index": 0
           }

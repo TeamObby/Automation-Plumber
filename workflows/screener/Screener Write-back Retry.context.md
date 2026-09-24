@@ -17,7 +17,8 @@ immediately, so nothing ever replays a failed run. Every path records its outcom
    superseded), and only rows received in the last 48 h.
 3. **Verdict For Contact** (same code as Capture) → **Screener: Compare Step** (`source: retry`), which
    saves the verdict first, then reads — so a retry always has the ordering guarantee.
-4. **Record Write-back** on that row: `writeback_ok` = the Compare Step's `ok`, `writeback_result` = `retry: …`.
+4. **Write-back ok?** → **Record Success (unless a newer failure)** / **Record Failure** on that row, versioned
+   like Capture (`writeback_fail_ms`), `writeback_result` = `retry: …`.
 
 ## What lands at writeback_ok = false
 A GHL request failed · the contact could not be read · the opportunity search failed · the verdict

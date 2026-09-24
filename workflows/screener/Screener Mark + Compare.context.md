@@ -18,7 +18,7 @@ the contact**, so a late or out-of-order webhook can never apply a stale value.
 ## Flow
 Webhook → **Normalize Mark** → **Filter: has contact_id** → **Screener: Compare Step** →
 **Filter: compare failed** (`ok = false`) → **Find newest call row for contact** → **Record Mark Failure**
-(`writeback_ok = false`, `writeback_result = "mark: …"`), so **Screener: Write-back Retry** re-runs it
+(`writeback_ok = false`, `writeback_fail_ms = now`, `writeback_result = "mark: …"`), so **Screener: Write-back Retry** re-runs it
 (codex review, round 2: before this, a failed mark-path write left the row saying done).
 
 ## Tested

@@ -143,13 +143,14 @@ v = run(codeOf(classifier, 'No Transcript Verdict'), {});
 ok(v.call_outcome === 'unclear' && v.owner_reached === 'unclear' && v.ai_error === 'no transcript', 'no transcript -> unclear, no model call');
 
 console.log('=== 5) Build Row == screener_calls columns ===');
-const COLUMNS = ['ai_ok','call_id','contact_id','contact_name','ghl_user_id','wavv_caller_id','answered_at','pt_block','pt_block_tag','duration_sec','recording_url','transcript','transcript_source','ai_call_outcome','ai_owner_reached','ai_confidence','ai_evidence_quote','ai_quote_verified','ai_owner_name','ai_model','ai_error','received_at'];
+const COLUMNS = ['ai_ok','call_id','contact_id','contact_name','ghl_user_id','wavv_caller_id','answered_at','pt_block','pt_block_tag','duration_sec','recording_url','transcript','transcript_source','ai_call_outcome','ai_owner_reached','ai_confidence','ai_evidence_quote','ai_quote_verified','ai_owner_name','ai_model','ai_error','received_at','writeback_fail_ms'];
 const norm = run(NORMALIZE, real);
 const row = run(codeOf(capture, 'Build Row'), verdict({ call_outcome: 'owner', owner_reached: 'yes', evidence_quote: 'I own the shop' }),
   { 'Transcript Ready': item(norm) });
 ok(JSON.stringify(Object.keys(row).sort()) === JSON.stringify(COLUMNS.slice().sort()), 'Build Row fields == data table columns');
 const store = capture.nodes.find(x => x.name === 'Store: screener_calls (upsert on call_id)');
-const WRITEBACK_COLS = ['writeback_ok', 'writeback_result'];   // set only by Record Write-back, never by Build Row
+const WRITEBACK_COLS = ['writeback_ok', 'writeback_result'];   // set only by the Record nodes, never by Build Row
+ok(row.writeback_fail_ms === 0, 'a new row starts with no write-back failure (0, never null: lt must be able to match)');
 ok(JSON.stringify(store.parameters.columns.schema.map(c => c.id).sort()) === JSON.stringify(COLUMNS.concat(WRITEBACK_COLS).sort()), 'upsert schema == data table columns');
 ok(store.parameters.filters.conditions[0].keyName === 'call_id', 'upsert keyed on call_id');
 const findRow = capture.nodes.find(x => x.name === 'Find Row: screener_calls by call_id');
@@ -170,9 +171,12 @@ ok(wb.route === 'writeback' && wb.ai_call_outcome === 'owner' && wb.contact_id =
 ok(route({ call_id: 'c1', ai_ok: true }).route === 'writeback', 'row from before writeback_ok existed -> retried once');
 const conn = (w, from) => ((w.connections[from] || {}).main || []).map(o => o.map(x => x.node));
 ok(JSON.stringify(conn(capture, 'IF: verdict already stored?')) === JSON.stringify([['Verdict For Contact'], ['IF: transcript missing?']]), 'stored verdict skips the AI');
-ok(JSON.stringify(conn(capture, 'Screener: Compare Step')) === JSON.stringify([['Record Write-back']]), 'the compare result is recorded on the row');
-const rec = capture.nodes.find(x => x.name === 'Record Write-back');
-ok(rec.parameters.operation === 'update' && rec.parameters.columns.value.writeback_ok === '={{ $json.ok === true }}', 'writeback_ok = the Compare Step\'s ok');
+ok(JSON.stringify(conn(capture, 'Screener: Compare Step')) === JSON.stringify([['Write-back ok?']]) &&
+   JSON.stringify(conn(capture, 'Write-back ok?')) === JSON.stringify([['Record Success (unless a newer failure)'], ['Record Failure']]), 'the compare result is recorded on the row, versioned');
+const rec = capture.nodes.find(x => x.name === 'Record Success (unless a newer failure)');
+ok(rec.parameters.operation === 'update' && rec.parameters.columns.value.writeback_ok === '={{ true }}' &&
+   rec.parameters.filters.conditions.some(c => c.keyName === 'writeback_fail_ms' && c.condition === 'lt' && c.keyValue === '={{ $json.run_started_ms }}'),
+   'a success lands only where the last failure is older than its run');
 ok(row.ai_ok === true, 'clean verdict -> ai_ok true');
 const failedRow = run(codeOf(capture, 'Build Row'), run(PARSE, { error: { message: 'Rate limit reached' } }, prepNode), { 'Transcript Ready': item(norm) });
 ok(failedRow.ai_ok === false, 'API failure -> ai_ok false (retryable)');
@@ -430,7 +434,8 @@ ok(d.action === 'apply' && d.retry === true && !opOf(d, 'move stage'), 'opportun
 
 const REPORT = codeOf(compareWf, 'Report');
 const report = (plan, sent, results) => new Function('$json', '$input', '$', REPORT)({}, { all: () => results.map(json => ({ json })) },
-  n => n === 'Decide' ? { first: () => ({ json: plan }) } : { all: () => { if (!sent) throw new Error('unexecuted'); return sent.map(json => ({ json })); } })[0].json;
+  n => n === 'Decide' ? { first: () => ({ json: plan }) } : n === 'Plan Save' ? { first: () => ({ json: { run_started_ms: 1000 } }) }
+    : { all: () => { if (!sent) throw new Error('unexecuted'); return sent.map(json => ({ json })); } })[0].json;
 const plan = { contact_id: 'C1', action: 'apply', result: 'Gatekeeper', reason: 'gatekeeper', mismatch: false, notes: [], retry: false };
 ok(report(plan, [{ label: 'move stage -> Gatekeeper' }], [{ id: 'O1' }]).ok === true, 'all requests succeeded -> ok');
 const bad = report(plan, [{ label: 'add tags' }, { label: 'move stage -> Gatekeeper' }], [{}, { error: { message: '429 Too Many Requests' } }]);
@@ -464,10 +469,61 @@ ok(pick([R({ writeback_ok: true }), R({ ai_ok: false }), R({ writeback_ok: null 
 const pend = retryWf.nodes.find(n => n.name === 'Get rows: write-back not finished').parameters;
 ok(pend.matchType === 'allConditions' && pend.filters.conditions.some(c => c.keyName === 'writeback_ok' && c.condition === 'eq' && c.keyValue === '={{ false }}') &&
    pend.filters.conditions.some(c => c.keyName === 'ai_ok' && c.keyValue === '={{ true }}'), 'sweep reads writeback_ok = false (eq, not the MCP-dropped isTrue/isFalse)');
-ok(JSON.stringify(conn(retryWf, 'Screener: Compare Step')) === '[["Record Write-back"]]' &&
-   retryWf.nodes.find(n => n.name === 'Record Write-back').parameters.filters.conditions[0].keyValue === '={{ $json.call_id }}', 'sweep records each call on its own row');
+ok(JSON.stringify(conn(retryWf, 'Screener: Compare Step')) === '[["Write-back ok?"]]' &&
+   ['Record Success (unless a newer failure)', 'Record Failure'].every(n => retryWf.nodes.find(x => x.name === n).parameters.filters.conditions[0].keyValue === '={{ $json.call_id }}'),
+   'sweep records each call on its own row, versioned like Capture');
 ok(retryWf.nodes.find(n => n.name === 'Screener: Compare Step').parameters.workflowId.value === require('../workflows/screener/build/ids.json').compare, 'sweep uses the same Compare Step');
 ok(codeOf(retryWf, 'Verdict For Contact') === codeOf(capture, 'Verdict For Contact'), 'sweep builds the verdict exactly as Capture does');
+
+console.log('=== 8b) Completion ordering: a late success never clears a newer failure (codex review) ===');
+// Runs the REAL Record nodes' filters and values against a simulated screener_calls row.
+const evalX = (v, $json, $, now) => typeof v === 'string' && v.startsWith('={{')
+  ? new Function('$json', '$', 'Date', 'return (' + v.slice(3, -2) + ');')($json, $, { now: () => now }) : v;
+const applyUpdate = (node, $json, rowState, now, $ = () => ({ first: () => ({ json: {} }) })) => {
+  const p = node.parameters;
+  const pass = p.filters.conditions.every(c => {
+    const want = evalX(c.keyValue, $json, $, now), have = rowState[c.keyName];
+    if (c.condition === 'eq') return have === want;
+    if (c.condition === 'lt') return have != null && have < want;   // SQL: NULL never matches
+    throw new Error('unmodelled condition ' + c.condition);
+  });
+  if (pass) for (const [k, v] of Object.entries(p.columns.value)) rowState[k] = evalX(v, $json, $, now);
+  return pass;
+};
+const recOk = capture.nodes.find(n => n.name === 'Record Success (unless a newer failure)');
+const recFail = capture.nodes.find(n => n.name === 'Record Failure');
+const markFail = markWf.nodes.find(n => n.name === 'Record Mark Failure');
+const vfcOf = cid => ({ first: () => ({ json: { call_id: cid } }) });
+const cap$ = n => n === 'Verdict For Contact' ? vfcOf('c1') : n === 'Screener: Compare Step' ? { first: () => ({ json: { action: 'apply', reason: 'x', failed: ['move stage: 500'] } }) } : null;
+// Codex's sequence: Capture reads at t=100 and waits (ok); Mark fails, recorded at t=200; Capture's
+// completion lands at t=300.
+let rowS = { call_id: 'c1', ai_ok: true, writeback_ok: null, writeback_fail_ms: 0 };
+applyUpdate(markFail, { call_id: 'c1' }, rowS, 200, cap$);
+applyUpdate(recOk, { ok: true, run_started_ms: 100, action: 'wait', reason: 'waiting' }, rowS, 300, cap$);
+ok(rowS.writeback_ok === false && rowS.writeback_fail_ms === 200, 'codex sequence: the late Capture success does NOT clear the Mark failure');
+ok(pick([R({ call_id: 'c1', received_at: new Date().toISOString(), writeback_ok: rowS.writeback_ok })]).length === 1, '... so the retry sweep still picks the call up');
+// The retry run starts after the failure (t=400) and succeeds -> it may clear it.
+applyUpdate(recOk, { ok: true, run_started_ms: 400, call_id: 'c1', action: 'apply', result: 'Gatekeeper', reason: 'gatekeeper' }, rowS, 450, cap$);
+ok(rowS.writeback_ok === true, 'a success from a run that started after the failure clears it');
+// Every order of: capture read (t), mark failure (f), capture record — only a read AFTER the failure may clear it.
+[[100, 200, false], [250, 200, true], [200, 200, false]].forEach(([readAt, failAt, cleared]) => {
+  const r = { call_id: 'c1', ai_ok: true, writeback_ok: null, writeback_fail_ms: 0 };
+  applyUpdate(markFail, { call_id: 'c1' }, r, failAt, cap$);
+  applyUpdate(recOk, { ok: true, run_started_ms: readAt, action: 'wait', reason: 'w' }, r, 900, cap$);
+  ok(r.writeback_ok === (cleared ? true : false), `read at ${readAt}, failure at ${failAt} -> ${cleared ? 'cleared' : 'kept'}`);
+});
+// A failure always lands, whatever came before.
+rowS = { call_id: 'c1', ai_ok: true, writeback_ok: true, writeback_fail_ms: 0 };
+applyUpdate(recFail, { ok: false, run_started_ms: 50, action: 'apply', reason: 'x', failed: ['add tags: 500'] }, rowS, 60, cap$);
+ok(rowS.writeback_ok === false && rowS.writeback_fail_ms === 60 && rowS.writeback_result.includes('add tags: 500'), 'a failure always lands and is stamped');
+// A clean first run on a fresh row (fail_ms 0) records ok.
+rowS = { call_id: 'c1', ai_ok: true, writeback_ok: null, writeback_fail_ms: 0 };
+applyUpdate(recOk, { ok: true, run_started_ms: 10, action: 'wait', reason: 'w' }, rowS, 20, cap$);
+ok(rowS.writeback_ok === true, 'fresh row, clean run -> ok');
+ok(codeOf(compareWf, 'Plan Save').indexOf('run_started_ms: Date.now()') > -1 &&
+   JSON.stringify(conn(compareWf, 'GHL: Guard Read')) === '[["Plan Save"]]' && JSON.stringify(conn(compareWf, 'Plan Save')) === '[["Save verdict first?"]]',
+   'the version is taken in Plan Save, before the save and the decision read');
+ok(report(plan, null, [plan]).run_started_ms === 1000, 'Report hands the version to the Record nodes');
 
 console.log('=== 9) Test rig (manual, hard-wired to the test contact) ===');
 const rigWf = wf('Screener Test Rig.json');

@@ -12,6 +12,9 @@ const incoming = s(input.verdict_json) ? parse(input.verdict_json) : null;
 const stored = parse(storedRaw);
 const older = !!incoming && !!stored && incoming.call_id !== stored.call_id && Date.parse(stored.answered_at) > Date.parse(incoming.answered_at);
 return { json: {
+  // Version of this run's outcome: taken BEFORE the save and the read, so a success can only clear
+  // a failure recorded before this run looked at GHL (Record Write-back filters on it).
+  run_started_ms: Date.now(),
   save: !!incoming && tags.includes('screening') && !older && storedRaw !== s(input.verdict_json),
   older
 }};

@@ -1,6 +1,6 @@
-const fs=require('fs'); const { callCompare, recordWriteback, RESULT_LINE } = require('./call_compare.js'); const c=f=>JSON.stringify(fs.readFileSync(__dirname+'/src/'+f,'utf8'));
+const fs=require('fs'); const { callCompare, recordOutcome } = require('./call_compare.js'); const c=f=>JSON.stringify(fs.readFileSync(__dirname+'/src/'+f,'utf8'));
 const TABLE = `{ __rl: true, mode: 'id', value: '3WK4mrEYwvDeDUVO', cachedResultName: 'screener_calls' }`;
-const COLS = [['ai_ok','boolean'],['writeback_ok','boolean'],['writeback_result','string'],['call_id','string'],['contact_id','string'],['contact_name','string'],['ghl_user_id','string'],['wavv_caller_id','string'],['answered_at','string'],['pt_block','string'],['pt_block_tag','string'],['duration_sec','number'],['recording_url','string'],['transcript','string'],['transcript_source','string'],['ai_call_outcome','string'],['ai_owner_reached','string'],['ai_confidence','number'],['ai_evidence_quote','string'],['ai_quote_verified','boolean'],['ai_owner_name','string'],['ai_model','string'],['ai_error','string'],['received_at','string']];
+const COLS = [['ai_ok','boolean'],['writeback_ok','boolean'],['writeback_result','string'],['writeback_fail_ms','number'],['call_id','string'],['contact_id','string'],['contact_name','string'],['ghl_user_id','string'],['wavv_caller_id','string'],['answered_at','string'],['pt_block','string'],['pt_block_tag','string'],['duration_sec','number'],['recording_url','string'],['transcript','string'],['transcript_source','string'],['ai_call_outcome','string'],['ai_owner_reached','string'],['ai_confidence','number'],['ai_evidence_quote','string'],['ai_quote_verified','boolean'],['ai_owner_name','string'],['ai_model','string'],['ai_error','string'],['received_at','string']];
 const schema = JSON.stringify(COLS.map(([id,type])=>({id,displayName:id,required:false,defaultMatch:false,display:true,type,readOnly:false,removed:false})));
 const bool = (name, field) => `{ leftValue: expr('{{ $json.${field} }}'), rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }`;
 const cond = list => `{ options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [ ${list} ], combinator: 'and' }`;
@@ -122,7 +122,7 @@ const verdictOut = node({
 
 ${callCompare({ pos: [3584, 300], verdict: "expr('{{ $json.verdict_json }}')", source: 'call' })}
 
-const record = ${recordWriteback({ pos: [3808, 300], callId: "$('Verdict For Contact').first().json.call_id", ok: '$json.ok === true', result: RESULT_LINE })};
+${recordOutcome({ v: 'rec', pos: [3808, 300], callId: "$('Verdict For Contact').first().json.call_id" })}
 
 const note = sticky('## Screener: Capture Call  (spec §9 event 1 · §10.2 items 1–4)\\nGHL Call Recorded (screener calls only, once Hridoy wires the trigger) → normalize + Pacific hour block → dedupe on call_id (done = stop; verdict stored but GHL write-back failed = retry the compare with the stored verdict, no AI) → Whisper only if WAVV sent no transcript → AI verdict → row in screener_calls → Screener: Compare Step (Screen AI Verdict on the contact; stage/tags/follower once the screener has marked) → writeback_ok on the row.\\nKeep INACTIVE until the four GHL guard branches exist.', [normalize, route, classify, store, compare], { color: 5 });
 
@@ -131,7 +131,7 @@ export default workflow('screener-capture-call', 'Screener: Capture Call')
   .to(reuse.onTrue(verdictOut).onFalse(needsTx))
   .add(needsTx.onTrue(download.to(whisper).to(fromAudio).to(ready)).onFalse(ready))
   .add(ready).to(classify).to(buildRow).to(store).to(verdictOut)
-  .add(verdictOut).to(compare).to(record)
+  .add(verdictOut).to(compare).to(recIf.onTrue(recOk).onFalse(recFail))
   .add(note);
 `;
 fs.writeFileSync(__dirname+'/out/capture.sdk.js',code);

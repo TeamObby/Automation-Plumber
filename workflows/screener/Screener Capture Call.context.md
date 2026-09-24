@@ -38,8 +38,8 @@ contact tagged `screening` — see the Compare Step's context file.
 6. **Build Row** → **Store** — upsert on `call_id` into `screener_calls`.
 7. **Verdict For Contact** → **Screener: Compare Step** (`source: call`) — the verdict JSON
    (call_id, answered_at, block, AI fields) that meets the screener's mark (spec §4.1).
-8. **Record Write-back** — `writeback_ok` = the Compare Step's `ok`, plus a one-line
-   `writeback_result` (action | result | reason | failed requests).
+8. **Write-back ok?** → **Record Success (unless a newer failure)** / **Record Failure** — versioned:
+   a success only lands where `writeback_fail_ms < run_started_ms` (see the Compare Step context file).
 
 ## Hour block (item 3)
 `answered_at` (UTC) → hour in `America/Los_Angeles` → `PT HH-HH+1`, **only** for the ten blocks
@@ -52,12 +52,12 @@ Tag spelling is part of the Hridoy/Mohimenul contract: `PT 10-11` → **`screene
 `pt_block` · `pt_block_tag` · `duration_sec` · `recording_url` · `transcript` · `transcript_source`
 (`wavv`/`whisper`) · `ai_call_outcome` · `ai_owner_reached` · `ai_confidence` · `ai_evidence_quote` ·
 `ai_quote_verified` · `ai_owner_name` · `ai_model` · `ai_error` · **`ai_ok`** (verdict came back clean) ·
-**`writeback_ok`** / `writeback_result` (the GHL write-back finished; set only by Record Write-back) ·
+**`writeback_ok`** / `writeback_result` / **`writeback_fail_ms`** (the GHL write-back finished; the last failure's time, 0 on a new row — set only by the Record nodes) ·
 `received_at`. A replay stops only when `ai_ok` **and** `writeback_ok` are true.
 Timestamps are ISO strings (same convention as the account's other data tables).
 
 ## TODOs / gotchas
-- ⚠️ **Rows `TEST-screener-0001` … `0006` are test rows** (0005/0006 = the 2026-09-24 test-rig run on Dana Happy) from the 2026-09-23 end-to-end runs
+- ⚠️ **Rows `TEST-screener-0001` … `0007` are test rows** (0005–0007 = the 2026-09-24 test-rig runs on Dana Happy) from the 2026-09-23 end-to-end runs
   (0003 = the live Chinese-transcript check, exec 122440; 0004 = the item-4 wiring check on the
   nonexistent contact `TEST-screener-nonexistent`, exec 122459).
   Delete them before real calls flow.

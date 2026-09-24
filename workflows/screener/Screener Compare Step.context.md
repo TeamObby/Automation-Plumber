@@ -86,6 +86,20 @@ contact read is current immediately (test B). So Decide no longer skips a stage 
 because search says it is "already there": both are idempotent and always sent (2 extra requests/run).
 Test F did not itself catch search stale (14 s had passed); the fix rests on the reset observation.
 
+## Versioned outcome (codex review, round 4 — 2026-09-24)
+Every caller records the run's outcome on the call's `screener_calls` row. A run that started
+*before* a later failure must not clear it (Capture waits → a Mark run fails and records `false` →
+Capture's late `ok` would overwrite it with `true`, and the retry sweep would never see the failure).
+- **Plan Save** stamps `run_started_ms` before the save and the decision read; **Report** returns it.
+- **Record Failure** (Capture, Retry) and **Record Mark Failure** always land and stamp
+  `writeback_fail_ms = Date.now()`.
+- **Record Success** updates only `WHERE call_id = X AND writeback_fail_ms < run_started_ms` — the
+  version check is inside the data-table update, so there is no check-then-write gap.
+- New rows start at `writeback_fail_ms = 0` (Build Row); `NULL` would never match `lt`.
+- Proof: `tests/screener.test.js` §8b runs the real Record nodes' filters on a simulated row
+  (Codex's exact sequence + every order); removing the `lt` condition fails 4 checks. Live: a fresh row
+  (`TEST-screener-0007`, exec 123113) recorded `writeback_ok = true` through the `lt` filter.
+
 ## TODOs / gotchas
 - **`BLOCK_USER`** holds the ten block label-users `PT 06-07` … `PT 15-16` (Hridoy, 2026-09-23;
   deployed 2026-09-24). A block missing from the map still gets its tag; the follower is skipped and noted.
