@@ -5,10 +5,8 @@
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
-- **⚠️ Sync state (2026-09-25):** this snapshot = the n8n **draft** (pushed with the screener_log write,
-  item 7a; Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]`
-  `oUnRFJd1TMI1LmTd`). The **published** version is still the one without the log until it is
-  re-published (needs OK) — until then no row reaches Supabase.
+- **Sync state (2026-09-25):** snapshot = live. **Re-published** with the screener_log write (item 7a;
+  Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]` `oUnRFJd1TMI1LmTd`).
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict
@@ -97,6 +95,18 @@ opp to Attempt 1, search still returned Not Sure; a read seconds later returned 
 contact read is current immediately (test B). So Decide no longer skips a stage move or follower change
 because search says it is "already there": both are idempotent and always sent (2 extra requests/run).
 Test F did not itself catch search stale (14 s had passed); the fix rests on the reset observation.
+
+## Screener log live test — 2026-09-25 (Dana Happy, after re-publishing)
+| Step | Exec | Supabase `screener_log` |
+|---|---|---|
+| no-answer (`Screener: No Answer`) | 123666 | `na:…` row: attempt 1 → Attempt 2, company, `match` NULL — **the credential works** |
+| answered owner call, AI first (`Capture Call`, `TEST-screener-0010`, 10:30 PT) | 123668 | `call:TEST-screener-0010`: PT 10-11, 48 s, recording, transcript, AI owner / yes / 0.95 / quote verified; `match` + `result_stage` NULL (waiting) |
+| rig marks `Owner - Busy` → `Mark + Compare` | 123671, 123672 | **same row updated**: mark, noise busy, `match` true, Owner Verified; duration + transcript kept (the mark run does not blank them) |
+| `screener_accuracy` | — | TEST-user 1 / 1 / 1 = 100 %; view then limited to calls (migration `screener_accuracy_calls_only`) |
+| rig reset | 123674 | Dana back to Attempt 1 (checked with a direct GET) |
+
+Both test rows were then deleted from Supabase. Left behind in n8n tables: `screener_calls`
+`TEST-screener-0010` and one `screener_attempts` row on Dana (listed with the other test rows).
 
 ## Versioned outcome (codex review, round 4 — 2026-09-24)
 Every caller records the run's outcome on the call's `screener_calls` row. A run that started

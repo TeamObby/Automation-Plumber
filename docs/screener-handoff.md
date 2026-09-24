@@ -118,9 +118,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 3. **Item 7a — the screener log → Supabase only** (decided 2026-09-25). ✅ Built and tested offline:
    table [`supabase/screener_log.sql`](../supabase/screener_log.sql) (+ `screener_accuracy` view), writes from
    the Compare Step and the Attempt Counter. ✅ Supabase project **`screener-helper`**
-   (`cifgvpqfodglnhywrofy`, org Waterline) created, table applied, n8n credential made, both
-   sub-workflows pushed as drafts. Next: re-publish Compare Step + Attempt Counter (needs OK) → live
-   test on Dana (one answered call, one no-answer) → reset.
+   (`cifgvpqfodglnhywrofy`, org Waterline) created, table applied, n8n credential made; ✅ **live** — both
+   sub-workflows re-published and tested on Dana 2026-09-25 (a no-answer row; a call row that waited with
+   `match` empty, then updated to Owner Verified / match true when marked).
 4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
    on re-screen; list failed write-backs older than 48 h, and graduations still `ok = false` after a day).
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
@@ -134,7 +134,7 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    reported (the GHL connector must be authorised; it only attaches at session start).
 9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
    MCP connector so Kevin's Claude can read the code.
-10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0009`, and the test-rig rows in
+10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0010`, and the test-rig rows in
     `screener_attempts` / `screener_graduations`); rotate the exposed Instantly key.
 
 ### Hridoy (GHL side, and the list)

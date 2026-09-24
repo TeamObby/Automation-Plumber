@@ -36,14 +36,17 @@ create index if not exists screener_log_screener on public.screener_log (screene
 -- Only the service-role key (n8n) reads and writes; no public access.
 alter table public.screener_log enable row level security;
 
--- Item 8: match rate per screener. A call counts once the compare has decided (match not null).
+-- Item 8: match rate per screener, answered calls only (dial rows have no screener or match).
+-- A call counts once the compare has decided (match not null).
 -- security_invoker: the view follows the table's RLS instead of running with its owner's rights.
+-- Migrations: create_screener_log, screener_accuracy_calls_only (2026-09-25).
 create or replace view public.screener_accuracy with (security_invoker = true) as
 select screener_user_id,
-       count(*) filter (where event = 'call')                                  as calls,
+       count(*)                                                                as calls,
        count(*) filter (where match is not null)                               as compared,
        count(*) filter (where match)                                           as matched,
        round(100.0 * count(*) filter (where match)
              / nullif(count(*) filter (where match is not null), 0), 1)        as match_pct
 from public.screener_log
+where event = 'call'
 group by screener_user_id;
