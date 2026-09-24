@@ -1,0 +1,302 @@
+{
+  "id": "IvxTYaChixQOiNzt",
+  "name": "Screener: Write-back Retry",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get rows: write-back not finished",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3WK4mrEYwvDeDUVO",
+          "cachedResultName": "screener_calls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "ai_ok",
+              "condition": "eq",
+              "keyValue": "={{ true }}"
+            },
+            {
+              "keyName": "writeback_ok",
+              "condition": "eq",
+              "keyValue": "={{ false }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 200,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "DESC"
+      }
+    },
+    {
+      "name": "Pick newest per contact (48 h)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Rows whose GHL write-back did not finish (writeback_ok = false). Retry each contact's NEWEST\n// call once per sweep; older calls of the same contact are superseded by it. After 48 h a row is\n// left for a human (it stays writeback_ok = false and shows in the daily summary, item 7).\nconst MAX_AGE_MS = 48 * 3600 * 1000;\nconst now = Date.now();\nconst newest = {};\nfor (const { json: r } of $input.all()) {\n  if (!r || !r.call_id || !r.contact_id || r.ai_ok !== true || r.writeback_ok !== false) continue;\n  if (now - Date.parse(r.received_at) > MAX_AGE_MS) continue;\n  const cur = newest[r.contact_id];\n  if (!cur || Date.parse(r.answered_at) > Date.parse(cur.answered_at)) newest[r.contact_id] = r;\n}\nreturn Object.values(newest).map(r => ({ json: r }));\n"
+      }
+    },
+    {
+      "name": "Verdict For Contact",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The part of the stored row the compare step needs, written to the contact's Screen AI Verdict\n// field so it can meet the screener's mark whenever that arrives (spec §4.1). $json is a\n// screener_calls row: fresh from Store, or the stored one on a write-back retry (Route Replay).\nconst r = $json;\nreturn { json: {\n  call_id: r.call_id,\n  contact_id: r.contact_id,\n  verdict_json: JSON.stringify({\n    call_id: r.call_id, answered_at: r.answered_at, pt_block: r.pt_block, pt_block_tag: r.pt_block_tag,\n    ghl_user_id: r.ghl_user_id, call_outcome: r.ai_call_outcome, owner_reached: r.ai_owner_reached,\n    confidence: r.ai_confidence, quote_verified: r.ai_quote_verified, evidence_quote: r.ai_evidence_quote,\n    owner_name: r.ai_owner_name, model: r.ai_model, ai_error: r.ai_error\n  })\n}};\n"
+      }
+    },
+    {
+      "name": "Screener: Compare Step",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3pwiQXC8etTcKf5Z",
+          "cachedResultName": "Screener: Compare Step"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "contact_id": "={{ $json.contact_id }}",
+            "verdict_json": "={{ $json.verdict_json }}",
+            "source": "retry",
+            "force": false
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "verdict_json",
+              "displayName": "verdict_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "force",
+              "displayName": "force",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "Record Write-back",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3WK4mrEYwvDeDUVO",
+          "cachedResultName": "screener_calls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "call_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.call_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "writeback_ok": "={{ $json.ok === true }}",
+            "writeback_result": "={{ 'retry: ' + [$json.action, $json.result, $json.reason].concat($json.failed || []).filter(Boolean).join(' | ') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "writeback_ok",
+              "displayName": "writeback_ok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "writeback_result",
+              "displayName": "writeback_result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Write-back Retry  (codex review of item 4)\nThe durable retry: nothing re-sends GHL webhooks, so every call row whose GHL write-back did not finish (writeback_ok = false: a GHL error, an unreadable contact, or a verdict that could not be saved before the read) is re-run through the Compare Step every 15 min, save-first. Newest call per contact only; rows older than 48 h are left for a human.\nKeep INACTIVE until the four GHL guard branches exist.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get rows: write-back not finished",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get rows: write-back not finished": {
+      "main": [
+        [
+          {
+            "node": "Pick newest per contact (48 h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick newest per contact (48 h)": {
+      "main": [
+        [
+          {
+            "node": "Verdict For Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict For Contact": {
+      "main": [
+        [
+          {
+            "node": "Screener: Compare Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screener: Compare Step": {
+      "main": [
+        [
+          {
+            "node": "Record Write-back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}

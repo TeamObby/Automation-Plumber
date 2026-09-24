@@ -46,7 +46,10 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   Nightly schedulers (3:00 / 3:30 / 4:00 / 4:30 AM) move opps between the email and call
   pipelines; `Email Sent → Move To Sent Stage` is the load-bearing hinge of the email path.
 - **Screener** (`workflows/screener/`) is separate on purpose: it writes to the n8n data table
-  `screener_calls`, not to GHL, until the GHL guard branches exist. Keep `Screener: Capture Call` inactive.
+  `screener_calls`, not to GHL, until the GHL guard branches exist.
+  Since item 4, `Screener: Compare Step` does write GHL, but only for contacts tagged `screening`.
+  Keep `Screener: Capture Call`, `Screener: Mark + Compare` and `Screener: Write-back Retry` inactive.
+  GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 
 ## Working on live workflows (n8n MCP)
 - Build/edit with the MCP's SDK flow: `get_sdk_reference` → `get_node_types` → `validate_workflow` →
@@ -58,6 +61,9 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   - A data-table filter with `condition: 'isTrue'` was silently saved without its condition.
     Use `condition: 'eq', keyValue: '={{ true }}'`.
   - `maxTries` / `waitBetweenTries` are dropped on save (n8n defaults apply).
+  - An apostrophe in a top-level `//` comment of the SDK code (e.g. `contact's`) breaks the MCP
+    parser for everything after it ("Unterminated string constant" at a later line). Keep
+    apostrophes out of generator-level comments; inside `jsCode` strings they are fine.
   - Large tool results are saved to disk under the session's `tool-results/` folder; read them
     with `jq` instead of paging.
 - **Don't run `update_workflow` and `execute_workflow` in parallel.** The execution can race the
@@ -67,7 +73,7 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   them `TEST-…` and list them in the context file.
 - **Screener workflows are built from source, not edited in n8n.** The source of truth is
   `workflows/screener/build/src/*.js` (one file per code node; the prompt and schema live in
-  `prep_transcript.js`) plus `gen_*.js` (node wiring). To change one:
+  `prep_transcript.js`) plus `gen_*.js` (node wiring); workflow IDs live in `build/ids.json`. To change one:
   edit `src/` → `build.sh` → `node tests/screener.test.js` → paste `build/out/<name>.sdk.js` into
   `validate_workflow` then `update_workflow` → re-run the eval / a manual webhook test.
   `build.sh` also rewrites `workflows/screener/*.json`, so the snapshot always equals what was

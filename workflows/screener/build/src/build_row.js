@@ -12,7 +12,7 @@ return { json: {
   ai_confidence: v.confidence, ai_evidence_quote: v.evidence_quote,
   ai_quote_verified: !!v.quote_verified, ai_owner_name: v.owner_name,
   ai_model: v.model, ai_error: v.ai_error,
-  // Only a clean verdict blocks a replay of this call_id; a failed one is retried (Dedupe node).
+  // Only a clean verdict blocks a replay of this call_id; a failed one is retried (Route Replay).
   ai_ok: !v.ai_error,
   received_at: t.received_at
 }};

@@ -60,9 +60,12 @@ Credentials are not compared — the MCP omits them.
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Gatekeeper Handler (gk twin) | `rcrCVXDZp8ix9pKp` | [open](https://n8n.meetobby.com/workflow/rcrCVXDZp8ix9pKp) | ✅ | ✓ [json+ctx](workflows/missed-call/) — copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps |
 | Send Cold Email 1 (3:30AM) | `6wdNiXnexS3zT5b2` | [open](https://n8n.meetobby.com/workflow/6wdNiXnexS3zT5b2) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
-| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3; writes only to data table `screener_calls` |
+| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3(+4); data table `screener_calls`, then hands the verdict to Compare Step |
 | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | [open](https://n8n.meetobby.com/workflow/LbGY5ptzldJjnTZJ) | — (sub-workflow) | ✓ [json+ctx](workflows/screener/) — spec item 2; who answered, `gpt-4.1-mini`, strict schema |
 | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | [open](https://n8n.meetobby.com/workflow/FMUXvDBXsigHA4vb) | — (manual test harness) | ✓ [json+ctx](workflows/screener/) — 8 transcripts × 3 runs; last run 8/8 stable + correct |
+| Screener: Compare Step | `3pwiQXC8etTcKf5Z` | [open](https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z) | — (sub-workflow) | ✓ [json+ctx](workflows/screener/) — item 4; mark vs AI → stage, tags, block follower. Writes GHL, only for contacts tagged `screening` |
+| Screener: Write-back Retry | `IvxTYaChixQOiNzt` | [open](https://n8n.meetobby.com/workflow/IvxTYaChixQOiNzt) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4 recovery; every 15 min re-runs the Compare Step for `writeback_ok = false` rows |
+| Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
 
 ---
 
@@ -125,8 +128,12 @@ Credentials are not compared — the MCP omits them.
 - **`screener_calls`** `3WK4mrEYwvDeDUVO` — one row per answered screener call (upsert on `call_id`), written by
   `Screener: Capture Call`: caller identity, Pacific hour block + tag, transcript, and the AI verdict
   (`ai_call_outcome`, `ai_owner_reached`, `ai_confidence`, `ai_evidence_quote`, `ai_quote_verified`, `ai_ok`).
-  Only rows with `ai_ok = true` block a replay of the same call; failed rows are retried.
-  Read by the compare step (spec §4.1, item 4 — not built yet). Column list in the Capture context file.
+  `writeback_ok` / `writeback_result` record whether the GHL write-back (Compare Step) finished. A replay of
+  the same call stops only when `ai_ok` **and** `writeback_ok` are true; `ai_ok` alone → the compare is retried
+  with the stored verdict (no AI call); otherwise the call is re-classified. GHL never re-sends a webhook, so
+  the real recovery is `Screener: Write-back Retry` (every 15 min, rows `writeback_ok = false`, last 48 h).
+  The compare step (item 4) does **not** read this table: the verdict travels on the contact's `Screen AI Verdict`
+  field. The table is the per-call log for the accuracy report (item 8). Column list in the Capture context file.
 
 ## Screener log workbook (Google Sheets)
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated

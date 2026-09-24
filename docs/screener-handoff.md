@@ -75,7 +75,7 @@ blocks duplicate phone numbers.
 | n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
 | n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
-| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow — **`BLOCK_USER` map still empty** |
+| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow — `BLOCK_USER` filled 2026-09-24 |
 | n8n | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | item 4, inactive |
 | n8n | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | retries failed GHL writes, inactive |
 
@@ -103,8 +103,8 @@ contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workb
 6. **Mohimenul:** item 4 is **built** (Compare Step + Mark + Compare + Write-back Retry) but unproven —
    its "done when" is 20 role-played calls, which needs the guards. Items **5–7 are not built**:
    attempt ladder (`/webhook/screener-no-answer` has no listener), graduate, stale sweep + `screen_log`.
-   Two things he needs from us: the ten block-user IDs for `BLOCK_USER` in the Compare Step's `Decide`
-   node (still all `''`, so no lead ever gets a block follower), and the `screen_log` sheet contract.
+   The ten block-user IDs are in the Compare Step's `Decide` node (2026-09-24); the `screen_log`
+   writer is still to build (contract in the plan).
 7. **Kevin:** 2nd/3rd WAVV seat + numbers + Trust Hub, recording policy for CA/WA/NV, team-disposition
    decision, hiring.
 

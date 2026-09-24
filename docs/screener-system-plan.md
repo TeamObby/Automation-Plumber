@@ -116,7 +116,7 @@ a second Google Voice number and split them.
 | 1 Capture + dedupe | `Screener: Capture Call` `jQaCWO08lddHg9fN` (**inactive**) → data table `screener_calls` `3WK4mrEYwvDeDUVO` | mock of the real payload stored (exec 122325); identical re-POST stopped at dedupe (exec 122339) |
 | 2 Classifier | `Screener: Classify Transcript` `LbGY5ptzldJjnTZJ` (`gpt-4.1-mini`, strict JSON schema, temp 0) + `Screener: Classifier Eval` `FMUXvDBXsigHA4vb` | 8 transcripts × 3 runs: **8/8 stable, 8/8 correct** (exec 122342) |
 | 3 Pacific hour block | inside `Normalize Call` | `tests/screener.test.js` — both DST transitions, both block edges, tag spelling |
-| 4 Classify + Mark | `Screener: Compare Step` `3pwiQXC8etTcKf5Z` (shared sub-workflow) + `Screener: Mark + Compare` `zVCzfADKZqPWV6hk` + `Screener: Write-back Retry` `IvxTYaChixQOiNzt` | built, **not yet proven** — its "done when" is 20 role-played calls, which needs the guards |
+| 4 Compare + write-back | `Screener: Compare Step` `3pwiQXC8etTcKf5Z` (shared, §4.1) · `Screener: Mark + Compare` `zVCzfADKZqPWV6hk` (**inactive**, event 2) · Capture now calls the Compare Step | every row of the §4 table + guards + replace-never-append in `tests/screener.test.js` §7; live: credentials + not-found guard (exec 122457), Capture → Compare wiring (122459), and a failed write-back retried from the stored verdict without the AI (122472). Codex review fixes: persist-then-read ordering (all 6 interleavings tested, incl. a failed save-first), `writeback_ok` recorded by every caller, and **`Screener: Write-back Retry`** `IvxTYaChixQOiNzt` (inactive) — the durable retry, since GHL never re-sends a webhook (live: 122483, 122487). **Not yet run against a real contact** — the test rig above now exists |
 
 **For Hridoy — the contract for event 1:** webhook **`POST /webhook/screener-call`**, same body the
 live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl_user_id`,
@@ -127,11 +127,14 @@ live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl
 `/webhook/screener-no-answer`, so an unanswered dial never advances the Attempt stage, and the
 ladder (not the recorded-call path) is what walks a lead to Attempt 4.
 
+**For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
+*Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard
+`contact_id`); n8n re-reads the mark from the contact.
+
 #### ⚠️ Two things waiting for you in item 4
 
-1. **`BLOCK_USER` in the Compare Step's `Decide` node is still all `''`.** Until it is filled in, no
-   lead ever gets a block follower — and the follower is exactly how Kevin filters his board. The
-   users exist; paste this in:
+1. ✅ **Done 2026-09-24** — `BLOCK_USER` in the Compare Step's `Decide` node now holds these ten
+   ids (deployed; `tests/screener.test.js` checks each block maps to its own user). Was:
 
    ```js
    const BLOCK_USER = {
