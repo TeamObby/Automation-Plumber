@@ -117,7 +117,7 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 3. **Item 7a — the screener log.** Hridoy's `screen_log` Sheet exists, but logs now belong in Supabase;
    decide which (simplicity says one place).
 4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
-   on re-screen; list failed write-backs older than 48 h).
+   on re-screen; list failed write-backs older than 48 h, and graduations still `ok = false` after a day).
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
 
 ### Mohimenul — then the new work from the meeting

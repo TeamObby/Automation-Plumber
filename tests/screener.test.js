@@ -689,8 +689,10 @@ ok(g.action === 'graduate' && g.create === null && g.kevin_opp_id === 'K9', 'alr
 ok(gplan({ opps: { opportunities: [ so(), { id: 'K8', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'lost' } ] } }).create !== null, 'a closed Kevin opportunity does not count');
 g = gplan({ opps: { opportunities: [ so(), { id: 'D1', pipelineId: 'SOME-DEMO-PIPELINE', status: 'open' } ] } });
 ok(g.create !== null && g.kevin_opp_id === '', 'an open opportunity in an unrelated pipeline (e.g. a demo) is NOT reused: Kevin gets his own');
-['1A1RkYaL93s2rqbQ3Opi', '3onA8GkJnSwgzIGTGSpI', 'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', 'OOu5TjgalfGZElEIoSbq', '9E6y34DlG1Imr8FV42RV'].forEach(pid =>
+['1A1RkYaL93s2rqbQ3Opi', '3onA8GkJnSwgzIGTGSpI', 'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', '9E6y34DlG1Imr8FV42RV'].forEach(pid =>
   ok(gplan({ opps: { opportunities: [ so(), { id: 'KX', pipelineId: pid, status: 'open' } ] } }).kevin_opp_id === 'KX', 'open opp in Kevin pipeline ' + pid + ' -> reused'));
+g = gplan({ opps: { opportunities: [ so(), { id: 'MR1', pipelineId: 'OOu5TjgalfGZElEIoSbq', status: 'open' } ] } });
+ok(g.create !== null && g.kevin_opp_id === '', 'an open Manual Review Needed opp is a task, not a handoff: a real opportunity is still created');
 ok(gplan({ tags: ['screening'] }).action === 'skip', 'not owner-confirmed -> skip');
 ok(gplan({ opps: { opportunities: [ so({ pipelineStageId: '0c160182-e74d-4ace-9d3b-c4404043ef4b' }) ] } }).action === 'skip', 'corrected away from Owner Verified since the sweep -> skip');
 ok(gplan({ contact: { error: { message: '502' } } }).retry === true && gplan({ opps: { error: { message: 'x' } } }).retry === true, 'unreadable contact / opp search failed -> retry');
@@ -703,24 +705,45 @@ const gops = (plan, created) => new Function('$json', '$input', '$', GO)({}, {},
 }).map(i => i.json);
 let go = gops(gplan(), { opportunity: { id: 'K1' } });
 ok(go.every(o => o.kevin_opp_id === 'K1') && go[0].url.endsWith('/opportunities/K1/followers') && go[0].body.followers[0] === 'T4p1bK3yo6Bl14OK1LP3', 'follower goes on the NEW Kevin opportunity');
-ok(go[go.length - 1].label.startsWith('close screener') && go[go.length - 1].url.endsWith('/opportunities/O1') && go[go.length - 1].body.status === 'won', 'closing the screener opportunity is LAST (a failure before it is retried)');
+ok(!go.some(o => o.url.endsWith('/opportunities/O1')), 'Graduation Ops never closes the screener opportunity (Close Gate does, after every write succeeded)');
 ok(go.some(o => o.label === 'clear screener as owner' && o.body.assignedTo === null), 'the screener stops owning the contact');
 go = gops(gplan({ opps: { opportunities: [ so(), { id: 'K9', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'open' } ] } }));
 ok(go[0].kevin_opp_id === 'K9', 'reused opportunity: follower on the existing one');
 go = gops(gplan(), { error: { message: '422 duplicate' } });
 ok(go.length === 1 && go[0].method === 'SKIP' && go[0].error_text.includes('422'), 'create failed -> no writes at all (lead stays in Owner Verified for the next sweep)');
 ok(JSON.stringify(conn(gradWf, 'Kevin opp exists?')) === '[["GHL: Graduation Apply"],["Log Graduation"]]', 'a failed create goes straight to the log');
+ok(JSON.stringify(conn(gradWf, 'GHL: Graduation Apply')) === '[["Close Gate"]]' && JSON.stringify(conn(gradWf, 'Close Gate')) === '[["All writes OK?"]]'
+  && JSON.stringify(conn(gradWf, 'All writes OK?')) === '[["GHL: Close Screener Opp"],["Log Graduation"]]' && JSON.stringify(conn(gradWf, 'GHL: Close Screener Opp')) === '[["Log Graduation"]]',
+  'writes -> Close Gate -> close only when all succeeded; both ends reach the log');
+
+const GG = codeOf(gradWf, 'Close Gate');
+const ggate = (plan, sent, res) => new Function('$json', '$input', '$', GG)({}, { all: () => res.map(json => ({ json })) }, n => {
+  if (n === 'Graduation Plan') return { first: () => ({ json: plan }) };
+  if (n === 'Graduation Ops') return { all: () => sent.map(json => ({ json })) };
+})[0].json;
+const gpl = gplan(), gsent = gops(gpl, { opportunity: { id: 'K1' } });
+let gt = ggate(gpl, gsent, gsent.map(() => ({})));
+ok(gt.close === true && gt.url.endsWith('/opportunities/O1') && gt.body.status === 'won', 'every write succeeded -> close the screener opportunity (won)');
+gt = ggate(gpl, gsent, [{}, { error: { message: '500' } }, {}]);
+ok(gt.close === false && gt.failed[0] === 'remove screening + wavv tags', 'tag removal failed -> screener opportunity stays open for the next sweep');
+gt = ggate(gpl, gsent, [{ error: { message: '404' } }, {}, {}]);
+ok(gt.close === false && gt.failed[0] === 'block follower on Kevin opp', 'follower failed -> stays open');
+ok(ggate(gpl, gsent, [{}]).close === false, 'fewer results than writes -> not confirmed, stays open');
 
 const GL = codeOf(gradWf, 'Log Graduation');
-const glog = (plan, sent, res) => new Function('$json', '$input', '$', GL)({}, {}, n => {
+const glog = (plan, sent, res, gate, closeRes) => new Function('$json', '$input', '$', GL)({}, {}, n => {
   if (n === 'Graduation Plan') return { first: () => ({ json: plan }) };
-  const v = n === 'Graduation Ops' ? sent : res; if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+  const v = { 'Graduation Ops': sent, 'GHL: Graduation Apply': res, 'Close Gate': gate && [gate], 'GHL: Close Screener Opp': closeRes && [closeRes] }[n];
+  if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
 })[0].json;
 const pl = gplan();
-let gl = glog(pl, gops(pl, { opportunity: { id: 'K1' } }), [{}, {}, {}, {}]);
+let gl = glog(pl, gsent, [{}, {}, {}], { close: true, failed: [] }, {});
 ok(gl.ok === true && gl.kevin_opp_id === 'K1' && gl.created_new === true && gl.grad_key === 'C1:O1', 'clean graduation logged');
-gl = glog(pl, gops(pl, { opportunity: { id: 'K1' } }), [{}, {}, {}, { error: { message: '500' } }]);
+gl = glog(pl, gsent, [{}, {}, {}], { close: true, failed: [] }, { error: { message: '500' } });
 ok(gl.ok === false && gl.reason.includes('close screener opportunity (won): 500'), 'failed close -> not ok, named');
+gl = glog(pl, gsent, [{}, { error: { message: '500' } }, {}], { close: false, failed: ['remove screening + wavv tags'] }, null);
+ok(gl.ok === false && gl.reason.includes('remove screening + wavv tags: 500') && gl.reason.includes('screener opportunity left open'), 'failed write -> not ok, close skipped, both named');
+ok(glog(pl, gsent, [{}, {}, {}], null, null).ok === false, 'writes done but never closed -> not ok (a graduation counts only once closed)');
 gl = glog(pl, gops(pl, { error: { message: '422 duplicate' } }), null);
 ok(gl.ok === false && gl.reason.includes('create Kevin opp: 422'), 'failed create -> not ok, named');
 ok(glog(gplan({ tags: ['screening'] }), null, null).ok === true, 'final skip -> ok');

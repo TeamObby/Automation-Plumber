@@ -9,9 +9,11 @@ const COLD_CALL  = { pipelineId: '9E6y34DlG1Imr8FV42RV', pipelineStageId: '060f4
 const LOCATION = 'rzaMhqeo2apNI1p6DG5z';
 // Kevin's campaign pipelines (AGENTS.md). Only an open opportunity in one of these counts as "already
 // in Kevin's machine"; a contact can have opportunities in unrelated pipelines (the test contact is
-// also the AI-receptionist demo record), and reusing one of those would strand the lead.
+// also the AI-receptionist demo record), and reusing one of those would strand the lead. Manual Review
+// Needed (OOu5TjgalfGZElEIoSbq) is left out on purpose: it is a task for a human, not a sales or call
+// queue, so a lead whose only open opportunity is there still gets a real one.
 const KEVIN_PIPELINES = ['O7LMZpDOFM2SYO65twC5', '1A1RkYaL93s2rqbQ3Opi', '9E6y34DlG1Imr8FV42RV', '3onA8GkJnSwgzIGTGSpI',
-  'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', 'OOu5TjgalfGZElEIoSbq'];
+  'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp'];
 const BLOCK_USER = {
   'PT 06-07': 'ZU6NEmag5FFcYAYwtu75', 'PT 07-08': 'QKMhxRVQX45dq2bxF5a5',
   'PT 08-09': 'u24gWdO3FlXhwjwhm6sE', 'PT 09-10': 'hdIv63msJcYjhwfIJ4eg',
