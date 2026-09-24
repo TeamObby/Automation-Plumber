@@ -5,10 +5,10 @@
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
-- **⚠️ Sync state (2026-09-25): the repo is AHEAD of live.** The screener_log write (item 7a) is built and
-  tested offline but **not deployed**. The Supabase project and table exist (`screener-helper`); the n8n
-  credential does not yet, so `build/supabase.json` has no credential and this snapshot carries a
-  placeholder — `build.sh` warns. Deploy only after filling it (see the hand-off §3, item 7a).
+- **⚠️ Sync state (2026-09-25):** this snapshot = the n8n **draft** (pushed with the screener_log write,
+  item 7a; Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]`
+  `oUnRFJd1TMI1LmTd`). The **published** version is still the one without the log until it is
+  re-published (needs OK) — until then no row reaches Supabase.
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict

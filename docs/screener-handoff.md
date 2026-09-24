@@ -118,9 +118,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 3. **Item 7a — the screener log → Supabase only** (decided 2026-09-25). ✅ Built and tested offline:
    table [`supabase/screener_log.sql`](../supabase/screener_log.sql) (+ `screener_accuracy` view), writes from
    the Compare Step and the Attempt Counter. ✅ Supabase project **`screener-helper`**
-   (`cifgvpqfodglnhywrofy`, org Waterline) created and the table applied. Next: the n8n Supabase
-   credential (Mohimenul) → its id/name into `build/supabase.json` → build, validate, deploy,
-   re-publish both sub-workflows (needs OK) → live test on Dana.
+   (`cifgvpqfodglnhywrofy`, org Waterline) created, table applied, n8n credential made, both
+   sub-workflows pushed as drafts. Next: re-publish Compare Step + Attempt Counter (needs OK) → live
+   test on Dana (one answered call, one no-answer) → reset.
 4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
    on re-screen; list failed write-backs older than 48 h, and graduations still `ok = false` after a day).
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).

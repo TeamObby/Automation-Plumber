@@ -625,8 +625,8 @@
       "onError": "continueRegularOutput",
       "credentials": {
         "supabaseApi": {
-          "id": "SET-ME",
-          "name": "Supabase (not set)"
+          "id": "oUnRFJd1TMI1LmTd",
+          "name": "Supabase [ Waterline screener-helper ]"
         }
       }
     },

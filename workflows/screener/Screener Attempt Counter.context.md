@@ -6,10 +6,10 @@
   `POST /webhook/screener-no-answer`) and **`Screener: WAVV Disposition`** (`QOYHMP5ZGQcnG3ED`,
   `POST /webhook/screener-disposition`) — both **inactive until the guards exist**.
 - **Data table:** `screener_attempts` `9V6VL0XiKeadY9Lc` — one row per dial event.
-- **⚠️ Sync state (2026-09-25): the repo is AHEAD of live.** The screener_log write (item 7a) is built and
-  tested offline but **not deployed**. The Supabase project and table exist (`screener-helper`); the n8n
-  credential does not yet, so `build/supabase.json` has no credential and this snapshot carries a
-  placeholder — `build.sh` warns. Deploy only after filling it (see the hand-off §3, item 7a).
+- **⚠️ Sync state (2026-09-25):** this snapshot = the n8n **draft** (pushed with the screener_log write,
+  item 7a; Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]`
+  `oUnRFJd1TMI1LmTd`). The **published** version is still the one without the log until it is
+  re-published (needs OK) — until then no row reaches Supabase.
 
 ## Purpose
 The Attempt ladder. A stage is the call that is **due** (spec §2.1): after unanswered dial *n* the

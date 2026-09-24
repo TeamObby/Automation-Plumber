@@ -163,7 +163,8 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
   with Transfer project. The Supabase MCP in `.mcp.json` is signed in to the Waterline account.
 - **Status (2026-09-25):** table + view created (migration `create_screener_log`; RLS on, no policies
   on purpose — only the service_role key reads/writes). n8n side built and tested offline, **not
-  deployed**: waiting for the n8n Supabase credential.
+  deployed**: pushed as a draft to both sub-workflows (credential `Supabase [ Waterline screener-helper ]`
+  `oUnRFJd1TMI1LmTd`); live once they are re-published.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated
