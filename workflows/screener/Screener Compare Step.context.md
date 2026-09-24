@@ -5,10 +5,9 @@
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
-- **⚠️ Sync state (2026-09-25, after the codex review):** snapshot = the n8n **draft** — the log write now
-  goes through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
-  `screener_log_pending` for `Screener: Log Retry`. The **published** version still has the first cut
-  (plain merge-upsert, no queue) until it is re-published (needs OK).
+- **Sync state (2026-09-25):** snapshot = live. **Re-published** after the codex review: the log write goes
+  through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
+  `screener_log_pending` for `Screener: Log Retry`.
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict
@@ -113,6 +112,13 @@ Test F did not itself catch search stale (14 s had passed); the fix rests on the
 
 Both test rows were then deleted from Supabase. Left behind in n8n tables: `screener_calls`
 `TEST-screener-0010` and one `screener_attempts` row on Dana (listed with the other test rows).
+
+### Re-test after the codex fixes — 2026-09-25 (re-published)
+No-answer (123685) → `na:` row with `decided_ms`; call `TEST-screener-0011` (123687) → waiting row;
+mark `Owner - Busy` + Mark + Compare (123690, 123691) → same row Owner Verified / match true with a newer
+`decided_ms`, transcript kept. Then the earlier **waiting payload was replayed late** straight into
+`screener_log_upsert` with its older version: the row **stayed** Owner Verified / match true (codex's
+scenario, closed). Reset (123693, Dana back in Attempt 1 by a direct GET); both Supabase rows deleted.
 
 ## Versioned outcome (codex review, round 4 — 2026-09-24)
 Every caller records the run's outcome on the call's `screener_calls` row. A run that started

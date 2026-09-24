@@ -6,10 +6,9 @@
   `POST /webhook/screener-no-answer`) and **`Screener: WAVV Disposition`** (`QOYHMP5ZGQcnG3ED`,
   `POST /webhook/screener-disposition`) — both **inactive until the guards exist**.
 - **Data table:** `screener_attempts` `9V6VL0XiKeadY9Lc` — one row per dial event.
-- **⚠️ Sync state (2026-09-25, after the codex review):** snapshot = the n8n **draft** — the log write now
-  goes through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
-  `screener_log_pending` for `Screener: Log Retry`. The **published** version still has the first cut
-  (plain merge-upsert, no queue) until it is re-published (needs OK).
+- **Sync state (2026-09-25):** snapshot = live. **Re-published** after the codex review: the log write goes
+  through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
+  `screener_log_pending` for `Screener: Log Retry`.
 
 ## Purpose
 The Attempt ladder. A stage is the call that is **due** (spec §2.1): after unanswered dial *n* the

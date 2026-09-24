@@ -57,7 +57,7 @@ Tag spelling is part of the Hridoy/Mohimenul contract: `PT 10-11` → **`screene
 Timestamps are ISO strings (same convention as the account's other data tables).
 
 ## TODOs / gotchas
-- ⚠️ **Rows `TEST-screener-0001` … `0010` are test rows** (0005–0009 = the 2026-09-24 test-rig runs on Dana Happy; 0010 = the 2026-09-25 screener-log test) from the 2026-09-23 end-to-end runs
+- ⚠️ **Rows `TEST-screener-0001` … `0011` are test rows** (0005–0009 = the 2026-09-24 test-rig runs on Dana Happy; 0010–0011 = the 2026-09-25 screener-log tests) from the 2026-09-23 end-to-end runs
   (0003 = the live Chinese-transcript check, exec 122440; 0004 = the item-4 wiring check on the
   nonexistent contact `TEST-screener-nonexistent`, exec 122459).
   Delete them before real calls flow.

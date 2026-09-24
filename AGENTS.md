@@ -147,7 +147,7 @@ Credentials are not compared — the MCP omits them.
 - **`screener_graduations`** `1iX0aTvMYawwyH4H` — one row per graduating lead, upserted by `Screener: Graduate`
   on every attempt; key `grad_key` (`contact_id:screener_opp_id`). `ok = true` only once the screener
   opportunity is closed; `ok = false` means the sweep is still retrying it (`reason` names the failed write).
-- Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0010`) and the 2026-09-24 test-rig rows on contact
+- Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0011`) and the 2026-09-24 test-rig rows on contact
   `2Z5mwZe5RT4NQdNW85vj` are **test data** — delete them in the n8n UI before real calls (the MCP can't delete rows).
 
 ## Screener log — Supabase `screener_log` (item 7a, decided 2026-09-25)
@@ -167,7 +167,7 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
   with Transfer project. The Supabase MCP in `.mcp.json` is signed in to the Waterline account.
 - **Status:** table + view created (migration `create_screener_log`; RLS on, no policies
   on purpose — only the service_role key reads/writes). n8n side **live since 2026-09-25**: both sub-workflows re-published with the write (credential `Supabase [ Waterline
-  screener-helper ]` `oUnRFJd1TMI1LmTd`), tested on Dana (execs 123666–123674). `screener_accuracy` counts
+  screener-helper ]` `oUnRFJd1TMI1LmTd`), tested on Dana (execs 123666–123674; after the codex fixes 123685–123693). `screener_accuracy` counts
   answered calls only.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
