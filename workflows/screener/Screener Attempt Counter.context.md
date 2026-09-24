@@ -1,11 +1,15 @@
 # Screener: Attempt Counter  [spec §9 events 3 + 4 · §10.2 item 5]
 
 - **n8n ID:** `Wwx2R76IrhLMYU7K` · **URL:** https://n8n.meetobby.com/workflow/Wwx2R76IrhLMYU7K · **File:** `Screener Attempt Counter.json`
-- **Folder:** `workflows/screener/` · built by `build/gen_counter.js` (+ `src/attempt_event.js`, `attempt_dedupe.js`, `ladder.js`, `ladder_report.js`, `attempt_log_row.js`)
+- **Folder:** `workflows/screener/` · built by `build/gen_counter.js` (+ `src/attempt_event.js`, `attempt_dedupe.js`, `ladder.js`, `ladder_report.js`, `attempt_log_row.js`, `log_attempt_row.js`) + `build/log_supabase.js`
 - **Status:** sub-workflow (no trigger of its own). Called by **`Screener: No Answer`** (`aZyzUwwNdDWvaCAk`,
   `POST /webhook/screener-no-answer`) and **`Screener: WAVV Disposition`** (`QOYHMP5ZGQcnG3ED`,
   `POST /webhook/screener-disposition`) — both **inactive until the guards exist**.
 - **Data table:** `screener_attempts` `9V6VL0XiKeadY9Lc` — one row per dial event.
+- **⚠️ Sync state (2026-09-25): the repo is AHEAD of live.** The screener_log write (item 7a) is built and
+  tested offline but **not deployed**: the Supabase project does not exist yet (Free plan full; waiting
+  for Pro). `build/supabase.json` is empty, so this snapshot carries a placeholder URL/credential —
+  `build.sh` warns. Deploy only after filling it (see the hand-off §3, item 7a).
 
 ## Purpose
 The Attempt ladder. A stage is the call that is **due** (spec §2.1): after unanswered dial *n* the
@@ -24,7 +28,8 @@ lead sits in **Attempt n+1**; after the 4th it leaves the queue as **Exhausted**
 When Called → **Event** (drops anything uncountable) → **Recent attempts for contact** → **Attempt Dedupe**
 → Filter: not a duplicate → GHL: Get Contact → GHL: Find Screener Opp → **Ladder** → *Skip?* →
 Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered call?* → (Compare Step, force)
-→ **Log Row** → Store (upsert on `event_key`).
+→ **Log Row** → Store (upsert on `event_key`) → **Build Log Row** → *Log it?* → **Supabase: screener_log**
+(item 7a: the same `event_key`, only for a readable `screening` lead) → **Return** (Store's output, unchanged).
 
 ## Rules (all in `Ladder` / `Attempt Dedupe`)
 - **Screen Attempts is SET** to the event's attempt number, never `+1` on the stored value.

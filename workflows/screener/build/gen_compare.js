@@ -1,4 +1,6 @@
 const fs=require('fs'); const c=f=>JSON.stringify(fs.readFileSync(__dirname+'/src/'+f,'utf8'));
+const { logNodes, logChain } = require('./log_supabase.js');
+const { TABLE } = require('./call_compare.js');
 const GHL_AUTH = `authentication: 'predefinedCredentialType', nodeCredentialType: 'httpMultipleHeadersAuth'`;
 const GHL_CRED = `credentials: { httpMultipleHeadersAuth: { id: 'DtotRKnzjDewbSsv', name: 'GHL [ Waterline Growth subaccount ] Multiple Headers Auth account' } }`;
 const code=`import { workflow, node, trigger, ifElse, sticky, expr } from '@n8n/workflow-sdk';
@@ -94,13 +96,23 @@ const report = node({
   output: [{ contact_id: 'C1', call_id: '01a0c4d5', action: 'apply', result: 'Owner Verified', reason: '', mismatch: false, notes: [], requests: 1, failed: [], ok: true }]
 });
 
-const note = sticky('## Screener: Compare Step  (spec §4.1 · §10.2 item 4)\\nShared by Capture Call (AI verdict arrived) and Mark + Compare (screener picked). Saves a new verdict FIRST, then reads the contact, pairs Screener Outcome with Screen AI Verdict, and writes stage, tags, block follower, Date Screened, Screen Noise.\\nGuard: does nothing unless the contact is tagged screening. Waits (writes only the verdict/noise) until both marks exist, unless force=true. ok=false (a failed request, or a retryable state) leaves writeback_ok=false for Screener: Write-back Retry. All logic is in Decide; the rest only executes its ops.', [getContact, decide, apply], { color: 5 });
+const findCall = node({
+  type: 'n8n-nodes-base.dataTable', version: 1.1,
+  config: { name: 'Find call row', position: [2688, 300], alwaysOutputData: true, parameters: { resource: 'row', operation: 'get', dataTableId: ${TABLE}, matchType: 'allConditions',
+    filters: { conditions: [ { keyName: 'call_id', condition: 'eq', keyValue: expr("{{ $('Decide').first().json.verdict_call_id || $('Decide').first().json.call_id || '-' }}") } ] }, returnAll: false, limit: 1 } },
+  output: [{ id: 4, call_id: '01a0c4d5', duration_sec: 42, recording_url: 'https://x', transcript: 'Hello' }]
+});
+
+${logNodes({ builder: 'log_call_row.js', x: 2912, y: 300, returnFrom: 'Report' })}
+
+const note = sticky('## Screener: Compare Step  (spec §4.1 · §10.2 item 4)\\nShared by Capture Call (AI verdict arrived) and Mark + Compare (screener picked). Saves a new verdict FIRST, then reads the contact, pairs Screener Outcome with Screen AI Verdict, and writes stage, tags, block follower, Date Screened, Screen Noise.\\nGuard: does nothing unless the contact is tagged screening. Waits (writes only the verdict/noise) until both marks exist, unless force=true. ok=false (a failed request, or a retryable state) leaves writeback_ok=false for Screener: Write-back Retry. All logic is in Decide; the rest only executes its ops. Then one screener_log row in Supabase (item 7a, upsert on event_key); Return hands back the Report output unchanged.', [getContact, decide, apply], { color: 5 });
 
 export default workflow('screener-compare-step', 'Screener: Compare Step')
   .add(whenCalled).to(guardRead).to(planSave)
   .to(saveFirst.onTrue(saveVerdict.to(getContact)).onFalse(getContact))
   .add(getContact).to(findOpp).to(decide)
   .to(hasOps.onTrue(split.to(apply).to(report)).onFalse(report))
+  .add(report).to(findCall).to(${logChain})
   .add(note);
 `;
 fs.writeFileSync(__dirname+'/out/compare.sdk.js',code);

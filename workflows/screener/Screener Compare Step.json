@@ -280,6 +280,131 @@
       }
     },
     {
+      "name": "Find call row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3WK4mrEYwvDeDUVO",
+          "cachedResultName": "screener_calls"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "call_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Decide').first().json.verdict_call_id || $('Decide').first().json.call_id || '-' }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Build Log Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One screener_log row in Supabase (spec §10.2 item 7a) for the answered call this compare run was\n// about. Upserted on event_key, so every run for the call (AI first, mark later, retries) updates the\n// same row. The decision fields are always sent (null = not decided yet, so a waiting run never counts\n// as a miss); call facts are sent only when known, so a run that lacks them never blanks them.\nconst VERDICT = 'boOwqb5qGOmbWBopWvTv', ATTEMPTS = 'vcqKnq23gN5wIIHqRww4';\nconst NOISE = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };\nconst plan = $('Decide').first().json;\nconst input = $('When Called by Screener').first().json;\nconst contact = (($('GHL: Get Contact').first().json || {}).contact) || {};\nconst found = (() => { try { return $('Find call row').first().json || {}; } catch (e) { return {}; } })();\nconst s = v => String(v == null ? '' : v).trim();\nconst parse = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst num = x => (x === '' || x == null || isNaN(Number(x))) ? undefined : Number(x);\nconst known = x => s(x) || undefined;\nconst bool = (...xs) => xs.find(x => typeof x === 'boolean');\n\nconst cid = s(plan.verdict_call_id) || s(plan.call_id);\nif (plan.action === 'skip') return [{ json: { log: false, why: 'skipped run: ' + s(plan.reason) } }];\nif (!cid) return [{ json: { log: false, why: 'no call yet (marked before the call was captured)' } }];\nconst call = s(found.call_id) === cid ? found : {};   // lookup missed: use the verdict only\nconst v = [parse(input.verdict_json), parse(cf(VERDICT))].find(x => x && s(x.call_id) === cid) || {};\nconst decided = plan.action === 'apply';\nreturn [{ json: { log: true, row: {\n  event_key: 'call:' + cid, event: 'call',\n  event_at: known(call.answered_at) || known(v.answered_at) || new Date().toISOString(),\n  ghl_contact_id: s(plan.contact_id),\n  company: known(contact.companyName),\n  screener_user_id: known(call.ghl_user_id) || known(v.ghl_user_id),\n  attempt_no: num(cf(ATTEMPTS)),\n  duration_sec: num(call.duration_sec),\n  pt_block: known(call.pt_block) || known(v.pt_block),\n  screener_outcome: s(plan.mark) || null,\n  noise: NOISE[s(plan.mark)] || null,\n  ai_call_outcome: known(call.ai_call_outcome) || known(v.call_outcome),\n  ai_owner_reached: known(call.ai_owner_reached) || known(v.owner_reached),\n  ai_confidence: num(call.ai_confidence) !== undefined ? num(call.ai_confidence) : num(v.confidence),\n  ai_quote_verified: bool(call.ai_quote_verified, v.quote_verified),\n  // A dead-end mark (Wrong Number, Not A Plumber, Do Not Call) is never compared with the AI: no match value.\n  match: decided && plan.result !== 'Disqualified' ? !plan.mismatch : null,\n  result_stage: s(plan.result) || null,\n  reason: [plan.reason].concat(plan.notes || []).filter(Boolean).join(' | ') || null,\n  call_id: cid,\n  recording_url: known(call.recording_url),\n  transcript: known(call.transcript),\n  updated_at: new Date().toISOString()\n} } }];\n"
+      }
+    },
+    {
+      "name": "Log it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3136,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.log === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Supabase: screener_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3360,
+        204
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://SUPABASE-PROJECT-NOT-SET.supabase.co/rest/v1/screener_log?on_conflict=event_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "SET-ME",
+          "name": "Supabase (not set)"
+        }
+      }
+    },
+    {
+      "name": "Return",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3584,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The sub-workflow's result, unchanged by the log write.\nreturn $('Report').all().map(i => ({ json: i.json }));\n"
+      }
+    },
+    {
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -288,7 +413,7 @@
         0
       ],
       "parameters": {
-        "content": "## Screener: Compare Step  (spec §4.1 · §10.2 item 4)\nShared by Capture Call (AI verdict arrived) and Mark + Compare (screener picked). Saves a new verdict FIRST, then reads the contact, pairs Screener Outcome with Screen AI Verdict, and writes stage, tags, block follower, Date Screened, Screen Noise.\nGuard: does nothing unless the contact is tagged screening. Waits (writes only the verdict/noise) until both marks exist, unless force=true. ok=false (a failed request, or a retryable state) leaves writeback_ok=false for Screener: Write-back Retry. All logic is in Decide; the rest only executes its ops.",
+        "content": "## Screener: Compare Step  (spec §4.1 · §10.2 item 4)\nShared by Capture Call (AI verdict arrived) and Mark + Compare (screener picked). Saves a new verdict FIRST, then reads the contact, pairs Screener Outcome with Screen AI Verdict, and writes stage, tags, block follower, Date Screened, Screen Noise.\nGuard: does nothing unless the contact is tagged screening. Waits (writes only the verdict/noise) until both marks exist, unless force=true. ok=false (a failed request, or a retryable state) leaves writeback_ok=false for Screener: Write-back Retry. All logic is in Decide; the rest only executes its ops. Then one screener_log row in Supabase (item 7a, upsert on event_key); Return hands back the Report output unchanged.",
         "color": 5
       }
     }
@@ -423,6 +548,68 @@
         [
           {
             "node": "Anything to write?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report": {
+      "main": [
+        [
+          {
+            "node": "Find call row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: screener_log": {
+      "main": [
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log it?": {
+      "main": [
+        [
+          {
+            "node": "Supabase: screener_log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Row": {
+      "main": [
+        [
+          {
+            "node": "Log it?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find call row": {
+      "main": [
+        [
+          {
+            "node": "Build Log Row",
             "type": "main",
             "index": 0
           }

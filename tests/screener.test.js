@@ -763,5 +763,79 @@ const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevi
 ok(JSON.stringify(Object.keys(gl).sort()) === JSON.stringify(GRADCOLS.slice().sort()), 'Log Graduation fields == screener_graduations columns');
 ok(sweepWf.nodes.find(n => n.name === 'Screener: Graduate').parameters.workflowId.value === require('../workflows/screener/build/ids.json').graduate, 'the sweep calls Screener: Graduate');
 
+console.log('=== 12) Screener log in Supabase (item 7a) ===');
+const SQL = fs.readFileSync(path.join(__dirname, '../supabase/screener_log.sql'), 'utf8');
+const SQLCOLS = (SQL.match(/create table if not exists public\.screener_log \(([\s\S]*?)\n\);/) || [, ''])[1]
+  .split('\n').map(l => (l.trim().match(/^([a-z_]+)\s+(text|timestamptz|integer|numeric|boolean)/) || [])[1]).filter(Boolean);
+ok(SQLCOLS.length === 23 && SQLCOLS.includes('event_key') && SQLCOLS.includes('match'), 'SQL file parsed: 23 screener_log columns');
+const EVENTS = (SQL.match(/event in \(([^)]*)\)/) || [, ''])[1].split(',').map(x => x.trim().replace(/'/g, ''));
+const cmpWf = wf('Screener Compare Step.json'), ctrWf = wf('Screener Attempt Counter.json');
+[[cmpWf, 'Report', 'Find call row'], [ctrWf, 'Store: screener_attempts (upsert on event_key)', 'Build Log Row']].forEach(([w, from, next]) => {
+  ok(JSON.stringify(conn(w, from)) === JSON.stringify([[next]]), w.name + ': ' + from + ' -> ' + next);
+  ok(JSON.stringify(conn(w, 'Log it?')) === '[["Supabase: screener_log"],["Return"]]' && JSON.stringify(conn(w, 'Supabase: screener_log')) === '[["Return"]]'
+     && !w.connections['Return'], w.name + ': log it -> Supabase -> Return; Return is the last node');
+  const up = w.nodes.find(n => n.name === 'Supabase: screener_log');
+  ok(up.onError === 'continueRegularOutput' && up.parameters.nodeCredentialType === 'supabaseApi' && /\/rest\/v1\/screener_log\?on_conflict=event_key$/.test(up.parameters.url)
+     && up.parameters.headerParameters.parameters.some(h => h.name === 'Prefer' && h.value.includes('resolution=merge-duplicates')),
+     w.name + ': upsert on event_key, a Supabase failure never fails the run');
+  const RET = codeOf(w, 'Return');
+  const back = new Function('$json', '$', RET)({}, n => { if (n !== from) throw new Error('wrong node ' + n); return { all: () => [{ json: { ok: true, result: 'Owner Verified' }, pairedItem: { item: 0 } }] }; });
+  ok(back.length === 1 && back[0].json.ok === true && back[0].json.result === 'Owner Verified', w.name + ': Return hands back the ' + from + ' output unchanged');
+});
+ok(cmpWf.nodes.find(n => n.name === 'Find call row').alwaysOutputData === true, 'a missing call row does not stop the log');
+
+const LCR = codeOf(cmpWf, 'Build Log Row');
+const V1 = { call_id: 'CALL1', answered_at: '2026-09-25T17:10:00.000Z', pt_block: 'PT 10-11', ghl_user_id: 'U1', call_outcome: 'owner', owner_reached: 'yes', confidence: 0.9, quote_verified: true };
+const CROW = { call_id: 'CALL1', answered_at: '2026-09-25T17:10:00.000Z', ghl_user_id: 'U1', pt_block: 'PT 10-11', duration_sec: 42, recording_url: 'https://rec', transcript: 'Hi, this is Bob, the owner.',
+  ai_call_outcome: 'owner', ai_owner_reached: 'yes', ai_confidence: 0.9, ai_quote_verified: true };
+const lcr = ({ plan, verdictIn = V1, stored = V1, crow = CROW, contact } = {}) => {
+  const out = run(LCR, {}, {
+    'Decide': item(Object.assign({ contact_id: 'C1', call_id: '', action: 'apply', result: 'Owner Verified', mismatch: false, reason: 'screener and AI agree: owner', notes: [], mark: 'Owner - Busy', verdict_call_id: 'CALL1' }, plan)),
+    'When Called by Screener': item({ contact_id: 'C1', verdict_json: verdictIn ? JSON.stringify(verdictIn) : '' }),
+    'GHL: Get Contact': item({ contact: contact || { id: 'C1', companyName: 'Happy Plumbing', customFields: [ { id: 'boOwqb5qGOmbWBopWvTv', value: stored ? JSON.stringify(stored) : '' }, { id: 'vcqKnq23gN5wIIHqRww4', value: '2' } ] } }),
+    'Find call row': item(crow)
+  });
+  return JSON.parse(JSON.stringify(out[0].json));   // what n8n sends: undefined keys dropped
+};
+let slr = lcr();
+ok(slr.log === true && slr.row.event_key === 'call:CALL1' && slr.row.event === 'call' && slr.row.match === true && slr.row.result_stage === 'Owner Verified' && slr.row.noise === 'busy',
+   'owner agreed: match true, Owner Verified, noise busy');
+ok(slr.row.duration_sec === 42 && slr.row.transcript.startsWith('Hi') && slr.row.recording_url === 'https://rec' && slr.row.company === 'Happy Plumbing' && slr.row.attempt_no === 2
+   && slr.row.screener_user_id === 'U1' && slr.row.pt_block === 'PT 10-11' && slr.row.event_at === '2026-09-25T17:10:00.000Z', 'call facts from the screener_calls row + contact');
+ok(typeof slr.row.ai_confidence === 'number' && slr.row.ai_quote_verified === true && typeof slr.row.attempt_no === 'number', 'numbers are numbers, booleans are booleans');
+ok(Object.keys(slr.row).every(k => SQLCOLS.includes(k)), 'every key is a screener_log column');
+ok(EVENTS.includes(slr.row.event), 'event is one the table accepts');
+slr = lcr({ plan: { action: 'wait', result: '', mark: '', reason: "waiting for the screener's mark" } });
+ok(slr.log === true && slr.row.match === null && slr.row.result_stage === null && slr.row.screener_outcome === null && slr.row.noise === null && slr.row.ai_call_outcome === 'owner',
+   'AI first, still waiting: row logged, match NULL (never counted as a miss)');
+slr = lcr({ plan: { mark: 'Gatekeeper', result: 'Not Sure', mismatch: true, reason: 'screener says gatekeeper, AI says owner' } });
+ok(slr.row.match === false && slr.row.result_stage === 'Not Sure' && slr.row.noise === null && slr.row.screener_outcome === 'Gatekeeper', 'mismatch: match false');
+slr = lcr({ plan: { mark: 'Wrong Number', result: 'Disqualified', mismatch: false, reason: 'Wrong Number' } });
+ok(slr.row.match === null && slr.row.result_stage === 'Disqualified', 'dead-end mark is never compared: match NULL');
+slr = lcr({ plan: { mark: '', result: 'Not Sure', mismatch: true, reason: 'nothing marked' } });
+ok(slr.row.match === false && slr.row.screener_outcome === null, 'forced, nothing marked: a screener miss (match false)');
+ok(lcr({ plan: { action: 'skip', reason: 'contact is not tagged screening' } }).log === false, 'skipped run: nothing logged');
+ok(lcr({ plan: { action: 'wait', result: '', verdict_call_id: '', call_id: '' }, verdictIn: null, stored: null }).log === false, 'marked before the call was captured: nothing logged yet');
+slr = lcr({ crow: {} });
+ok(slr.log === true && !('transcript' in slr.row) && !('duration_sec' in slr.row) && !('recording_url' in slr.row) && slr.row.ai_call_outcome === 'owner' && slr.row.event_at === V1.answered_at,
+   'call row not found: facts from the verdict, missing ones omitted (never blanked)');
+slr = lcr({ crow: Object.assign({}, CROW, { call_id: 'OTHER', transcript: 'wrong call' }) });
+ok(!('transcript' in slr.row), 'a row for another call is never used');
+slr = lcr({ verdictIn: null });
+ok(slr.row.ai_call_outcome === 'owner' && slr.row.event_key === 'call:CALL1', 'mark path: verdict read from the contact field');
+
+const LAR = codeOf(ctrWf, 'Build Log Row');
+const lar = (r, contact) => JSON.parse(JSON.stringify(run(LAR, {}, {
+  'Log Row': item(Object.assign({ event_key: 'wavv:W1', contact_id: 'C1', event: 'voicemail', wavv_call_id: 'W1', attempt_no: 2, action: 'apply', result_stage: 'Attempt 3', ok: true, reason: 'dial 2', at_ms: Date.parse('2026-09-25T18:00:00Z') }, r)),
+  'GHL: Get Contact': item(contact === undefined ? { contact: { id: 'C1', companyName: 'Happy Plumbing', tags: ['screening'] } } : contact)
+})[0].json));
+let sla = lar({});
+ok(sla.log === true && sla.row.event_key === 'wavv:W1' && sla.row.event === 'voicemail' && sla.row.attempt_no === 2 && sla.row.result_stage === 'Attempt 3'
+   && sla.row.event_at === '2026-09-25T18:00:00.000Z' && sla.row.company === 'Happy Plumbing' && !('match' in sla.row) && !('call_id' in sla.row), 'voicemail dial logged with its ladder key, no match');
+ok(Object.keys(sla.row).every(k => SQLCOLS.includes(k)) && ['no-answer', 'voicemail', 'bad-number'].every(e => EVENTS.includes(e)), 'dial rows fit the table and its event check');
+ok(lar({}, { contact: { id: 'C1', tags: ['plumber'] } }).log === false, 'not a screening lead: not logged');
+ok(lar({}, { error: { message: '502' } }).log === false, 'contact unreadable: not logged');
+ok(lar({ event: 'bad-number', result_stage: 'Disqualified' }).row.result_stage === 'Disqualified', 'bad number -> Disqualified row');
+
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

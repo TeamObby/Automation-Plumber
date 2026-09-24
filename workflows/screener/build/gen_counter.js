@@ -1,5 +1,6 @@
 const fs=require('fs'); const c=f=>JSON.stringify(fs.readFileSync(__dirname+'/src/'+f,'utf8'));
 const { callCompare } = require('./call_compare.js');
+const { logNodes, logChain } = require('./log_supabase.js');
 const ATT = `{ __rl: true, mode: 'id', value: '9V6VL0XiKeadY9Lc', cachedResultName: 'screener_attempts' }`;
 const GHL_AUTH = `authentication: 'predefinedCredentialType', nodeCredentialType: 'httpMultipleHeadersAuth'`;
 const GHL_CRED = `credentials: { httpMultipleHeadersAuth: { id: 'DtotRKnzjDewbSsv', name: 'GHL [ Waterline Growth subaccount ] Multiple Headers Auth account' } }`;
@@ -110,12 +111,14 @@ const store = node({
   output: [{ id: 1, event_key: 'na:C1:1' }]
 });
 
-const note = sticky('## Screener: Attempt Counter  (spec §9 events 3 + 4 · §10.2 item 5)\\nSub-workflow, called by Screener: No Answer and Screener: WAVV Disposition. No-answer dials and the WAVV auto-dispositions Voicemail / Bad Number walk a screening lead up the ladder: dial n -> Attempt n+1, 4th -> Exhausted, Bad Number -> Disqualified. Screen Attempts is SET, not incremented; every event is a row in screener_attempts (dedupe on the WAVV call id, or a 30 s window for no-answer). A dial after an answered call nobody marked forces the Compare Step (Not Sure + mismatch).\\nKeep INACTIVE until the four GHL guard branches exist.', [ladder, dedupe, store], { color: 5 });
+${logNodes({ builder: 'log_attempt_row.js', x: 3808, y: 300, returnFrom: 'Store: screener_attempts (upsert on event_key)' })}
+
+const note = sticky('## Screener: Attempt Counter  (spec §9 events 3 + 4 · §10.2 item 5)\\nSub-workflow, called by Screener: No Answer and Screener: WAVV Disposition. No-answer dials and the WAVV auto-dispositions Voicemail / Bad Number walk a screening lead up the ladder: dial n -> Attempt n+1, 4th -> Exhausted, Bad Number -> Disqualified. Screen Attempts is SET, not incremented; every event is a row in screener_attempts (dedupe on the WAVV call id, or a 30 s window for no-answer). A dial after an answered call nobody marked forces the Compare Step (Not Sure + mismatch). Each event is also a screener_log row in Supabase (item 7a).\\nKeep INACTIVE until the four GHL guard branches exist.', [ladder, dedupe, store], { color: 5 });
 
 export default workflow('screener-attempt-counter', 'Screener: Attempt Counter')
   .add(whenCalled).to(event).to(recent).to(dedupe).to(notDup).to(getContact).to(findOpp).to(ladder)
   .to(skip.onTrue(logRow).onFalse(split.to(apply).to(report).to(forceIf.onTrue(compare.to(logRow)).onFalse(logRow))))
-  .add(logRow).to(store)
+  .add(logRow).to(store).to(${logChain})
   .add(note);
 `;
 fs.writeFileSync(__dirname+'/out/counter.sdk.js',code);

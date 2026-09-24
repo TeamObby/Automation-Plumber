@@ -136,7 +136,7 @@ n8n refuses an unpublished sub-workflow called from anything but a manual run; `
 (`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
 POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
 
-**Next on this side (after Kevin's 2026-09-24 meeting):** items 7 and 8, then Supabase — it becomes the source of truth, and screener events, transcripts and graduations write there; the `screen_log` Sheets writer is on hold until then. Task list: [`screener-handoff.md`](screener-handoff.md) §3.
+**Next on this side (after Kevin's 2026-09-24 meeting):** items 7 and 8, then Supabase — it becomes the source of truth, and screener events, transcripts and graduations write there; the screener log goes to **Supabase `screener_log` only** (decided 2026-09-25; built offline, waiting for the Supabase project — [`supabase/screener_log.sql`](../supabase/screener_log.sql)); the `screen_log` Sheet is not written. Task list: [`screener-handoff.md`](screener-handoff.md) §3.
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard
@@ -161,6 +161,9 @@ POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-dis
    column it needs; right now it throws them away.
 
 #### The `screen_log` sheet — built, empty, waiting for you (item 7)
+
+> **Superseded 2026-09-25:** the log goes to Supabase `screener_log` instead (one place, per Kevin's
+> meeting). This section is kept for reference; the columns carried over, minus the derivable ones.
 
 **[WaterLine — Screener Log](https://docs.google.com/spreadsheets/d/1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8/edit)**
 · spreadsheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` · tab **`screen_log`** gid `892532160`
@@ -646,7 +649,7 @@ Attempt stage forever.
 | 3 | `Screener: Attempt Counter` | events 3 and 4 (via `Screener: No Answer` / `WAVV Disposition`) | `Screen Attempts` set → next Attempt stage or **Exhausted**; `Bad Number` → **Disqualified** |
 | 4 | `Screener: Graduate` | `Screener: Graduate Sweep`, every 10 min, leads in Owner Verified ≥ 10 min | §8 |
 | 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to **Attempt 1** with `screening` re-added |
-| 6 | `screen_log` leaf | on 1, 2, 3 | appends to the **"WaterLine — Screener Log"** sheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` (tab `screen_log`, **built and empty** — columns and data contract in [`AGENTS.md`](../AGENTS.md)). Write it from the Compare Step's `Report` node and from the attempt ladder, appendOrUpdate on `call_id`; the ladder rows have none and plain-append. A separate workbook from Kevin's metrics on purpose — its `accuracy` tab is the per-screener match rate item 8 asks for |
+| 6 | screener log → **Supabase `screener_log`** (since 2026-09-25; was the `screen_log` Sheet) | on 1, 2, 3 | ~~appends to the **"WaterLine — Screener Log"** sheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` (tab `screen_log`, **built and empty** — columns and data contract in [`AGENTS.md`](../AGENTS.md)). Write it from the Compare Step's `Report` node and from the attempt ladder, appendOrUpdate on `call_id`; the ladder rows have none and plain-append. A separate workbook from Kevin's metrics on purpose — its `accuracy` tab is the per-screener match rate item 8 asks for~~ — now an upsert on `event_key` from the Compare Step and the Attempt Counter; the `screener_accuracy` view gives item 8's match rate |
 
 Workflows 1 and 2 share one compare step — build it once as a sub-workflow and call it from both,
 or the two paths will drift apart.
@@ -686,7 +689,7 @@ Then Hridoy moves to the **list/ICP work**, which is Kevin's actual first priori
 | 4 | `Screener: Classify + Mark` — cross-check, fields, tags, follower, stage move | 20 role-played calls land in the right stage |
 | 5 | `Screener: No Answer` — attempt counter and ladder | four no-answers walk a contact to Attempt 4 |
 | 6 | `Screener: Graduate` (§8) | a graduated lead appears correctly in Kevin's pipeline |
-| 7 | `Screener: Stale Sweep` + `screen_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself, **and** a marked call shows up as a row in `screen_log` with `match` set |
+| 7 | `Screener: Stale Sweep` + `screen_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself, **and** a marked call shows up as a row in Supabase `screener_log` with `match` set |
 | 8 | Accuracy report on the first 50 real calls | per-screener mismatch rate known |
 
 **Mohimenul is not blocked by Hridoy.** Items 1–3 are built against a **mock payload** — copy the

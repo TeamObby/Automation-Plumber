@@ -149,7 +149,19 @@ Credentials are not compared — the MCP omits them.
 - Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0009`) and the 2026-09-24 test-rig rows on contact
   `2Z5mwZe5RT4NQdNW85vj` are **test data** — delete them in the n8n UI before real calls (the MCP can't delete rows).
 
-## Screener log workbook (Google Sheets)
+## Screener log — Supabase `screener_log` (item 7a, decided 2026-09-25)
+The screener log goes to **Supabase only**; the `screen_log` Sheet below is **not** written (kept for
+reference). Table definition + the `screener_accuracy` view (per-screener match rate, for item 8):
+[`supabase/screener_log.sql`](supabase/screener_log.sql) — run once in the project's SQL editor.
+- **Writers:** `Screener: Compare Step` (answered calls, key `call:<call_id>`) and `Screener: Attempt
+  Counter` (no-answer / voicemail / bad-number, the ladder's `event_key`), PostgREST upsert
+  `on_conflict=event_key`, `onError: continue`. Project URL + n8n credential live in
+  `workflows/screener/build/supabase.json`.
+- **Status:** built and tested offline; **not deployed** — no Supabase project yet. TeamObby's Org
+  (`iekslbhwxqjuvlhzkoqa`, team@meetobby.com) is on the Free plan and already has its 2 projects
+  (`obby-staging`, `TeamObby's Project` — the Obby product, not WaterLine); waiting for Pro.
+
+## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated
 from Kevin's campaign everywhere else, and this log answers "is the screener marking calls correctly",
 not "how is the campaign doing". Setup script:
@@ -161,7 +173,7 @@ not "how is the campaign doing". Setup script:
   (authorised on team@meetobby.com; the OAuth grant is still listed under the project's old name,
   "Untitled project").
 - **Credential to write it:** the existing `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
-- **Who writes it (Mohimenul, §10.2 item 7, not built yet — on hold since the 2026-09-24 meeting moved logs to Supabase):** the **Compare Step's `Report`** node and
+- **Who would have written it (never built — replaced by Supabase `screener_log`, 2026-09-25):** the **Compare Step's `Report`** node and
   the attempt-ladder path, `cellFormat: USER_ENTERED`, **appendOrUpdate on `call_id`** so a re-marked
   call updates its row. The ladder's rows have no `call_id` and plain-append.
 - **Columns:** `timestamp_pt`, `date_pt`, `contact_id`, `company`, `screener`, `screener_user_id`,
