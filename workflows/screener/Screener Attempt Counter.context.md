@@ -6,8 +6,10 @@
   `POST /webhook/screener-no-answer`) and **`Screener: WAVV Disposition`** (`QOYHMP5ZGQcnG3ED`,
   `POST /webhook/screener-disposition`) — both **inactive until the guards exist**.
 - **Data table:** `screener_attempts` `9V6VL0XiKeadY9Lc` — one row per dial event.
-- **Sync state (2026-09-25):** snapshot = live. **Re-published** with the screener_log write (item 7a;
-  Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]` `oUnRFJd1TMI1LmTd`).
+- **⚠️ Sync state (2026-09-25, after the codex review):** snapshot = the n8n **draft** — the log write now
+  goes through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
+  `screener_log_pending` for `Screener: Log Retry`. The **published** version still has the first cut
+  (plain merge-upsert, no queue) until it is re-published (needs OK).
 
 ## Purpose
 The Attempt ladder. A stage is the call that is **due** (spec §2.1): after unanswered dial *n* the
@@ -27,7 +29,8 @@ When Called → **Event** (drops anything uncountable) → **Recent attempts for
 → Filter: not a duplicate → GHL: Get Contact → GHL: Find Screener Opp → **Ladder** → *Skip?* →
 Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered call?* → (Compare Step, force)
 → **Log Row** → Store (upsert on `event_key`) → **Build Log Row** → *Log it?* → **Supabase: screener_log**
-(item 7a: the same `event_key`, only for a readable `screening` lead) → **Return** (Store's output, unchanged).
+(item 7a: the same `event_key`, only for a readable `screening` lead; the versioned function
+`screener_log_upsert`; a failed write is queued for `Screener: Log Retry`) → **Return** (Store's output, unchanged).
 
 ## Rules (all in `Ladder` / `Attempt Dedupe`)
 - **Screen Attempts is SET** to the event's attempt number, never `+1` on the stored value.

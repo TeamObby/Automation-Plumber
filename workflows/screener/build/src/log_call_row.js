@@ -2,6 +2,8 @@
 // about. Upserted on event_key, so every run for the call (AI first, mark later, retries) updates the
 // same row. The decision fields are always sent (null = not decided yet, so a waiting run never counts
 // as a miss); call facts are sent only when known, so a run that lacks them never blanks them.
+// decided_ms versions the decision: the Supabase function screener_log_upsert keeps the decision of the
+// run that read GHL last, whatever order the writes arrive in (codex review, 2026-09-25).
 const VERDICT = 'boOwqb5qGOmbWBopWvTv', ATTEMPTS = 'vcqKnq23gN5wIIHqRww4';
 const NOISE = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };
 const plan = $('Decide').first().json;
@@ -43,5 +45,6 @@ return [{ json: { log: true, row: {
   call_id: cid,
   recording_url: known(call.recording_url),
   transcript: known(call.transcript),
+  decided_ms: Number(plan.read_ms) || Date.now(),
   updated_at: new Date().toISOString()
 } } }];

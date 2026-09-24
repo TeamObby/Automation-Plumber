@@ -766,18 +766,20 @@ ok(sweepWf.nodes.find(n => n.name === 'Screener: Graduate').parameters.workflowI
 console.log('=== 12) Screener log in Supabase (item 7a) ===');
 const SQL = fs.readFileSync(path.join(__dirname, '../supabase/screener_log.sql'), 'utf8');
 const SQLCOLS = (SQL.match(/create table if not exists public\.screener_log \(([\s\S]*?)\n\);/) || [, ''])[1]
-  .split('\n').map(l => (l.trim().match(/^([a-z_]+)\s+(text|timestamptz|integer|numeric|boolean)/) || [])[1]).filter(Boolean);
-ok(SQLCOLS.length === 23 && SQLCOLS.includes('event_key') && SQLCOLS.includes('match'), 'SQL file parsed: 23 screener_log columns');
+  .split('\n').map(l => (l.trim().match(/^([a-z_]+)\s+(text|timestamptz|integer|bigint|numeric|boolean)/) || [])[1]).filter(Boolean);
+ok(SQLCOLS.length === 24 && SQLCOLS.includes('event_key') && SQLCOLS.includes('match') && SQLCOLS.includes('decided_ms'), 'SQL file parsed: 24 screener_log columns');
 const EVENTS = (SQL.match(/event in \(([^)]*)\)/) || [, ''])[1].split(',').map(x => x.trim().replace(/'/g, ''));
 const cmpWf = wf('Screener Compare Step.json'), ctrWf = wf('Screener Attempt Counter.json');
 [[cmpWf, 'Report', 'Find call row'], [ctrWf, 'Store: screener_attempts (upsert on event_key)', 'Build Log Row']].forEach(([w, from, next]) => {
   ok(JSON.stringify(conn(w, from)) === JSON.stringify([[next]]), w.name + ': ' + from + ' -> ' + next);
-  ok(JSON.stringify(conn(w, 'Log it?')) === '[["Supabase: screener_log"],["Return"]]' && JSON.stringify(conn(w, 'Supabase: screener_log')) === '[["Return"]]'
-     && !w.connections['Return'], w.name + ': log it -> Supabase -> Return; Return is the last node');
+  ok(JSON.stringify(conn(w, 'Log it?')) === '[["Supabase: screener_log"],["Return"]]' && JSON.stringify(conn(w, 'Supabase: screener_log')) === '[["Log write failed?"]]'
+     && JSON.stringify(conn(w, 'Log write failed?')) === '[["Queue Pending Log"],["Return"]]' && JSON.stringify(conn(w, 'Queue Pending Log')) === '[["Store: screener_log_pending"]]'
+     && JSON.stringify(conn(w, 'Store: screener_log_pending')) === '[["Return"]]' && !w.connections['Return'],
+     w.name + ': log it -> Supabase -> (failed -> queue) -> Return; Return is the last node');
   const up = w.nodes.find(n => n.name === 'Supabase: screener_log');
-  ok(up.onError === 'continueRegularOutput' && up.parameters.nodeCredentialType === 'supabaseApi' && /\/rest\/v1\/screener_log\?on_conflict=event_key$/.test(up.parameters.url)
-     && up.parameters.headerParameters.parameters.some(h => h.name === 'Prefer' && h.value.includes('resolution=merge-duplicates')),
-     w.name + ': upsert on event_key, a Supabase failure never fails the run');
+  ok(up.onError === 'continueRegularOutput' && up.parameters.nodeCredentialType === 'supabaseApi' && /\/rest\/v1\/rpc\/screener_log_upsert$/.test(up.parameters.url)
+     && up.parameters.jsonBody.includes('r: $json.row'), w.name + ': writes only through the versioned screener_log_upsert; a failure never fails the run');
+  ok(w.nodes.find(n => n.name === 'Store: screener_log_pending').parameters.dataTableId.value === 'qKv7RxgTDsqb1plo', w.name + ': a failed write is queued in screener_log_pending');
   const RET = codeOf(w, 'Return');
   const back = new Function('$json', '$', RET)({}, n => { if (n !== from) throw new Error('wrong node ' + n); return { all: () => [{ json: { ok: true, result: 'Owner Verified' }, pairedItem: { item: 0 } }] }; });
   ok(back.length === 1 && back[0].json.ok === true && back[0].json.result === 'Owner Verified', w.name + ': Return hands back the ' + from + ' output unchanged');
@@ -836,6 +838,33 @@ ok(Object.keys(sla.row).every(k => SQLCOLS.includes(k)) && ['no-answer', 'voicem
 ok(lar({}, { contact: { id: 'C1', tags: ['plumber'] } }).log === false, 'not a screening lead: not logged');
 ok(lar({}, { error: { message: '502' } }).log === false, 'contact unreadable: not logged');
 ok(lar({ event: 'bad-number', result_stage: 'Disqualified' }).row.result_stage === 'Disqualified', 'bad number -> Disqualified row');
+
+console.log('=== 13) Screener log: versioning + pending retry (codex review 2026-09-25) ===');
+ok(/screener_log_upsert\(r jsonb\)/.test(SQL) && /when excluded\.decided_ms >= t\.decided_ms then excluded\.match else t\.match/.test(SQL)
+   && /transcript\s+= coalesce\(excluded\.transcript, t\.transcript\)/.test(SQL) && /revoke execute on function public\.screener_log_upsert\(jsonb\) from public, anon, authenticated/.test(SQL),
+   'SQL: decision replaced only by a same-or-later read; facts never blanked; only service_role may call it');
+const DEC = codeOf(cmpWf, 'Decide');
+ok(/const read_ms = Date\.now\(\);/.test(DEC) && /ops: \[\], read_ms/.test(DEC), 'Decide stamps read_ms after the contact read, on every outcome');
+slr = lcr({ plan: { read_ms: 1234 } });
+ok(slr.row.decided_ms === 1234, 'call row carries the decision version (Decide read_ms)');
+ok(typeof lar({}).row.decided_ms === 'number', 'dial row carries a version too');
+const QR = codeOf(cmpWf, 'Queue Pending Log');
+const qr = new Function('$json', '$input', '$', QR)({}, { first: () => ({ json: { error: { message: '503 Service Unavailable' } } }) },
+  n => { if (n === 'Build Log Row') return { first: () => ({ json: { row: { event_key: 'call:C1', decided_ms: 77, match: true } } }) }; throw new Error('no ' + n); })[0].json;
+ok(qr.pending_key === 'call:C1@77' && qr.event_key === 'call:C1' && JSON.parse(qr.row_json).match === true && qr.error.includes('503'),
+   'failed write: the exact payload is queued, one pending row per version');
+const lrWf = wf('Screener Log Retry.json');
+ok(JSON.stringify(conn(lrWf, 'Every 15 minutes')) === '[["Get pending log rows"]]' && JSON.stringify(conn(lrWf, 'Supabase: replay screener_log')) === '[["Replayed OK"]]'
+   && JSON.stringify(conn(lrWf, 'Replayed OK')) === '[["Delete replayed row"]]', 'Log Retry: pending -> replay -> delete only what succeeded');
+ok(!lrWf.nodes.some(n => /leadconnectorhq/.test(JSON.stringify(n.parameters))), 'Log Retry never calls GHL');
+ok(/\/rest\/v1\/rpc\/screener_log_upsert$/.test(lrWf.nodes.find(n => n.name === 'Supabase: replay screener_log').parameters.url), 'Log Retry replays through the versioned upsert');
+const LRP = codeOf(lrWf, 'Pick replays');
+const picks = new Function('$json', '$input', '$', LRP)({}, { all: () => [ { id: 1, pending_key: 'k1', row_json: '{"event_key":"call:C1"}' }, { id: 2, pending_key: 'k2', row_json: 'not json' }, {} ].map(json => ({ json })) }, () => null).map(i => i.json);
+ok(picks.length === 1 && picks[0].id === 1 && picks[0].body.r.event_key === 'call:C1', 'unreadable pending rows are left for a human, not replayed');
+const LOK = codeOf(lrWf, 'Replayed OK');
+const oks = new Function('$json', '$input', '$', LOK)({}, { all: () => [ {}, { error: { message: '500' } } ].map(json => ({ json })) },
+  n => ({ all: () => [ { id: 1, pending_key: 'k1' }, { id: 2, pending_key: 'k2' } ].map(json => ({ json })) })).map(i => i.json);
+ok(oks.length === 1 && oks[0].id === 1, 'only a successful replay is removed from the queue');
 
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

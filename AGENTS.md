@@ -70,6 +70,7 @@ Credentials are not compared — the MCP omits them.
 | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | [open](https://n8n.meetobby.com/workflow/QOYHMP5ZGQcnG3ED) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-disposition` (Voicemail / Bad Number) |
 | Screener: Graduate | `M2LD6njhVMO9Ol7w` | [open](https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w) | — (sub-workflow; **publish before go-live**) | ✓ [json+ctx](workflows/screener/) — item 6; Owner Verified → Kevin's pipeline, table `screener_graduations` `1iX0aTvMYawwyH4H` |
 | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | [open](https://n8n.meetobby.com/workflow/jZAgBUQvffv1NCMC) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 6; every 10 min, 10-min grace window |
+| Screener: Log Retry | `y2oXfZtH4y1mhWQG` | [open](https://n8n.meetobby.com/workflow/y2oXfZtH4y1mhWQG) | ❌ **keep inactive until go-live** | ✓ [json+ctx](workflows/screener/) — item 7a; every 15 min, replays failed screener_log writes into Supabase |
 | Screener: Test Rig | `UvApCCNACHD0uwTu` | [open](https://n8n.meetobby.com/workflow/UvApCCNACHD0uwTu) | — (manual only, never activate) | ✓ [json+ctx](workflows/screener/) — hard-wired to test contact Dana Happy: `read` / `mark` (plays the screener) / `reset` / `ungraduate` (deletes only the Kevin opp Graduate logged for her) |
 | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
 
@@ -154,8 +155,11 @@ The screener log goes to **Supabase only**; the `screen_log` Sheet below is **no
 reference). Table definition + the `screener_accuracy` view (per-screener match rate, for item 8):
 [`supabase/screener_log.sql`](supabase/screener_log.sql) — run once in the project's SQL editor.
 - **Writers:** `Screener: Compare Step` (answered calls, key `call:<call_id>`) and `Screener: Attempt
-  Counter` (no-answer / voicemail / bad-number, the ladder's `event_key`), PostgREST upsert
-  `on_conflict=event_key`, `onError: continue`. Project URL + n8n credential live in
+  Counter` (no-answer / voicemail / bad-number, the ladder's `event_key`), always through the function
+  **`screener_log_upsert`** (atomic, versioned on `decided_ms` = when the run read GHL: a decision is
+  replaced only by a same-or-later read; call facts only filled in). `onError: continue`; a failed write
+  is queued in n8n table **`screener_log_pending`** `qKv7RxgTDsqb1plo` and replayed by
+  **`Screener: Log Retry`** `y2oXfZtH4y1mhWQG` (Supabase only, never GHL). Project URL + n8n credential live in
   `workflows/screener/build/supabase.json`.
 - **Project:** **`screener-helper`** `cifgvpqfodglnhywrofy` · https://cifgvpqfodglnhywrofy.supabase.co ·
   org **Waterline** `nzuqwkcyipyergddujfw` (a separate Supabase account, Free plan; team@meetobby.com's own

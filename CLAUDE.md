@@ -53,7 +53,7 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   `screener_attempts`, `screener_graduations`); after the 2026-09-24 meeting, Supabase becomes the source
   of truth: the screener already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`).
   Keep the entry workflows inactive until the GHL guards exist: `Capture Call`, `Mark + Compare`,
-  `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`. Sub-workflows published
+  `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`, `Log Retry`. Sub-workflows published
   2026-09-24: Classify Transcript, Compare Step, Attempt Counter; `Graduate` still to publish.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her;
   `ungraduate` undoes a Graduate test (deletes the Kevin opportunity Graduate logged for her).
