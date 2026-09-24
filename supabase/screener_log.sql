@@ -1,4 +1,5 @@
--- Screener log (spec §10.2 item 7a). DRAFT for Mohimenul to approve — run once in the Supabase SQL editor.
+-- Screener log (spec §10.2 item 7a). Applied 2026-09-25 to Supabase project screener-helper
+-- (cifgvpqfodglnhywrofy, org Waterline) as migration create_screener_log.
 -- One row per screener event: an answered call (upserted as the compare step learns more: the AI verdict,
 -- the screener's pick, the result) or an unanswered dial (no-answer / voicemail / bad-number).
 -- Written by n8n: Screener: Compare Step (calls) and Screener: Attempt Counter (unanswered dials).
@@ -36,7 +37,8 @@ create index if not exists screener_log_screener on public.screener_log (screene
 alter table public.screener_log enable row level security;
 
 -- Item 8: match rate per screener. A call counts once the compare has decided (match not null).
-create or replace view public.screener_accuracy as
+-- security_invoker: the view follows the table's RLS instead of running with its owner's rights.
+create or replace view public.screener_accuracy with (security_invoker = true) as
 select screener_user_id,
        count(*) filter (where event = 'call')                                  as calls,
        count(*) filter (where match is not null)                               as compared,

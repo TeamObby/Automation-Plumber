@@ -1,6 +1,6 @@
 {
-  "_comment": "Supabase project for the screener log (item 7a). Fill in once the project and the n8n credential exist, then build.sh + deploy Compare Step and Attempt Counter.",
-  "url": "",
+  "_comment": "Supabase project screener-helper (org Waterline) for the screener log (item 7a). credential_id/name: the n8n Supabase credential (service_role) once created; then build.sh + deploy Compare Step and Attempt Counter.",
+  "url": "https://cifgvpqfodglnhywrofy.supabase.co",
   "credential_id": "",
   "credential_name": ""
 }

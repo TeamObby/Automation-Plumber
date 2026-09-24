@@ -365,7 +365,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://SUPABASE-PROJECT-NOT-SET.supabase.co/rest/v1/screener_log?on_conflict=event_key",
+        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/screener_log?on_conflict=event_key",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,

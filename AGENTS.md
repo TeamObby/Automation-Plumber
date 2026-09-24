@@ -157,9 +157,13 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
   Counter` (no-answer / voicemail / bad-number, the ladder's `event_key`), PostgREST upsert
   `on_conflict=event_key`, `onError: continue`. Project URL + n8n credential live in
   `workflows/screener/build/supabase.json`.
-- **Status:** built and tested offline; **not deployed** — no Supabase project yet. TeamObby's Org
-  (`iekslbhwxqjuvlhzkoqa`, team@meetobby.com) is on the Free plan and already has its 2 projects
-  (`obby-staging`, `TeamObby's Project` — the Obby product, not WaterLine); waiting for Pro.
+- **Project:** **`screener-helper`** `cifgvpqfodglnhywrofy` · https://cifgvpqfodglnhywrofy.supabase.co ·
+  org **Waterline** `nzuqwkcyipyergddujfw` (a separate Supabase account, Free plan; team@meetobby.com's own
+  org `TeamObby's Org` is full with the Obby product's 2 projects). Can later be moved into a Pro org
+  with Transfer project. The Supabase MCP in `.mcp.json` is signed in to the Waterline account.
+- **Status (2026-09-25):** table + view created (migration `create_screener_log`; RLS on, no policies
+  on purpose — only the service_role key reads/writes). n8n side built and tested offline, **not
+  deployed**: waiting for the n8n Supabase credential.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated

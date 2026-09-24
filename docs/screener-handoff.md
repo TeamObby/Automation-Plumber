@@ -117,10 +117,10 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    `ungraduate` and Dana is back in Attempt 1. Open: publish `Screener: Graduate` before go-live.
 3. **Item 7a — the screener log → Supabase only** (decided 2026-09-25). ✅ Built and tested offline:
    table [`supabase/screener_log.sql`](../supabase/screener_log.sql) (+ `screener_accuracy` view), writes from
-   the Compare Step and the Attempt Counter. **Blocked on the Supabase project:** TeamObby's Org is on
-   the Free plan with its 2 projects in use → waiting for Pro. Then: create the project → run the SQL →
-   n8n credential → fill `build/supabase.json` → build, validate, deploy, re-publish both sub-workflows
-   (needs OK) → live test on Dana.
+   the Compare Step and the Attempt Counter. ✅ Supabase project **`screener-helper`**
+   (`cifgvpqfodglnhywrofy`, org Waterline) created and the table applied. Next: the n8n Supabase
+   credential (Mohimenul) → its id/name into `build/supabase.json` → build, validate, deploy,
+   re-publish both sub-workflows (needs OK) → live test on Dana.
 4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
    on re-screen; list failed write-backs older than 48 h, and graduations still `ok = false` after a day).
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
