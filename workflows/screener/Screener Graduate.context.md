@@ -21,8 +21,11 @@ GHL: Graduation Apply → **Log Graduation** → Store.
   in **Owner Verified** (a screener correction since the sweep picked it → skip).
 - **Kevin's opportunity** follows today's `Import Contact To New` rule: **email → Client Acquisition /
   New**, **no email → Cold Outbound Call / Day 1 Call A**. Named after the company.
-- **Re-screen trap / retries:** if the contact already has an **open** opportunity in any non-screener
-  pipeline, it is **reused** — nothing new is created.
+- **Re-screen trap / retries:** if the contact already has an **open** opportunity in one of **Kevin's
+  campaign pipelines** (Client Acquisition, Cold Email, Cold Call, Gatekeeper, Active Conversation,
+  Rebooking, Manual Review), it is **reused** — nothing new is created. Opportunities in any other
+  pipeline (e.g. the AI-receptionist demo pipelines on the test contact) are ignored: reusing one would
+  strand the lead outside Kevin's machine (found in self-review, 2026-09-24).
 - **Writes, in order:** PT block follower on Kevin's opportunity → remove `screening` + any `wavv-*`
   tags (keeps `owner-confirmed` and the block tag for Kevin's lists) → clear the screener as the
   contact's owner → **close the screener opportunity (`won`) last**. Any failure before the close

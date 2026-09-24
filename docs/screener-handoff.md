@@ -9,10 +9,12 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 ## 1. Where it stands in one paragraph
 
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
-**Mohimenul's n8n items 1–3 are built** (capture + dedupe, AI classifier + eval, Pacific hour
-block). The **guards are not in yet**, so no screener call may be made and Mohimenul's workflows
-stay **inactive**. The immediate critical path is: guards → publish `Screener Outcome Changed` →
-Mohimenul's item 4 → one real test call.
+**Mohimenul's n8n items 1–6 are built** (capture + AI verdict, hour block, compare + write-back,
+attempt ladder, graduate) and tested on the test contact, except Graduate end to end. The **guards
+are not in yet**, so no screener call may be made and the entry workflows stay **inactive**. After
+Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
+due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, activate
+the entry workflows, publish `Screener Outcome Changed`) → one real test call.
 
 ---
 
@@ -73,14 +75,16 @@ blocks duplicate phone numbers.
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live, **needs guard (mid-workflow)** |
 | GHL | Move Leads Into Cadence | `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | live, **needs guard** |
 | n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
-| n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow |
+| n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow, published |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
-| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow — `BLOCK_USER` filled 2026-09-24 |
+| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow, published — `BLOCK_USER` filled |
 | n8n | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | item 4, inactive |
 | n8n | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | retries failed GHL writes, inactive |
-| n8n | Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | item 5, sub-workflow — **publish before go-live** |
+| n8n | Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | item 5, sub-workflow, published |
 | n8n | Screener: No Answer | `aZyzUwwNdDWvaCAk` | item 5, `/webhook/screener-no-answer`, inactive |
 | n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition`, inactive |
+| n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **publish before go-live** |
+| n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
 | n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset **Dana Happy** only |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
@@ -96,66 +100,51 @@ contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workb
 
 ---
 
-## 3. What is left — updated after Kevin's meeting of 2026-09-24 (BD morning)
+## 3. What is left — plain priority order (updated 2026-09-24, after Kevin's meeting)
 
-Kevin's order (~04:29): **1. the list (ICP) · 2. the screener** · and a new foundation under both:
-**Supabase becomes the source of truth** (~06:40). Rule no. 1 is **simplicity** (~28:45).
-Full notes with timestamps: [`meeting-2026-09-24.md`](meeting-2026-09-24.md).
+Kevin's order: **the list first, then the screener**; underneath both, **Supabase becomes the source of
+truth**; rule no. 1 is **simplicity**. No hard dates — work top to bottom. Meeting notes with
+timestamps: [`meeting-2026-09-24.md`](meeting-2026-09-24.md).
+Visual map of the plan (private claude.ai artifact, Mohimenul's account):
+https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 
-### A. Due tomorrow morning (Sep 25, ~9:30 BD) — Mohimenul + Hridoy, split between you
-1. **Sample Test 2, tasks 1–7** on the same 100 test shops (~53:40, "otherwise I'm blocked from creating
-   the master list"). The task sheet, CSV and a context prompt are in the group chat. Heard in the
-   meeting: two cheaper phone-lookup tools (is it a cell, whose name) · DataForSEO Google reviews
-   (2 years, one row per review, total count; Apify as fallback) · website text **from the website on
-   the Google listing**, Apify vs the free scraper side by side · Google-listing extras (extra phones,
-   24 h, Google Guaranteed / LSA) · license + business records (trimmed to downloadable state files) ·
-   Google Ads check from the websites. Kevin pays for tools — send him payment links.
+### Mohimenul — finish the screener items first (spec §10.2)
+1. ✅ Items 1–5 built and tested on the test contact; ✅ Classify, Compare Step, Attempt Counter published;
+   ✅ Dana Happy reset.
+2. ✅ **Item 6 Graduate** built (`Screener: Graduate` + `Graduate Sweep`, inactive). Open: one end-to-end live
+   test (creates a real opportunity in Kevin's pipeline → needs a go-ahead, then delete it) and
+   publishing `Screener: Graduate` before go-live.
+3. **Item 7a — the screener log.** Hridoy's `screen_log` Sheet exists, but logs now belong in Supabase;
+   decide which (simplicity says one place).
+4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
+   on re-screen; list failed write-backs older than 48 h).
+5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
 
-### B. Due tomorrow night (Sep 25) → complete by Monday (Sep 28)
-2. **Supabase** (account team@meetobby.com, free plan) — "by Monday we need the superbase, all the
-   tables" (~28:03); an early version by tomorrow night (~62:57). **Mohimenul designs the tables and
-   columns** — Kevin named the tables, not the columns. Tables named in the meeting: **shops**
-   (Supabase id ↔ GHL contact id both ways), **raw data** (website content, Google/Yelp reviews),
-   **transcripts** (Kevin's sales calls *and* screener calls), **call logs** (today in Google Sheets).
-   Needed for tiering: a **tier** and a **set** column ("Tier 1 · Set 2", ~66:10).
-3. **Screener V1 → Supabase** — "at least … the automation setup so that whatever happens with the
-   screener goes to Supabase" (~61:22). Kevin **keeps tags, followers and the hour block** (~60:05). V1
-   is fine (~60:59). → Mohimenul: add a Supabase write to the existing Compare Step / Attempt Counter
-   (every screener event and transcript), so it is one extra step, not a rebuild.
+### Mohimenul — then the new work from the meeting
+6. **Design the Supabase tables and columns** (Mohimenul decides; Kevin named only the tables: shops with
+   Supabase id ↔ GHL id + tier + set, raw data, transcripts incl. screener calls, call logs).
+7. **Screener → Supabase:** one write from the Compare Step and one from the Attempt Counter; Graduate marks
+   the shop too.
+8. **Connect the team Claude accounts to GoHighLevel**, then check the duplicate automations Kevin's Claude
+   reported (the GHL connector must be authorised; it only attaches at session start).
+9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
+   MCP connector so Kevin's Claude can read the code.
+10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0009`, and the test-rig rows in
+    `screener_attempts` / `screener_graduations`); rotate the exposed Instantly key.
 
-**Why Monday matters:** **Topu is the screener** (the caller) and probably starts **Mon 28 Sep**
-(~27:50). His first calls need the screener path *live*, not just built — so the items marked 🔴 below
-have to land by then too.
+### Hridoy (GHL side, and the list)
+- **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
+- **The four guards** (§1 of the plan) — nothing screener-side goes live before them.
+- Publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists · **Topu's screener user**
+  (Only Assigned Data) · Topu's WAVV seat and numbers (Kevin pays).
 
-### C. Still open from before (unchanged by the meeting)
-4. 🔴 **Hridoy — the four guards** (§1 of the plan). Nothing screener-side may go live first.
-5. ✅ Classify, Compare Step and Attempt Counter **published** (2026-09-24). 🔴 `Screener: Graduate` still to
-   publish before go-live. Re-publish after every edit.
-6. ✅ Dana Happy reset (2026-09-24), after the forced-compare ladder case passed live (exec 123587).
-7. **Merge PR `screener-item-4`** (items 4 + 5).
-8. 🔴 **Hridoy:** publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists ·
-   **a screener user for Topu** (Only Assigned Data) · his WAVV seat and numbers (Kevin pays).
-9. **Mohimenul:** item 6 Graduate **built** (`Screener: Graduate` + `Graduate Sweep`, inactive; live end-to-end
-   test needs a go-ahead since it creates a real opp in Kevin's pipeline; Supabase mark to add) · item 7 stale sweep +
-   daily summary · delete test rows in `screener_calls` / `screener_attempts` · rotate the Instantly key.
+### Go-live switches (once the guards exist)
+Publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
+`Write-back Retry`, `Graduate Sweep` → one real test call with Hridoy on the test contact.
 
-### D. Changed or on hold because of the meeting
-- **`screen_log` Google Sheet** — Kevin wants call logs and screener transcripts in Supabase. Hold the
-  Sheets writer until the Supabase tables exist; write the screener log to Supabase instead.
-- **n8n data tables `screener_calls` / `screener_attempts`** — keep as the working store for now;
-  mirror to Supabase in item 3 above rather than migrating.
-
-### E. New, not screener — on Mohimenul's plate
-- **Connect every team Claude account to GoHighLevel** (~09:49; it can audit but not build
-  automations, ~29:04). It already reported **duplicate automations on** (~29:16) — worth checking
-  against [`ghl-automations.md`](ghl-automations.md). (The LeadConnector connector in this session needs
-  authorising in claude.ai connector settings.)
-- **Sales Advisor** (separate repo): staging login for Kevin (~26:26) · read context from Kevin's Notion
-  instead of a pasted prompt (~21:10) · a GitHub / MCP connector so Kevin's Claude can read the code
-  (~26:19; the team offered to look at it in two days) · a production on/off switch later, after
-  more testing (~19:03).
-- **Later (V2):** tiering that re-learns from which shops closed (~16:38); Claude picks each day's
-  set and tracks sets in Notion (~64:28).
+### People
+- **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.
+- **Tosif** — third helper if needed.
 
 ## 4. Decisions that must not drift
 

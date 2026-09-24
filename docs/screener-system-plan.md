@@ -109,7 +109,7 @@ a second Google Voice number and split them.
   separate "Please select" box to its right. Typing the tag into the wrong one leaves
   "Value cannot be empty".
 
-### Mohimenul's part — items 1–4 built (2026-09-23)
+### Mohimenul's part — items 1–6 built (2026-09-24)
 
 | §10.2 item | Built as | Proof |
 |---|---|---|
@@ -117,6 +117,8 @@ a second Google Voice number and split them.
 | 2 Classifier | `Screener: Classify Transcript` `LbGY5ptzldJjnTZJ` (`gpt-4.1-mini`, strict JSON schema, temp 0) + `Screener: Classifier Eval` `FMUXvDBXsigHA4vb` | 8 transcripts × 3 runs: **8/8 stable, 8/8 correct** (exec 122342) |
 | 3 Pacific hour block | inside `Normalize Call` | `tests/screener.test.js` — both DST transitions, both block edges, tag spelling |
 | 4 Compare + write-back | `Screener: Compare Step` `3pwiQXC8etTcKf5Z` (shared, §4.1) · `Screener: Mark + Compare` `zVCzfADKZqPWV6hk` (**inactive**, event 2) · Capture now calls the Compare Step | every row of the §4 table + guards + replace-never-append in `tests/screener.test.js` §7; live: credentials + not-found guard (exec 122457), Capture → Compare wiring (122459), and a failed write-back retried from the stored verdict without the AI (122472). Codex review fixes: persist-then-read ordering (all 6 interleavings tested, incl. a failed save-first), `writeback_ok` recorded by every caller, and **`Screener: Write-back Retry`** `IvxTYaChixQOiNzt` (inactive) — the durable retry, since GHL never re-sends a webhook (live: 122483, 122487). **Live on the test rig 2026-09-24:** owner agree → Owner Verified with tags + PT 10-11 follower; gatekeeper correction → Not Sure + mismatch; mark-first and AI-first orders; reset — see the Compare Step context file. The 20 WAVV role-play calls still need the guards |
+| 5 Attempt ladder | `Screener: Attempt Counter` `Wwx2R76IrhLMYU7K` (sub-workflow) behind `Screener: No Answer` `aZyzUwwNdDWvaCAk` + `Screener: WAVV Disposition` `QOYHMP5ZGQcnG3ED` (**inactive**), table `screener_attempts` | live on the test rig: Attempt 1 → 2 → 3 → 4 → Exhausted, voicemail, Bad Number → Disqualified, duplicates dropped, unmarked-call force → Not Sure (123587) |
+| 6 Graduate | `Screener: Graduate Sweep` `jZAgBUQvffv1NCMC` (**inactive**, every 10 min, 10-min grace) → `Screener: Graduate` `M2LD6njhVMO9Ol7w` (sub-workflow, **not yet published**), table `screener_graduations` | offline tests; live only the sweep search (123593). End-to-end needs a go-ahead — it creates a real opportunity in Kevin's pipeline |
 
 **For Hridoy — the contract for event 1:** webhook **`POST /webhook/screener-call`**, same body the
 live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl_user_id`,
@@ -127,14 +129,14 @@ live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl
 `screener_attempts`) behind `Screener: No Answer` `aZyzUwwNdDWvaCAk` (`/webhook/screener-no-answer`) and
 `Screener: WAVV Disposition` `QOYHMP5ZGQcnG3ED` (`/webhook/screener-disposition`). Live on the test rig:
 four no-answers walk Dana Attempt 1 → 2 → 3 → 4 → **Exhausted**, voicemail counts, Bad Number →
-Disqualified, duplicates dropped. ⚠️ Before go-live, **publish the sub-workflows** (Classify, Compare,
-Attempt Counter) — n8n refuses an unpublished sub-workflow called from anything but a manual run.
+Disqualified, duplicates dropped. Classify, Compare and Attempt Counter are **published** (2026-09-24) —
+n8n refuses an unpublished sub-workflow called from anything but a manual run; `Graduate` still needs it.
 
 **For Hridoy — events 3 and 4:** `Call No Answer`'s screener branch POSTs the standard contact payload
 (`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
 POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
 
-**Next on this side (after Kevin's 2026-09-24 meeting):** Supabase becomes the source of truth — screener events and transcripts go to Supabase (early version due 2026-09-25 night); the `screen_log` Sheets writer is on hold until the Supabase tables exist; then items 6, 7. Task list: [`screener-handoff.md`](screener-handoff.md) §3.
+**Next on this side (after Kevin's 2026-09-24 meeting):** items 7 and 8, then Supabase — it becomes the source of truth, and screener events, transcripts and graduations write there; the `screen_log` Sheets writer is on hold until then. Task list: [`screener-handoff.md`](screener-handoff.md) §3.
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard
@@ -627,7 +629,7 @@ Kevin's pipelines.**
 |---|---|---|---|
 | 1 | call recorded (answered) | `/webhook/screener-call` | store transcript + timestamp + recording + `userId`, dedupe on `call_id`, run the AI → write `Screen AI Verdict` → compare (§4.1) |
 | 2 | **`Screener Outcome` changed** (the screener's pick) | `/webhook/screener-outcome` | write `Screen Noise`, compare with `Screen AI Verdict` → stage, tags, block tag + follower, `Date Screened` |
-| 3 | tag `wavv-no-answer` / `wavv-canceled` | `/webhook/screener-no-answer` | `Screen Attempts` +1 → next Attempt stage; after the 4th dial → **Exhausted** |
+| 3 | tag `wavv-no-answer` / `wavv-canceled` | `/webhook/screener-no-answer` | `Screen Attempts` set to this dial's number → next Attempt stage; after the 4th dial → **Exhausted** |
 | 4 | WAVV note with an **auto**-disposition (`Voicemail`, `Bad Number`) | `/webhook/screener-disposition` | `Voicemail` → attempt +1; `Bad Number` → **Disqualified** |
 
 ⚠️ **Event 4 is not optional.** WAVV tags a voicemail `wavv-voicemail`, and **no GHL workflow
@@ -641,8 +643,8 @@ Attempt stage forever.
 |---|---|---|---|
 | 1 | `Screener: Capture Call` | event 1 | transcript, AI verdict, `Screen AI Verdict`, then compare |
 | 2 | `Screener: Mark + Compare` | event 2 | the shared compare step → stage, tags, follower, `Date Screened` |
-| 3 | `Screener: Attempt Counter` | events 3 and 4 | `Screen Attempts` +1 → next Attempt stage or **Exhausted**; `Bad Number` → **Disqualified** |
-| 4 | `Screener: Graduate` | stage = Owner Verified | §8 |
+| 3 | `Screener: Attempt Counter` | events 3 and 4 (via `Screener: No Answer` / `WAVV Disposition`) | `Screen Attempts` set → next Attempt stage or **Exhausted**; `Bad Number` → **Disqualified** |
+| 4 | `Screener: Graduate` | `Screener: Graduate Sweep`, every 10 min, leads in Owner Verified ≥ 10 min | §8 |
 | 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to **Attempt 1** with `screening` re-added |
 | 6 | `screen_log` leaf | on 1, 2, 3 | appends to the **"WaterLine — Screener Log"** sheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` (tab `screen_log`, **built and empty** — columns and data contract in [`AGENTS.md`](../AGENTS.md)). Write it from the Compare Step's `Report` node and from the attempt ladder, appendOrUpdate on `call_id`; the ladder rows have none and plain-append. A separate workbook from Kevin's metrics on purpose — its `accuracy` tab is the per-screener match rate item 8 asks for |
 

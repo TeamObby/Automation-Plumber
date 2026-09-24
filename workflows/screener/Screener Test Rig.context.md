@@ -13,9 +13,9 @@ screener opportunity `FAstcBVvrgbpds2gQIV3`; the ids are constants, not inputs.
 ## Actions (webhook body)
 | `action` | Does |
 |---|---|
-| `read` | nothing; returns stage, block followers, screener tags, the four screener fields, DND |
+| `read` | nothing; returns stage, block followers, screener tags, the five screener fields (incl. Screen Attempts), DND |
 | `mark` + `outcome` | sets `Screener Outcome`. `Do Not Call` is **refused** (it would set DND on the receptionist demo record) |
-| `reset` | clears the four screener fields, removes the 14 result tags (keeps `screening`), removes the ten block followers, opp back to **Attempt 1** |
+| `reset` | clears the five screener fields (incl. Screen Attempts), removes the 14 result tags (keeps `screening`), removes the ten block followers, opp back to **Attempt 1** |
 
 Every run ends with a fresh read. ⚠️ The stage comes from opportunity **search**, which lags a write
 by a few seconds — read again if it looks stale.

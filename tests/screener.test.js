@@ -687,6 +687,10 @@ ok(JSON.stringify(g.remove_tags.slice().sort()) === '["screening","wavv-none"]',
 g = gplan({ opps: { opportunities: [ so(), { id: 'K9', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'open' } ] } });
 ok(g.action === 'graduate' && g.create === null && g.kevin_opp_id === 'K9', 'already has an open Kevin opportunity (re-screen trap / retry) -> reused, nothing created');
 ok(gplan({ opps: { opportunities: [ so(), { id: 'K8', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'lost' } ] } }).create !== null, 'a closed Kevin opportunity does not count');
+g = gplan({ opps: { opportunities: [ so(), { id: 'D1', pipelineId: 'SOME-DEMO-PIPELINE', status: 'open' } ] } });
+ok(g.create !== null && g.kevin_opp_id === '', 'an open opportunity in an unrelated pipeline (e.g. a demo) is NOT reused: Kevin gets his own');
+['1A1RkYaL93s2rqbQ3Opi', '3onA8GkJnSwgzIGTGSpI', 'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', 'OOu5TjgalfGZElEIoSbq', '9E6y34DlG1Imr8FV42RV'].forEach(pid =>
+  ok(gplan({ opps: { opportunities: [ so(), { id: 'KX', pipelineId: pid, status: 'open' } ] } }).kevin_opp_id === 'KX', 'open opp in Kevin pipeline ' + pid + ' -> reused'));
 ok(gplan({ tags: ['screening'] }).action === 'skip', 'not owner-confirmed -> skip');
 ok(gplan({ opps: { opportunities: [ so({ pipelineStageId: '0c160182-e74d-4ace-9d3b-c4404043ef4b' }) ] } }).action === 'skip', 'corrected away from Owner Verified since the sweep -> skip');
 ok(gplan({ contact: { error: { message: '502' } } }).retry === true && gplan({ opps: { error: { message: 'x' } } }).retry === true, 'unreadable contact / opp search failed -> retry');

@@ -45,12 +45,14 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **The opportunity's stage is the queue.** A stage means "the call/email that is due next".
   Nightly schedulers (3:00 / 3:30 / 4:00 / 4:30 AM) move opps between the email and call
   pipelines; `Email Sent → Move To Sent Stage` is the load-bearing hinge of the email path.
-- **Screener** (`workflows/screener/`) is separate on purpose: it writes to the n8n data table
-  `screener_calls`, not to GHL, until the GHL guard branches exist.
-  Since item 4, `Screener: Compare Step` does write GHL, but only for contacts tagged `screening`.
-  Keep `Screener: Capture Call`, `Screener: Mark + Compare`, `Screener: Write-back Retry`, `Screener: No Answer`,
-  `Screener: WAVV Disposition` and `Screener: Graduate Sweep` inactive. Published (sub-workflows only):
-  Classify Transcript, Compare Step, Attempt Counter (2026-09-24); Graduate still to publish.
+- **Screener** (`workflows/screener/`) is separate on purpose. It writes GHL only for contacts tagged
+  `screening` (stage, tags, followers in its own pipeline); `Screener: Graduate` is the one piece that
+  creates opportunities in Kevin's pipelines. Its own state lives in n8n data tables (`screener_calls`,
+  `screener_attempts`, `screener_graduations`); after the 2026-09-24 meeting, Supabase becomes the source
+  of truth and the screener will write there too.
+  Keep the entry workflows inactive until the GHL guards exist: `Capture Call`, `Mark + Compare`,
+  `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`. Sub-workflows published
+  2026-09-24: Classify Transcript, Compare Step, Attempt Counter; `Graduate` still to publish.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her.
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 

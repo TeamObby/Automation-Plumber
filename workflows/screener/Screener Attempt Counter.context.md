@@ -58,17 +58,17 @@ Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered 
 | Voicemail `TEST-vm-2` after Exhausted | **skip** — "opportunity already in Exhausted" (123146) |
 | Bad Number `TEST-bn-1` on a fresh lead | → **Disqualified**, attempt 1 (123149, read 123151) |
 | Bad Number with an unmarked gatekeeper call pending (`TEST-bn-2`, after the codex fix) | → **Disqualified**, attempt 2 — not the forced compare (123172) |
-| no-answer after an unmarked gatekeeper call (`TEST-screener-0008`) | ⚠️ **failed**: the counter could not call the Compare Step — *"Workflow is not active and cannot be executed"* (123157). See gotcha 1. Logic proven offline. |
+| same case after publishing (`TEST-screener-0009`) | → forced compare → **Not Sure**, "previous answered call was never marked \| compare: nothing marked" (123587) |
+| no-answer after an unmarked gatekeeper call (`TEST-screener-0008`), before publishing | ⚠️ **failed**: the counter could not call the Compare Step — *"Workflow is not active and cannot be executed"* (123157). See gotcha 1. Logic proven offline. |
 
 ## TODOs / gotchas
-1. ⚠️ **Sub-workflows must be PUBLISHED before go-live.** n8n runs an unpublished sub-workflow only
-   when the *top-level* execution is manual. A sub-workflow calling another (Counter → Compare Step), and
-   every call from an active workflow, needs the target published — **Classify Transcript, Compare
-   Step, Attempt Counter**. Publishing snapshots the current draft: after every later `update_workflow`,
-   publish again. (Publishing was refused by the tool's auto-mode classifier on 2026-09-24 — it is a
-   production activation, so it is the user's call.)
+1. **Sub-workflows must be published.** n8n runs an unpublished sub-workflow only when the *top-level*
+   execution is manual; a sub-workflow calling another (Counter → Compare Step), and every call from an
+   active workflow, needs the target published. Classify, Compare Step and this counter were published
+   on 2026-09-24 (the forced compare then passed, 123587). Publishing snapshots the current draft:
+   **after every `update_workflow`, publish again.**
 2. Ladder rows with `ok = false` are **not** retried automatically (no call id on a no-answer); they are
    visible in `screener_attempts` for the daily summary (item 7). A WAVV-note event retries on replay.
 3. The 30 s no-answer window assumes a real redial takes longer than one ring cycle.
-4. Test rows: `screener_attempts` rows 1–7 (and later) from the 2026-09-24 run are **test data** — delete
+4. Test rows: `screener_attempts` rows 1–8 (and later) from the 2026-09-24 run are **test data** — delete
    with the `screener_calls` test rows.

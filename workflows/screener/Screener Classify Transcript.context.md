@@ -2,7 +2,7 @@
 
 - **n8n ID:** `LbGY5ptzldJjnTZJ` · **URL:** https://n8n.meetobby.com/workflow/LbGY5ptzldJjnTZJ · **File:** `Screener Classify Transcript.json`
 - **Folder:** `workflows/screener/`
-- **Status:** sub-workflow (no trigger of its own) — called by `Screener: Capture Call` and `Screener: Classifier Eval`.
+- **Status:** sub-workflow (no trigger of its own) — called by `Screener: Capture Call` and `Screener: Classifier Eval`. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Inputs:** `transcript`, `contact_name`. **Output:** one verdict item.
 
 ## What it decides
