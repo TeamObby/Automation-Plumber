@@ -22,7 +22,7 @@ const contact = (got && got.contact) || null;
 const s = v => String(v == null ? '' : v).trim();
 const out = (action, reason, extra) => ({ json: Object.assign({
   contact_id: e.contact_id, event: e.event, event_key: e.event_key, wavv_call_id: e.wavv_call_id, at_ms: e.at_ms,
-  received_at: e.received_at, action, reason, attempt_no: null, result_stage: '', retry: false, force_compare: false, ops: []
+  received_at: e.received_at, action, reason, attempt_no: e.stored_attempt_no || null, result_stage: '', retry: false, force_compare: false, ops: []
 }, extra) });
 
 if (!contact || !contact.id) return out('skip', 'contact not readable: ' + s(got && got.error && (got.error.description || got.error.message)), { retry: true });
@@ -31,21 +31,28 @@ if (!tags.includes('screening')) return out('skip', 'contact is not tagged scree
 const cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };
 const parse = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' ? v : null; } catch (err) { return null; } };
 
-if (s(cf(F.date))) return out('skip', 'already screened (an answered call decided this lead)');
 const opps = ((found && found.opportunities) || []).filter(o => o.pipelineId === PIPELINE && (o.status || 'open') === 'open');
 const opp = opps[0] || null;
 if (!opp && found && found.error) return out('skip', 'opportunity search failed', { retry: true });
-if (opp && TERMINAL[opp.pipelineStageId]) return out('skip', 'opportunity already in ' + TERMINAL[opp.pipelineStageId]);
 
 const attempt_no = e.stored_attempt_no || (Number(cf(F.attempts)) || 0) + 1;
 const ops = [];
 const op = (label, method, url, body) => ops.push({ label, method, url, body });
 op('Screen Attempts = ' + attempt_no, 'PUT', GHL + '/contacts/' + e.contact_id, { customFields: [ { id: F.attempts, value: attempt_no } ] });
 
+// Lead already decided (an answered call, or a terminal stage). A NEW event leaves it alone. A RETRY
+// of an event that half-failed (codex review) still repairs its count, but never moves the stage:
+// whatever put the lead in a terminal stage since may be newer than this event.
+const decided = s(cf(F.date)) ? 'already screened (an answered call decided this lead)'
+  : (opp && TERMINAL[opp.pipelineStageId] ? 'opportunity already in ' + TERMINAL[opp.pipelineStageId] : '');
+if (decided && e.stored_attempt_no) return out('repair', 'retry: Screen Attempts repaired, stage left — ' + decided, { attempt_no, ops });
+if (decided) return out('skip', decided);
+
+// Bad Number is a dead end whatever came before (codex review): it wins over the unmarked-call case.
 // An answered human call that the screener never marked: this dial is "the next call", so the
 // compare runs now with nothing marked -> Not Sure + screen-mismatch (spec §4.1). It owns the stage.
 const verdict = parse(cf(F.verdict));
-if (verdict && !s(cf(F.outcome)) && !NOT_A_PERSON.includes(s(verdict.call_outcome))) {
+if (e.event !== 'bad-number' && verdict && !s(cf(F.outcome)) && !NOT_A_PERSON.includes(s(verdict.call_outcome))) {
   return out('force', 'previous answered call was never marked', { attempt_no, ops, force_compare: true });
 }
 

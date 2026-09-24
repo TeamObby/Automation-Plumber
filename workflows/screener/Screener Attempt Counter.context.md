@@ -34,6 +34,12 @@ Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered 
 - **Guards:** contact must be tagged `screening`; a lead with **Date Screened** set (an answered call
   decided it) or an opportunity in a terminal stage is skipped. Unreadable contact / failed opp search →
   skip with `ok = false`.
+- **Retry of a half-failed event** (codex review): a WAVV-note replay whose row is `ok = false` still
+  **repairs Screen Attempts** (action `repair`) when the lead is terminal or already screened — but
+  never moves the stage, since whatever put the lead there may be newer. A retry never logs
+  `attempt_no = null`.
+- **Bad Number wins** (codex review): it goes to Disqualified even when an unmarked answered call is
+  pending — a dead number is a dead end whatever happened before.
 - **Unmarked answered call** (spec §4.1): if the contact holds an AI verdict for an answered **human**
   (not `voicemail` / `no_conversation`) and no `Screener Outcome`, this dial is "the next call": Screen
   Attempts is written and the **Compare Step runs with `force: true`** → Not Sure + `screen-mismatch`.
@@ -51,6 +57,7 @@ Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered 
 | no-answer #4 | → **Exhausted** (123144) |
 | Voicemail `TEST-vm-2` after Exhausted | **skip** — "opportunity already in Exhausted" (123146) |
 | Bad Number `TEST-bn-1` on a fresh lead | → **Disqualified**, attempt 1 (123149, read 123151) |
+| Bad Number with an unmarked gatekeeper call pending (`TEST-bn-2`, after the codex fix) | → **Disqualified**, attempt 2 — not the forced compare (123172) |
 | no-answer after an unmarked gatekeeper call (`TEST-screener-0008`) | ⚠️ **failed**: the counter could not call the Compare Step — *"Workflow is not active and cannot be executed"* (123157). See gotcha 1. Logic proven offline. |
 
 ## TODOs / gotchas
@@ -63,5 +70,5 @@ Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered 
 2. Ladder rows with `ok = false` are **not** retried automatically (no call id on a no-answer); they are
    visible in `screener_attempts` for the daily summary (item 7). A WAVV-note event retries on replay.
 3. The 30 s no-answer window assumes a real redial takes longer than one ring cycle.
-4. Test rows: `screener_attempts` rows 1–6 (and later) from the 2026-09-24 run are **test data** — delete
+4. Test rows: `screener_attempts` rows 1–7 (and later) from the 2026-09-24 run are **test data** — delete
    with the `screener_calls` test rows.

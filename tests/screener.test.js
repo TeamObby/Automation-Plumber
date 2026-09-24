@@ -624,6 +624,16 @@ ok(lf.action === 'apply' && !lf.force_compare, 'a voicemail verdict is not an an
 lf = lad({ attempts: 0, fields: [{ id: F.verdict, value: JSON.stringify(human) }, { id: F.outcome, value: 'Gatekeeper' }] });
 ok(!lf.force_compare, 'marked call -> no force');
 ok(lad({ attempts: 0 }).ops.every(o => o.url.includes('/contacts/C1') || o.url.includes('/opportunities/O1')), 'ladder writes only this contact and its screener opp');
+// Codex review: Bad Number wins over the unmarked-call force.
+lf = lad({ event: 'bad-number', attempts: 0, fields: [{ id: F.verdict, value: JSON.stringify(human) }] });
+ok(lf.action === 'apply' && !lf.force_compare && stageOp(lf) === LS.dq, 'bad number after an unmarked answered call -> Disqualified, not the forced compare');
+// Codex review: a retry of a half-failed event repairs the count even once the lead is terminal.
+lf = lad({ stored: 3, attempts: 2, stage: LS.ex });
+ok(lf.action === 'repair' && attOp(lf).value === 3 && !stageOp(lf), 'retry after the stage landed but the count failed -> count repaired, stage untouched');
+lf = lad({ stored: 2, attempts: 1, fields: [{ id: F.date, value: '2026-09-24' }] });
+ok(lf.action === 'repair' && attOp(lf).value === 2 && !stageOp(lf), 'retry on a lead decided since -> count repaired, stage never moved back');
+ok(lad({ stored: 2, tags: ['plumber'] }).attempt_no === 2, 'a retry that skips keeps its attempt number (never logged as null)');
+ok(lad({ stage: LS.ex }).action === 'skip' && lad({ stage: LS.ex }).ops.length === 0, 'a NEW event on a terminal lead still writes nothing');
 const forceNode = ctr.nodes.find(n => n.name === 'Screener: Compare Step');
 ok(forceNode.parameters.workflowInputs.value.force === true && forceNode.parameters.workflowInputs.value.source === 'ladder' &&
    forceNode.parameters.workflowId.value === require('../workflows/screener/build/ids.json').compare, 'the force call goes to the shared Compare Step with force=true');
@@ -636,6 +646,8 @@ const logOf = (l, nodes) => new Function('$json', '$input', '$', LOG)({}, {}, n 
 })[0].json;
 const base = { event_key: 'k', contact_id: 'C1', event: 'no-answer', at_ms: NOW, received_at: 'r', attempt_no: 1, action: 'apply', result_stage: 'Attempt 2', reason: 'no-answer #1', retry: false, force_compare: false };
 ok(logOf(base, { 'Ladder Report': { failed: [] } }).ok === true, 'applied cleanly -> ok');
+const lr = logOf(Object.assign({}, base, { action: 'repair', attempt_no: 3, result_stage: '' }), { 'Ladder Report': { failed: [] } });
+ok(lr.ok === true && lr.attempt_no === 3, 'a successful repair logs ok with its attempt number');
 const lb = logOf(base, { 'Ladder Report': { failed: ['move stage -> Attempt 2: 500'] } });
 ok(lb.ok === false && lb.reason.includes('500'), 'a failed request -> ok false, named');
 ok(logOf(Object.assign({}, base, { action: 'skip', retry: true, attempt_no: null }), {}).ok === false, 'retryable skip -> ok false');
