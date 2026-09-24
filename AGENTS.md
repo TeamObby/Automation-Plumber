@@ -70,7 +70,7 @@ Credentials are not compared — the MCP omits them.
 | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | [open](https://n8n.meetobby.com/workflow/QOYHMP5ZGQcnG3ED) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-disposition` (Voicemail / Bad Number) |
 | Screener: Graduate | `M2LD6njhVMO9Ol7w` | [open](https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w) | — (sub-workflow; **publish before go-live**) | ✓ [json+ctx](workflows/screener/) — item 6; Owner Verified → Kevin's pipeline, table `screener_graduations` `1iX0aTvMYawwyH4H` |
 | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | [open](https://n8n.meetobby.com/workflow/jZAgBUQvffv1NCMC) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 6; every 10 min, 10-min grace window |
-| Screener: Test Rig | `UvApCCNACHD0uwTu` | [open](https://n8n.meetobby.com/workflow/UvApCCNACHD0uwTu) | — (manual only, never activate) | ✓ [json+ctx](workflows/screener/) — hard-wired to test contact Dana Happy: `read` / `mark` (plays the screener) / `reset` |
+| Screener: Test Rig | `UvApCCNACHD0uwTu` | [open](https://n8n.meetobby.com/workflow/UvApCCNACHD0uwTu) | — (manual only, never activate) | ✓ [json+ctx](workflows/screener/) — hard-wired to test contact Dana Happy: `read` / `mark` (plays the screener) / `reset` / `ungraduate` (deletes only the Kevin opp Graduate logged for her) |
 | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
 
 ---
@@ -143,12 +143,30 @@ Credentials are not compared — the MCP omits them.
   field. The table is the per-call log for the accuracy report (item 8). Column list in the Capture context file.
 - **`screener_attempts`** `9V6VL0XiKeadY9Lc` — one row per unanswered dial event (no-answer / voicemail /
   bad-number), written by `Screener: Attempt Counter`; key `event_key` (`wavv:<call id>` or `na:<contact>:<ms>`).
-- **`screener_graduations`** `1iX0aTvMYawwyH4H` — one row per graduation attempt, written by `Screener: Graduate`;
-  key `grad_key` (`contact_id:screener_opp_id`).
+- **`screener_graduations`** `1iX0aTvMYawwyH4H` — one row per graduating lead, upserted by `Screener: Graduate`
+  on every attempt; key `grad_key` (`contact_id:screener_opp_id`). `ok = true` only once the screener
+  opportunity is closed; `ok = false` means the sweep is still retrying it (`reason` names the failed write).
 - Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0009`) and the 2026-09-24 test-rig rows on contact
   `2Z5mwZe5RT4NQdNW85vj` are **test data** — delete them in the n8n UI before real calls (the MCP can't delete rows).
 
-## Screener log workbook (Google Sheets)
+## Screener log — Supabase `screener_log` (item 7a, decided 2026-09-25)
+The screener log goes to **Supabase only**; the `screen_log` Sheet below is **not** written (kept for
+reference). Table definition + the `screener_accuracy` view (per-screener match rate, for item 8):
+[`supabase/screener_log.sql`](supabase/screener_log.sql) — run once in the project's SQL editor.
+- **Writers:** `Screener: Compare Step` (answered calls, key `call:<call_id>`) and `Screener: Attempt
+  Counter` (no-answer / voicemail / bad-number, the ladder's `event_key`), PostgREST upsert
+  `on_conflict=event_key`, `onError: continue`. Project URL + n8n credential live in
+  `workflows/screener/build/supabase.json`.
+- **Project:** **`screener-helper`** `cifgvpqfodglnhywrofy` · https://cifgvpqfodglnhywrofy.supabase.co ·
+  org **Waterline** `nzuqwkcyipyergddujfw` (a separate Supabase account, Free plan; team@meetobby.com's own
+  org `TeamObby's Org` is full with the Obby product's 2 projects). Can later be moved into a Pro org
+  with Transfer project. The Supabase MCP in `.mcp.json` is signed in to the Waterline account.
+- **Status (2026-09-25):** table + view created (migration `create_screener_log`; RLS on, no policies
+  on purpose — only the service_role key reads/writes). n8n side built and tested offline, **not
+  deployed**: pushed as a draft to both sub-workflows (credential `Supabase [ Waterline screener-helper ]`
+  `oUnRFJd1TMI1LmTd`); live once they are re-published.
+
+## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated
 from Kevin's campaign everywhere else, and this log answers "is the screener marking calls correctly",
 not "how is the campaign doing". Setup script:
@@ -160,7 +178,7 @@ not "how is the campaign doing". Setup script:
   (authorised on team@meetobby.com; the OAuth grant is still listed under the project's old name,
   "Untitled project").
 - **Credential to write it:** the existing `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
-- **Who writes it (Mohimenul, §10.2 item 7, not built yet — on hold since the 2026-09-24 meeting moved logs to Supabase):** the **Compare Step's `Report`** node and
+- **Who would have written it (never built — replaced by Supabase `screener_log`, 2026-09-25):** the **Compare Step's `Report`** node and
   the attempt-ladder path, `cellFormat: USER_ENTERED`, **appendOrUpdate on `call_id`** so a re-marked
   call updates its row. The ladder's rows have no `call_id` and plain-append.
 - **Columns:** `timestamp_pt`, `date_pt`, `contact_id`, `company`, `screener`, `screener_user_id`,

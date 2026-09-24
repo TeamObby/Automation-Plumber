@@ -52,7 +52,7 @@ const create = node({
 const ops = node({
   type: 'n8n-nodes-base.code', version: 2,
   config: { name: 'Graduation Ops', position: [1568, 208], parameters: { mode: 'runOnceForAllItems', jsCode: ${c('graduate_ops.js')} } },
-  output: [{ label: 'close screener opportunity (won)', method: 'PUT', url: 'https://services.leadconnectorhq.com/opportunities/O1', body: { status: 'won' }, kevin_opp_id: 'K1' }]
+  output: [{ label: 'clear screener as owner', method: 'PUT', url: 'https://services.leadconnectorhq.com/contacts/C1', body: { assignedTo: null }, kevin_opp_id: 'K1' }]
 });
 
 const haveKevin = ifElse({ version: 2.2, config: { name: 'Kevin opp exists?', position: [1792, 208], parameters: { conditions: ${cond(`{ leftValue: expr('{{ $json.method }}'), rightValue: 'SKIP', operator: { type: 'string', operation: 'notEquals' } }`)} } } });
@@ -66,26 +66,42 @@ const apply = node({
   output: [{ succeeded: true }]
 });
 
+const gate = node({
+  type: 'n8n-nodes-base.code', version: 2,
+  config: { name: 'Close Gate', position: [2240, 120], parameters: { mode: 'runOnceForAllItems', jsCode: ${c('graduate_gate.js')} } },
+  output: [{ close: true, failed: [], url: 'https://services.leadconnectorhq.com/opportunities/O1', body: { status: 'won' } }]
+});
+
+const allOk = ifElse({ version: 2.2, config: { name: 'All writes OK?', position: [2464, 120], parameters: { conditions: ${cond(`{ leftValue: expr('{{ $json.close }}'), rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }`)} } } });
+
+const closeOpp = node({
+  type: 'n8n-nodes-base.httpRequest', version: 4.4,
+  config: { name: 'GHL: Close Screener Opp', position: [2688, 40], retryOnFail: true, onError: 'continueRegularOutput',
+    parameters: { method: 'PUT', url: expr('{{ $json.url }}'), ${GHL_AUTH},
+      sendBody: true, specifyBody: 'json', jsonBody: expr('{{ JSON.stringify($json.body) }}'), options: {} }, ${GHL_CRED} },
+  output: [{ succeeded: true }]
+});
+
 const logRow = node({
   type: 'n8n-nodes-base.code', version: 2,
-  config: { name: 'Log Graduation', position: [2240, 300], parameters: { mode: 'runOnceForAllItems', jsCode: ${c('graduate_log.js')} } },
+  config: { name: 'Log Graduation', position: [2912, 300], parameters: { mode: 'runOnceForAllItems', jsCode: ${c('graduate_log.js')} } },
   output: [{ grad_key: 'C1:O1', contact_id: 'C1', ok: true }]
 });
 
 const store = node({
   type: 'n8n-nodes-base.dataTable', version: 1.1,
-  config: { name: 'Store: screener_graduations', position: [2464, 300], retryOnFail: true, parameters: { resource: 'row', operation: 'upsert', dataTableId: ${GRAD}, matchType: 'allConditions',
+  config: { name: 'Store: screener_graduations', position: [3136, 300], retryOnFail: true, parameters: { resource: 'row', operation: 'upsert', dataTableId: ${GRAD}, matchType: 'allConditions',
     filters: { conditions: [ { keyName: 'grad_key', condition: 'eq', keyValue: expr('{{ $json.grad_key }}') } ] },
     columns: { mappingMode: 'autoMapInputData', value: {}, matchingColumns: [], schema: ${schema}, attemptToConvertTypes: false, convertFieldsToString: false }, options: {} } },
   output: [{ id: 1, grad_key: 'C1:O1' }]
 });
 
-const note = sticky('## Screener: Graduate  (spec §8 · §10.2 item 6)\\nOne Owner Verified lead into Kevin\\u2019s machine: create his opportunity by the Import Contact To New rule (email -> Client Acquisition / New, else Cold Call / Day 1 Call A) or reuse an open one, copy the PT block follower, remove screening + wavv tags, clear the screener as owner, and close the screener opportunity LAST so a failure is retried by the next sweep. Called only by Screener: Graduate Sweep.', [plan, create, apply], { color: 5 });
+const note = sticky('## Screener: Graduate  (spec §8 · §10.2 item 6)\\nOne Owner Verified lead into Kevin\\u2019s machine: create his opportunity by the Import Contact To New rule (email -> Client Acquisition / New, else Cold Call / Day 1 Call A) or reuse an open one, copy the PT block follower, remove screening + wavv tags, clear the screener as owner. Close Gate closes the screener opportunity only if every one of those writes succeeded; any failure leaves it in Owner Verified for the next sweep. Called only by Screener: Graduate Sweep.', [plan, create, apply, gate, closeOpp], { color: 5 });
 
 export default workflow('screener-graduate', 'Screener: Graduate')
   .add(whenCalled).to(getContact).to(allOpps).to(plan)
   .to(isGrad.onTrue(needCreate.onTrue(create.to(ops)).onFalse(ops)).onFalse(logRow))
-  .add(ops).to(haveKevin.onTrue(apply.to(logRow)).onFalse(logRow))
+  .add(ops).to(haveKevin.onTrue(apply.to(gate).to(allOk.onTrue(closeOpp.to(logRow)).onFalse(logRow))).onFalse(logRow))
   .add(logRow).to(store)
   .add(note);
 `);

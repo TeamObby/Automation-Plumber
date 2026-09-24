@@ -551,6 +551,99 @@
       "retryOnFail": true
     },
     {
+      "name": "Build Log Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One screener_log row in Supabase (spec §10.2 item 7a) for an unanswered dial: no-answer, voicemail\n// or bad number. Same event_key as its screener_attempts row, so a replayed event updates it. Only a\n// screening lead is logged; a contact that could not be read is retried by the event itself.\nconst r = $('Log Row').first().json;\nconst got = (() => { try { return $('GHL: Get Contact').first().json; } catch (e) { return null; } })();\nconst contact = (got && got.contact) || null;\nconst s = v => String(v == null ? '' : v).trim();\nconst num = x => (x === '' || x == null || isNaN(Number(x))) ? undefined : Number(x);\nif (!contact || !contact.id) return [{ json: { log: false, why: 'contact not read' } }];\nif (!(contact.tags || []).map(t => s(t).toLowerCase()).includes('screening')) return [{ json: { log: false, why: 'not a screening lead' } }];\nconst at = num(r.at_ms);\nreturn [{ json: { log: true, row: {\n  event_key: s(r.event_key), event: s(r.event),\n  event_at: new Date(at !== undefined ? at : Date.now()).toISOString(),\n  ghl_contact_id: s(r.contact_id),\n  company: s(contact.companyName) || undefined,\n  attempt_no: num(r.attempt_no),\n  result_stage: s(r.result_stage) || null,\n  reason: s(r.reason) || null,\n  updated_at: new Date().toISOString()\n} } }];\n"
+      }
+    },
+    {
+      "name": "Log it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4032,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.log === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Supabase: screener_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4256,
+        204
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/screener_log?on_conflict=event_key",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "oUnRFJd1TMI1LmTd",
+          "name": "Supabase [ Waterline screener-helper ]"
+        }
+      }
+    },
+    {
+      "name": "Return",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The sub-workflow's result, unchanged by the log write.\nreturn $('Store: screener_attempts (upsert on event_key)').all().map(i => ({ json: i.json }));\n"
+      }
+    },
+    {
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -559,7 +652,7 @@
         0
       ],
       "parameters": {
-        "content": "## Screener: Attempt Counter  (spec §9 events 3 + 4 · §10.2 item 5)\nSub-workflow, called by Screener: No Answer and Screener: WAVV Disposition. No-answer dials and the WAVV auto-dispositions Voicemail / Bad Number walk a screening lead up the ladder: dial n -> Attempt n+1, 4th -> Exhausted, Bad Number -> Disqualified. Screen Attempts is SET, not incremented; every event is a row in screener_attempts (dedupe on the WAVV call id, or a 30 s window for no-answer). A dial after an answered call nobody marked forces the Compare Step (Not Sure + mismatch).\nKeep INACTIVE until the four GHL guard branches exist.",
+        "content": "## Screener: Attempt Counter  (spec §9 events 3 + 4 · §10.2 item 5)\nSub-workflow, called by Screener: No Answer and Screener: WAVV Disposition. No-answer dials and the WAVV auto-dispositions Voicemail / Bad Number walk a screening lead up the ladder: dial n -> Attempt n+1, 4th -> Exhausted, Bad Number -> Disqualified. Screen Attempts is SET, not incremented; every event is a row in screener_attempts (dedupe on the WAVV call id, or a 30 s window for no-answer). A dial after an answered call nobody marked forces the Compare Step (Not Sure + mismatch). Each event is also a screener_log row in Supabase (item 7a).\nKeep INACTIVE until the four GHL guard branches exist.",
         "color": 5
       }
     }
@@ -738,6 +831,57 @@
         [
           {
             "node": "Store: screener_attempts (upsert on event_key)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: screener_log": {
+      "main": [
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log it?": {
+      "main": [
+        [
+          {
+            "node": "Supabase: screener_log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Row": {
+      "main": [
+        [
+          {
+            "node": "Log it?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store: screener_attempts (upsert on event_key)": {
+      "main": [
+        [
+          {
+            "node": "Build Log Row",
             "type": "main",
             "index": 0
           }

@@ -1,6 +1,6 @@
-// The writes, in order. Closing the screener opportunity is LAST: if anything before it fails, the
-// lead stays in Owner Verified and the next sweep retries, finding the Kevin opportunity it already
-// made instead of creating another.
+// The writes that must all succeed before the screener opportunity is closed. The close itself is a
+// separate node behind Close Gate: if any write here fails, the lead stays in Owner Verified and the
+// next sweep retries, finding the Kevin opportunity it already made instead of creating another.
 const GHL = 'https://services.leadconnectorhq.com';
 const d = $('Graduation Plan').first().json;
 let created = null;
@@ -13,5 +13,4 @@ const op = (label, method, url, body) => ops.push({ json: { label, method, url, 
 if (d.block_user) op('block follower on Kevin opp', 'POST', GHL + '/opportunities/' + kevin_opp_id + '/followers', { followers: [d.block_user] });
 if (d.remove_tags.length) op('remove screening + wavv tags', 'DELETE', GHL + '/contacts/' + d.contact_id + '/tags', { tags: d.remove_tags });
 op('clear screener as owner', 'PUT', GHL + '/contacts/' + d.contact_id, { assignedTo: null });
-op('close screener opportunity (won)', 'PUT', GHL + '/opportunities/' + d.screener_opp_id, { status: 'won' });
 return ops;

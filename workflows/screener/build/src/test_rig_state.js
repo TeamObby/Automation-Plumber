@@ -16,6 +16,7 @@ return [{ json: {
   action: $('Rig Ops').first().json.action,
   requests: sent.map((label, i) => label + (results[i] && results[i].error ? ' FAILED: ' + (results[i].error.message || '') : ' ok')),
   stage: STAGES[o.pipelineStageId] || o.pipelineStageId || '(no opp found)',
+  status: o.status || '',
   followers: o.followers || [],
   tags: (c.tags || []).filter(t => /^(screening|owner-confirmed|screen-|screened-)/.test(t)).sort(),
   dnd: c.dnd,

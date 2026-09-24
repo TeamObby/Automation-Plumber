@@ -528,18 +528,30 @@ ok(report(plan, null, [plan]).run_started_ms === 1000, 'Report hands the version
 console.log('=== 9) Test rig (manual, hard-wired to the test contact) ===');
 const rigWf = wf('Screener Test Rig.json');
 const RIG = codeOf(rigWf, 'Rig Ops');
-const rig = body => run(RIG, { body });
+const rig = (body, row = {}) => run(RIG, row, { 'Webhook (test rig)': item({ body }) });
 const throws = f => { try { f(); return false; } catch (e) { return true; } };
 const rMark = rig({ action: 'mark', outcome: 'Owner - Busy' });
 ok(rMark.ops.length === 1 && rMark.ops[0].body.customFields[0].id === F.outcome && rMark.ops[0].body.customFields[0].value === 'Owner - Busy', 'mark sets only Screener Outcome');
 ok(throws(() => rig({ action: 'mark', outcome: 'Do Not Call' })), 'Do Not Call refused (DND on the demo record)');
 ok(throws(() => rig({ action: 'mark', outcome: 'owner busy' })), 'misspelt outcome refused');
 ok(throws(() => rig({ action: 'delete' })), 'unknown action refused');
+ok(JSON.stringify(conn(rigWf, 'Webhook (test rig)')) === '[["Test contact graduation"]]' && JSON.stringify(conn(rigWf, 'Test contact graduation')) === '[["Rig Ops"]]'
+   && rigWf.nodes.find(n => n.name === 'Test contact graduation').parameters.filters.conditions[0].keyValue === '2Z5mwZe5RT4NQdNW85vj:FAstcBVvrgbpds2gQIV3',
+   'the rig reads only the test contact graduation row');
 ok(rig({ action: 'read' }).ops.length === 0, 'read writes nothing');
 const rReset = rig({ action: 'reset' });
 ok([rMark, rReset].every(r => r.ops.every(o => o.url.includes('/contacts/2Z5mwZe5RT4NQdNW85vj') || o.url.includes('/opportunities/FAstcBVvrgbpds2gQIV3'))),
    'every request targets Dana Happy or her screener opp, nothing else');
-ok(rReset.ops.some(o => o.label.includes('Attempt 1') && o.body.pipelineStageId === ST.attempt1), 'reset: opp back to Attempt 1');
+ok(rReset.ops.some(o => o.label.includes('Attempt 1') && o.body.pipelineStageId === ST.attempt1 && o.body.status === 'open'), 'reset: opp open again, back to Attempt 1 (undoes a graduation close)');
+ok(rReset.ops.some(o => o.method === 'POST' && o.url.endsWith('/tags') && JSON.stringify(o.body.tags) === '["screening"]'), 'reset: screening tag back (Graduate removes it)');
+const GROW = { grad_key: '2Z5mwZe5RT4NQdNW85vj:FAstcBVvrgbpds2gQIV3', kevin_opp_id: 'K1', created_new: true };
+const rUngrad = rig({ action: 'ungraduate' }, GROW);
+ok(rUngrad.ops[0].method === 'DELETE' && rUngrad.ops[0].url.endsWith('/opportunities/K1') && rUngrad.ops.length === rReset.ops.length + 1, 'ungraduate: deletes the logged Kevin opp, then a full reset');
+ok(rUngrad.ops.filter(o => o.url.includes('/opportunities/') && !o.url.includes('FAstcBVvrgbpds2gQIV3')).length === 1, 'ungraduate: the only other record it touches is that one opp');
+ok(throws(() => rig({ action: 'ungraduate' }, {})), 'ungraduate with no graduation row -> refused');
+ok(throws(() => rig({ action: 'ungraduate' }, Object.assign({}, GROW, { created_new: false }))), 'ungraduate of a REUSED Kevin opp -> refused (it existed before Graduate)');
+ok(throws(() => rig({ action: 'ungraduate' }, Object.assign({}, GROW, { grad_key: 'OTHER:O1' }))), 'ungraduate of another contact row -> refused');
+ok(throws(() => rig({ action: 'ungraduate' }, Object.assign({}, GROW, { kevin_opp_id: 'FAstcBVvrgbpds2gQIV3' }))), 'ungraduate never deletes the screener opp');
 ok(JSON.stringify(rReset.ops.find(o => o.label.includes('followers')).body.followers.slice().sort()) === JSON.stringify(Object.values(U).sort()), 'reset: removes exactly the ten block followers');
 ok(rReset.ops.find(o => o.label.includes('tags')).body.tags.length === 14 && !rReset.ops.find(o => o.label.includes('tags')).body.tags.includes('screening'),
    'reset: removes the 14 result tags, keeps screening');
@@ -689,8 +701,10 @@ ok(g.action === 'graduate' && g.create === null && g.kevin_opp_id === 'K9', 'alr
 ok(gplan({ opps: { opportunities: [ so(), { id: 'K8', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'lost' } ] } }).create !== null, 'a closed Kevin opportunity does not count');
 g = gplan({ opps: { opportunities: [ so(), { id: 'D1', pipelineId: 'SOME-DEMO-PIPELINE', status: 'open' } ] } });
 ok(g.create !== null && g.kevin_opp_id === '', 'an open opportunity in an unrelated pipeline (e.g. a demo) is NOT reused: Kevin gets his own');
-['1A1RkYaL93s2rqbQ3Opi', '3onA8GkJnSwgzIGTGSpI', 'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', 'OOu5TjgalfGZElEIoSbq', '9E6y34DlG1Imr8FV42RV'].forEach(pid =>
+['1A1RkYaL93s2rqbQ3Opi', '3onA8GkJnSwgzIGTGSpI', 'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', '9E6y34DlG1Imr8FV42RV'].forEach(pid =>
   ok(gplan({ opps: { opportunities: [ so(), { id: 'KX', pipelineId: pid, status: 'open' } ] } }).kevin_opp_id === 'KX', 'open opp in Kevin pipeline ' + pid + ' -> reused'));
+g = gplan({ opps: { opportunities: [ so(), { id: 'MR1', pipelineId: 'OOu5TjgalfGZElEIoSbq', status: 'open' } ] } });
+ok(g.create !== null && g.kevin_opp_id === '', 'an open Manual Review Needed opp is a task, not a handoff: a real opportunity is still created');
 ok(gplan({ tags: ['screening'] }).action === 'skip', 'not owner-confirmed -> skip');
 ok(gplan({ opps: { opportunities: [ so({ pipelineStageId: '0c160182-e74d-4ace-9d3b-c4404043ef4b' }) ] } }).action === 'skip', 'corrected away from Owner Verified since the sweep -> skip');
 ok(gplan({ contact: { error: { message: '502' } } }).retry === true && gplan({ opps: { error: { message: 'x' } } }).retry === true, 'unreadable contact / opp search failed -> retry');
@@ -703,30 +717,125 @@ const gops = (plan, created) => new Function('$json', '$input', '$', GO)({}, {},
 }).map(i => i.json);
 let go = gops(gplan(), { opportunity: { id: 'K1' } });
 ok(go.every(o => o.kevin_opp_id === 'K1') && go[0].url.endsWith('/opportunities/K1/followers') && go[0].body.followers[0] === 'T4p1bK3yo6Bl14OK1LP3', 'follower goes on the NEW Kevin opportunity');
-ok(go[go.length - 1].label.startsWith('close screener') && go[go.length - 1].url.endsWith('/opportunities/O1') && go[go.length - 1].body.status === 'won', 'closing the screener opportunity is LAST (a failure before it is retried)');
+ok(!go.some(o => o.url.endsWith('/opportunities/O1')), 'Graduation Ops never closes the screener opportunity (Close Gate does, after every write succeeded)');
 ok(go.some(o => o.label === 'clear screener as owner' && o.body.assignedTo === null), 'the screener stops owning the contact');
 go = gops(gplan({ opps: { opportunities: [ so(), { id: 'K9', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'open' } ] } }));
 ok(go[0].kevin_opp_id === 'K9', 'reused opportunity: follower on the existing one');
 go = gops(gplan(), { error: { message: '422 duplicate' } });
 ok(go.length === 1 && go[0].method === 'SKIP' && go[0].error_text.includes('422'), 'create failed -> no writes at all (lead stays in Owner Verified for the next sweep)');
 ok(JSON.stringify(conn(gradWf, 'Kevin opp exists?')) === '[["GHL: Graduation Apply"],["Log Graduation"]]', 'a failed create goes straight to the log');
+ok(JSON.stringify(conn(gradWf, 'GHL: Graduation Apply')) === '[["Close Gate"]]' && JSON.stringify(conn(gradWf, 'Close Gate')) === '[["All writes OK?"]]'
+  && JSON.stringify(conn(gradWf, 'All writes OK?')) === '[["GHL: Close Screener Opp"],["Log Graduation"]]' && JSON.stringify(conn(gradWf, 'GHL: Close Screener Opp')) === '[["Log Graduation"]]',
+  'writes -> Close Gate -> close only when all succeeded; both ends reach the log');
+
+const GG = codeOf(gradWf, 'Close Gate');
+const ggate = (plan, sent, res) => new Function('$json', '$input', '$', GG)({}, { all: () => res.map(json => ({ json })) }, n => {
+  if (n === 'Graduation Plan') return { first: () => ({ json: plan }) };
+  if (n === 'Graduation Ops') return { all: () => sent.map(json => ({ json })) };
+})[0].json;
+const gpl = gplan(), gsent = gops(gpl, { opportunity: { id: 'K1' } });
+let gt = ggate(gpl, gsent, gsent.map(() => ({})));
+ok(gt.close === true && gt.url.endsWith('/opportunities/O1') && gt.body.status === 'won', 'every write succeeded -> close the screener opportunity (won)');
+gt = ggate(gpl, gsent, [{}, { error: { message: '500' } }, {}]);
+ok(gt.close === false && gt.failed[0] === 'remove screening + wavv tags', 'tag removal failed -> screener opportunity stays open for the next sweep');
+gt = ggate(gpl, gsent, [{ error: { message: '404' } }, {}, {}]);
+ok(gt.close === false && gt.failed[0] === 'block follower on Kevin opp', 'follower failed -> stays open');
+ok(ggate(gpl, gsent, [{}]).close === false, 'fewer results than writes -> not confirmed, stays open');
 
 const GL = codeOf(gradWf, 'Log Graduation');
-const glog = (plan, sent, res) => new Function('$json', '$input', '$', GL)({}, {}, n => {
+const glog = (plan, sent, res, gate, closeRes) => new Function('$json', '$input', '$', GL)({}, {}, n => {
   if (n === 'Graduation Plan') return { first: () => ({ json: plan }) };
-  const v = n === 'Graduation Ops' ? sent : res; if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+  const v = { 'Graduation Ops': sent, 'GHL: Graduation Apply': res, 'Close Gate': gate && [gate], 'GHL: Close Screener Opp': closeRes && [closeRes] }[n];
+  if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
 })[0].json;
 const pl = gplan();
-let gl = glog(pl, gops(pl, { opportunity: { id: 'K1' } }), [{}, {}, {}, {}]);
+let gl = glog(pl, gsent, [{}, {}, {}], { close: true, failed: [] }, {});
 ok(gl.ok === true && gl.kevin_opp_id === 'K1' && gl.created_new === true && gl.grad_key === 'C1:O1', 'clean graduation logged');
-gl = glog(pl, gops(pl, { opportunity: { id: 'K1' } }), [{}, {}, {}, { error: { message: '500' } }]);
+gl = glog(pl, gsent, [{}, {}, {}], { close: true, failed: [] }, { error: { message: '500' } });
 ok(gl.ok === false && gl.reason.includes('close screener opportunity (won): 500'), 'failed close -> not ok, named');
+gl = glog(pl, gsent, [{}, { error: { message: '500' } }, {}], { close: false, failed: ['remove screening + wavv tags'] }, null);
+ok(gl.ok === false && gl.reason.includes('remove screening + wavv tags: 500') && gl.reason.includes('screener opportunity left open'), 'failed write -> not ok, close skipped, both named');
+ok(glog(pl, gsent, [{}, {}, {}], null, null).ok === false, 'writes done but never closed -> not ok (a graduation counts only once closed)');
 gl = glog(pl, gops(pl, { error: { message: '422 duplicate' } }), null);
 ok(gl.ok === false && gl.reason.includes('create Kevin opp: 422'), 'failed create -> not ok, named');
 ok(glog(gplan({ tags: ['screening'] }), null, null).ok === true, 'final skip -> ok');
 const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevin_pipeline','created_new','pt_block','action','ok','reason','at'];
 ok(JSON.stringify(Object.keys(gl).sort()) === JSON.stringify(GRADCOLS.slice().sort()), 'Log Graduation fields == screener_graduations columns');
 ok(sweepWf.nodes.find(n => n.name === 'Screener: Graduate').parameters.workflowId.value === require('../workflows/screener/build/ids.json').graduate, 'the sweep calls Screener: Graduate');
+
+console.log('=== 12) Screener log in Supabase (item 7a) ===');
+const SQL = fs.readFileSync(path.join(__dirname, '../supabase/screener_log.sql'), 'utf8');
+const SQLCOLS = (SQL.match(/create table if not exists public\.screener_log \(([\s\S]*?)\n\);/) || [, ''])[1]
+  .split('\n').map(l => (l.trim().match(/^([a-z_]+)\s+(text|timestamptz|integer|numeric|boolean)/) || [])[1]).filter(Boolean);
+ok(SQLCOLS.length === 23 && SQLCOLS.includes('event_key') && SQLCOLS.includes('match'), 'SQL file parsed: 23 screener_log columns');
+const EVENTS = (SQL.match(/event in \(([^)]*)\)/) || [, ''])[1].split(',').map(x => x.trim().replace(/'/g, ''));
+const cmpWf = wf('Screener Compare Step.json'), ctrWf = wf('Screener Attempt Counter.json');
+[[cmpWf, 'Report', 'Find call row'], [ctrWf, 'Store: screener_attempts (upsert on event_key)', 'Build Log Row']].forEach(([w, from, next]) => {
+  ok(JSON.stringify(conn(w, from)) === JSON.stringify([[next]]), w.name + ': ' + from + ' -> ' + next);
+  ok(JSON.stringify(conn(w, 'Log it?')) === '[["Supabase: screener_log"],["Return"]]' && JSON.stringify(conn(w, 'Supabase: screener_log')) === '[["Return"]]'
+     && !w.connections['Return'], w.name + ': log it -> Supabase -> Return; Return is the last node');
+  const up = w.nodes.find(n => n.name === 'Supabase: screener_log');
+  ok(up.onError === 'continueRegularOutput' && up.parameters.nodeCredentialType === 'supabaseApi' && /\/rest\/v1\/screener_log\?on_conflict=event_key$/.test(up.parameters.url)
+     && up.parameters.headerParameters.parameters.some(h => h.name === 'Prefer' && h.value.includes('resolution=merge-duplicates')),
+     w.name + ': upsert on event_key, a Supabase failure never fails the run');
+  const RET = codeOf(w, 'Return');
+  const back = new Function('$json', '$', RET)({}, n => { if (n !== from) throw new Error('wrong node ' + n); return { all: () => [{ json: { ok: true, result: 'Owner Verified' }, pairedItem: { item: 0 } }] }; });
+  ok(back.length === 1 && back[0].json.ok === true && back[0].json.result === 'Owner Verified', w.name + ': Return hands back the ' + from + ' output unchanged');
+});
+ok(cmpWf.nodes.find(n => n.name === 'Find call row').alwaysOutputData === true, 'a missing call row does not stop the log');
+
+const LCR = codeOf(cmpWf, 'Build Log Row');
+const V1 = { call_id: 'CALL1', answered_at: '2026-09-25T17:10:00.000Z', pt_block: 'PT 10-11', ghl_user_id: 'U1', call_outcome: 'owner', owner_reached: 'yes', confidence: 0.9, quote_verified: true };
+const CROW = { call_id: 'CALL1', answered_at: '2026-09-25T17:10:00.000Z', ghl_user_id: 'U1', pt_block: 'PT 10-11', duration_sec: 42, recording_url: 'https://rec', transcript: 'Hi, this is Bob, the owner.',
+  ai_call_outcome: 'owner', ai_owner_reached: 'yes', ai_confidence: 0.9, ai_quote_verified: true };
+const lcr = ({ plan, verdictIn = V1, stored = V1, crow = CROW, contact } = {}) => {
+  const out = run(LCR, {}, {
+    'Decide': item(Object.assign({ contact_id: 'C1', call_id: '', action: 'apply', result: 'Owner Verified', mismatch: false, reason: 'screener and AI agree: owner', notes: [], mark: 'Owner - Busy', verdict_call_id: 'CALL1' }, plan)),
+    'When Called by Screener': item({ contact_id: 'C1', verdict_json: verdictIn ? JSON.stringify(verdictIn) : '' }),
+    'GHL: Get Contact': item({ contact: contact || { id: 'C1', companyName: 'Happy Plumbing', customFields: [ { id: 'boOwqb5qGOmbWBopWvTv', value: stored ? JSON.stringify(stored) : '' }, { id: 'vcqKnq23gN5wIIHqRww4', value: '2' } ] } }),
+    'Find call row': item(crow)
+  });
+  return JSON.parse(JSON.stringify(out[0].json));   // what n8n sends: undefined keys dropped
+};
+let slr = lcr();
+ok(slr.log === true && slr.row.event_key === 'call:CALL1' && slr.row.event === 'call' && slr.row.match === true && slr.row.result_stage === 'Owner Verified' && slr.row.noise === 'busy',
+   'owner agreed: match true, Owner Verified, noise busy');
+ok(slr.row.duration_sec === 42 && slr.row.transcript.startsWith('Hi') && slr.row.recording_url === 'https://rec' && slr.row.company === 'Happy Plumbing' && slr.row.attempt_no === 2
+   && slr.row.screener_user_id === 'U1' && slr.row.pt_block === 'PT 10-11' && slr.row.event_at === '2026-09-25T17:10:00.000Z', 'call facts from the screener_calls row + contact');
+ok(typeof slr.row.ai_confidence === 'number' && slr.row.ai_quote_verified === true && typeof slr.row.attempt_no === 'number', 'numbers are numbers, booleans are booleans');
+ok(Object.keys(slr.row).every(k => SQLCOLS.includes(k)), 'every key is a screener_log column');
+ok(EVENTS.includes(slr.row.event), 'event is one the table accepts');
+slr = lcr({ plan: { action: 'wait', result: '', mark: '', reason: "waiting for the screener's mark" } });
+ok(slr.log === true && slr.row.match === null && slr.row.result_stage === null && slr.row.screener_outcome === null && slr.row.noise === null && slr.row.ai_call_outcome === 'owner',
+   'AI first, still waiting: row logged, match NULL (never counted as a miss)');
+slr = lcr({ plan: { mark: 'Gatekeeper', result: 'Not Sure', mismatch: true, reason: 'screener says gatekeeper, AI says owner' } });
+ok(slr.row.match === false && slr.row.result_stage === 'Not Sure' && slr.row.noise === null && slr.row.screener_outcome === 'Gatekeeper', 'mismatch: match false');
+slr = lcr({ plan: { mark: 'Wrong Number', result: 'Disqualified', mismatch: false, reason: 'Wrong Number' } });
+ok(slr.row.match === null && slr.row.result_stage === 'Disqualified', 'dead-end mark is never compared: match NULL');
+slr = lcr({ plan: { mark: '', result: 'Not Sure', mismatch: true, reason: 'nothing marked' } });
+ok(slr.row.match === false && slr.row.screener_outcome === null, 'forced, nothing marked: a screener miss (match false)');
+ok(lcr({ plan: { action: 'skip', reason: 'contact is not tagged screening' } }).log === false, 'skipped run: nothing logged');
+ok(lcr({ plan: { action: 'wait', result: '', verdict_call_id: '', call_id: '' }, verdictIn: null, stored: null }).log === false, 'marked before the call was captured: nothing logged yet');
+slr = lcr({ crow: {} });
+ok(slr.log === true && !('transcript' in slr.row) && !('duration_sec' in slr.row) && !('recording_url' in slr.row) && slr.row.ai_call_outcome === 'owner' && slr.row.event_at === V1.answered_at,
+   'call row not found: facts from the verdict, missing ones omitted (never blanked)');
+slr = lcr({ crow: Object.assign({}, CROW, { call_id: 'OTHER', transcript: 'wrong call' }) });
+ok(!('transcript' in slr.row), 'a row for another call is never used');
+slr = lcr({ verdictIn: null });
+ok(slr.row.ai_call_outcome === 'owner' && slr.row.event_key === 'call:CALL1', 'mark path: verdict read from the contact field');
+
+const LAR = codeOf(ctrWf, 'Build Log Row');
+const lar = (r, contact) => JSON.parse(JSON.stringify(run(LAR, {}, {
+  'Log Row': item(Object.assign({ event_key: 'wavv:W1', contact_id: 'C1', event: 'voicemail', wavv_call_id: 'W1', attempt_no: 2, action: 'apply', result_stage: 'Attempt 3', ok: true, reason: 'dial 2', at_ms: Date.parse('2026-09-25T18:00:00Z') }, r)),
+  'GHL: Get Contact': item(contact === undefined ? { contact: { id: 'C1', companyName: 'Happy Plumbing', tags: ['screening'] } } : contact)
+})[0].json));
+let sla = lar({});
+ok(sla.log === true && sla.row.event_key === 'wavv:W1' && sla.row.event === 'voicemail' && sla.row.attempt_no === 2 && sla.row.result_stage === 'Attempt 3'
+   && sla.row.event_at === '2026-09-25T18:00:00.000Z' && sla.row.company === 'Happy Plumbing' && !('match' in sla.row) && !('call_id' in sla.row), 'voicemail dial logged with its ladder key, no match');
+ok(Object.keys(sla.row).every(k => SQLCOLS.includes(k)) && ['no-answer', 'voicemail', 'bad-number'].every(e => EVENTS.includes(e)), 'dial rows fit the table and its event check');
+ok(lar({}, { contact: { id: 'C1', tags: ['plumber'] } }).log === false, 'not a screening lead: not logged');
+ok(lar({}, { error: { message: '502' } }).log === false, 'contact unreadable: not logged');
+ok(lar({ event: 'bad-number', result_stage: 'Disqualified' }).row.result_stage === 'Disqualified', 'bad number -> Disqualified row');
 
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

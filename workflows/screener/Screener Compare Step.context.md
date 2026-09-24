@@ -1,10 +1,14 @@
 # Screener: Compare Step  [spec §4.1 cross-check · §10.2 item 4]
 
 - **n8n ID:** `3pwiQXC8etTcKf5Z` · **URL:** https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z · **File:** `Screener Compare Step.json`
-- **Folder:** `workflows/screener/` · built from `build/src/decide.js` (+ `split_ops.js`, `report.js`) by `build/gen_compare.js`
+- **Folder:** `workflows/screener/` · built from `build/src/decide.js` (+ `split_ops.js`, `report.js`, `log_call_row.js`) by `build/gen_compare.js` (+ `build/log_supabase.js`)
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
+- **⚠️ Sync state (2026-09-25):** this snapshot = the n8n **draft** (pushed with the screener_log write,
+  item 7a; Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]`
+  `oUnRFJd1TMI1LmTd`). The **published** version is still the one without the log until it is
+  re-published (needs OK) — until then no row reaches Supabase.
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict
@@ -22,6 +26,14 @@ The one place where the screener's mark (`Screener Outcome`) meets the AI verdic
 4. **Anything to write?** → **Split Ops** → **GHL: Apply** (one generic HTTP node, batch size 1,
    `onError: continue`) → **Report**. Report runs on both branches and always returns
    `ok` = no failed request **and** no `retry`; Capture stores it as `writeback_ok`.
+5. **Screener log (item 7a):** **Find call row** (`screener_calls` by call id, for duration, recording,
+   transcript) → **Build Log Row** → *Log it?* → **Supabase: screener_log** (PostgREST upsert,
+   `on_conflict=event_key`, `onError: continue`) → **Return**, which hands back Report's output
+   unchanged — callers read `ok` / `result` from it. One row per answered call (`call:<call_id>`),
+   updated by every run for that call. Decision fields are always sent (`match` / `result_stage` are
+   NULL while waiting, so a wait never counts as a miss; a dead-end mark has no `match`); call facts are
+   sent only when known, so a later run never blanks them. Not logged: skipped runs, and a mark that
+   arrives before the call is captured (the call's own run logs it).
 
 ## Why persist-then-read (codex review, 2026-09-23)
 The first version decided on a read taken *before* saving the verdict. If the Capture run read
