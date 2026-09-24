@@ -134,7 +134,7 @@ Attempt Counter) — n8n refuses an unpublished sub-workflow called from anythin
 (`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
 POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
 
-**Next on this side: `screen_log`, items 6, 7.**
+**Next on this side (after Kevin's 2026-09-24 meeting):** Supabase becomes the source of truth — screener events and transcripts go to Supabase (early version due 2026-09-25 night); the `screen_log` Sheets writer is on hold until the Supabase tables exist; then items 6, 7. Task list: [`screener-handoff.md`](screener-handoff.md) §3.
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard
