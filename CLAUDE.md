@@ -53,7 +53,8 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   Keep the entry workflows inactive until the GHL guards exist: `Capture Call`, `Mark + Compare`,
   `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`. Sub-workflows published
   2026-09-24: Classify Transcript, Compare Step, Attempt Counter; `Graduate` still to publish.
-  `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her.
+  `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her;
+  `ungraduate` undoes a Graduate test (deletes the Kevin opportunity Graduate logged for her).
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 
 ## Working on live workflows (n8n MCP)

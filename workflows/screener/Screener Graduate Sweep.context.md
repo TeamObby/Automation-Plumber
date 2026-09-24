@@ -18,3 +18,5 @@ each to **`Screener: Graduate`** (`M2LD6njhVMO9Ol7w`), one at a time.
 ## Tested
 - 2026-09-24 exec 123593: the Owner Verified search (with `pipeline_stage_id` + `status=open`) works and
   returned 0 — the test contact had just been reset — so nothing was graduated.
+- 2026-09-24 exec 123631: end to end. The test contact, 11 min in Owner Verified, was picked (and nothing
+  else was there) and handed to Graduate (123632), which graduated it (`ok: true`). See the Graduate context.

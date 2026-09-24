@@ -528,18 +528,30 @@ ok(report(plan, null, [plan]).run_started_ms === 1000, 'Report hands the version
 console.log('=== 9) Test rig (manual, hard-wired to the test contact) ===');
 const rigWf = wf('Screener Test Rig.json');
 const RIG = codeOf(rigWf, 'Rig Ops');
-const rig = body => run(RIG, { body });
+const rig = (body, row = {}) => run(RIG, row, { 'Webhook (test rig)': item({ body }) });
 const throws = f => { try { f(); return false; } catch (e) { return true; } };
 const rMark = rig({ action: 'mark', outcome: 'Owner - Busy' });
 ok(rMark.ops.length === 1 && rMark.ops[0].body.customFields[0].id === F.outcome && rMark.ops[0].body.customFields[0].value === 'Owner - Busy', 'mark sets only Screener Outcome');
 ok(throws(() => rig({ action: 'mark', outcome: 'Do Not Call' })), 'Do Not Call refused (DND on the demo record)');
 ok(throws(() => rig({ action: 'mark', outcome: 'owner busy' })), 'misspelt outcome refused');
 ok(throws(() => rig({ action: 'delete' })), 'unknown action refused');
+ok(JSON.stringify(conn(rigWf, 'Webhook (test rig)')) === '[["Test contact graduation"]]' && JSON.stringify(conn(rigWf, 'Test contact graduation')) === '[["Rig Ops"]]'
+   && rigWf.nodes.find(n => n.name === 'Test contact graduation').parameters.filters.conditions[0].keyValue === '2Z5mwZe5RT4NQdNW85vj:FAstcBVvrgbpds2gQIV3',
+   'the rig reads only the test contact graduation row');
 ok(rig({ action: 'read' }).ops.length === 0, 'read writes nothing');
 const rReset = rig({ action: 'reset' });
 ok([rMark, rReset].every(r => r.ops.every(o => o.url.includes('/contacts/2Z5mwZe5RT4NQdNW85vj') || o.url.includes('/opportunities/FAstcBVvrgbpds2gQIV3'))),
    'every request targets Dana Happy or her screener opp, nothing else');
-ok(rReset.ops.some(o => o.label.includes('Attempt 1') && o.body.pipelineStageId === ST.attempt1), 'reset: opp back to Attempt 1');
+ok(rReset.ops.some(o => o.label.includes('Attempt 1') && o.body.pipelineStageId === ST.attempt1 && o.body.status === 'open'), 'reset: opp open again, back to Attempt 1 (undoes a graduation close)');
+ok(rReset.ops.some(o => o.method === 'POST' && o.url.endsWith('/tags') && JSON.stringify(o.body.tags) === '["screening"]'), 'reset: screening tag back (Graduate removes it)');
+const GROW = { grad_key: '2Z5mwZe5RT4NQdNW85vj:FAstcBVvrgbpds2gQIV3', kevin_opp_id: 'K1', created_new: true };
+const rUngrad = rig({ action: 'ungraduate' }, GROW);
+ok(rUngrad.ops[0].method === 'DELETE' && rUngrad.ops[0].url.endsWith('/opportunities/K1') && rUngrad.ops.length === rReset.ops.length + 1, 'ungraduate: deletes the logged Kevin opp, then a full reset');
+ok(rUngrad.ops.filter(o => o.url.includes('/opportunities/') && !o.url.includes('FAstcBVvrgbpds2gQIV3')).length === 1, 'ungraduate: the only other record it touches is that one opp');
+ok(throws(() => rig({ action: 'ungraduate' }, {})), 'ungraduate with no graduation row -> refused');
+ok(throws(() => rig({ action: 'ungraduate' }, Object.assign({}, GROW, { created_new: false }))), 'ungraduate of a REUSED Kevin opp -> refused (it existed before Graduate)');
+ok(throws(() => rig({ action: 'ungraduate' }, Object.assign({}, GROW, { grad_key: 'OTHER:O1' }))), 'ungraduate of another contact row -> refused');
+ok(throws(() => rig({ action: 'ungraduate' }, Object.assign({}, GROW, { kevin_opp_id: 'FAstcBVvrgbpds2gQIV3' }))), 'ungraduate never deletes the screener opp');
 ok(JSON.stringify(rReset.ops.find(o => o.label.includes('followers')).body.followers.slice().sort()) === JSON.stringify(Object.values(U).sort()), 'reset: removes exactly the ten block followers');
 ok(rReset.ops.find(o => o.label.includes('tags')).body.tags.length === 14 && !rReset.ops.find(o => o.label.includes('tags')).body.tags.includes('screening'),
    'reset: removes the 14 result tags, keeps screening');

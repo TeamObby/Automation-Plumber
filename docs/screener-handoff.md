@@ -10,7 +10,7 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
 **Mohimenul's n8n items 1–6 are built** (capture + AI verdict, hour block, compare + write-back,
-attempt ladder, graduate) and tested on the test contact, except Graduate end to end. The **guards
+attempt ladder, graduate) and tested live on the test contact, Graduate end to end included. The **guards
 are not in yet**, so no screener call may be made and the entry workflows stay **inactive**. After
 Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
 due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, activate
@@ -85,7 +85,7 @@ blocks duplicate phone numbers.
 | n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition`, inactive |
 | n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **publish before go-live** |
 | n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
-| n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset **Dana Happy** only |
+| n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset / ungraduate **Dana Happy** only |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
 `/webhook/screener-disposition`
@@ -111,9 +111,10 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 ### Mohimenul — finish the screener items first (spec §10.2)
 1. ✅ Items 1–5 built and tested on the test contact; ✅ Classify, Compare Step, Attempt Counter published;
    ✅ Dana Happy reset.
-2. ✅ **Item 6 Graduate** built (`Screener: Graduate` + `Graduate Sweep`, inactive). Open: one end-to-end live
-   test (creates a real opportunity in Kevin's pipeline → needs a go-ahead, then delete it) and
-   publishing `Screener: Graduate` before go-live.
+2. ✅ **Item 6 Graduate** built (`Screener: Graduate` + `Graduate Sweep`, inactive), Codex fixes in (the close
+   is gated on every write succeeding; Manual Review is not a handoff), and ✅ **tested live end to end** on
+   Dana (sweep 123631 → Graduate 123632); the Kevin opportunity it made was deleted with the rig's
+   `ungraduate` and Dana is back in Attempt 1. Open: publish `Screener: Graduate` before go-live.
 3. **Item 7a — the screener log.** Hridoy's `screen_log` Sheet exists, but logs now belong in Supabase;
    decide which (simplicity says one place).
 4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`

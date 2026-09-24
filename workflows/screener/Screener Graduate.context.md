@@ -43,9 +43,16 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
 ## Tested
 - Offline: `tests/screener.test.js` §11 (routing, reuse incl. Manual Review excluded, guards, Close Gate,
   wiring, failed create, log). Both Codex fixes mutation-tested: putting either bug back fails the suite.
-- Live: not yet end to end — graduating the test contact creates a real opportunity in Kevin's pipeline,
-  which his automations act on, so it needs a go-ahead and a cleanup plan (delete the created opp).
-  Unverified until then: `assignedTo: null` clearing the owner, and the create response shape.
+- **Live end to end, 2026-09-24** (go-ahead from Mohimenul): Dana set to Owner Verified with
+  `owner-confirmed`, `screened-pt-10-11` and a leftover `wavv-none`; after the 10-min grace the sweep
+  (123631) called Graduate (123632): created `Kevin Test` in **Cold Call / Day 1 Call A**
+  (`rvKNBwtZPXQY1ICQLPJf`), PT 10-11 follower on it, `screening` + `wavv-none` removed (the other two
+  kept), owner PUT accepted, Close Gate `close: true`, screener opp `won`, row `ok: true`. Checked in GHL
+  directly, not only in the log. Kevin's automations added nothing (Dana has no TZ).
+- Create response shape confirmed: `{ opportunity: { id } }`. `assignedTo: null` was accepted, but Dana
+  had no owner before, so clearing a real owner is still unproven until a screener user owns a lead.
+- Undone with the Test Rig `ungraduate` (123635): the Kevin opp is deleted (404) and Dana is back to
+  open / Attempt 1 / `screening`.
 
 ## TODOs
 - After the meeting of 2026-09-24: also mark the shop as graduated in **Supabase** once the tables exist.
