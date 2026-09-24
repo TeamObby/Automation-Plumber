@@ -129,13 +129,14 @@ have to land by then too.
 
 ### C. Still open from before (unchanged by the meeting)
 4. 🔴 **Hridoy — the four guards** (§1 of the plan). Nothing screener-side may go live first.
-5. 🔴 **Publish the screener sub-workflows** (Classify, Compare Step, Attempt Counter) — needs a go-ahead;
-   the tool refused it as a production deploy. Re-publish after every edit.
-6. **Reset the test contact Dana Happy** (left Disqualified, Screen Attempts 2, an unmarked test verdict).
+5. ✅ Classify, Compare Step and Attempt Counter **published** (2026-09-24). 🔴 `Screener: Graduate` still to
+   publish before go-live. Re-publish after every edit.
+6. ✅ Dana Happy reset (2026-09-24), after the forced-compare ladder case passed live (exec 123587).
 7. **Merge PR `screener-item-4`** (items 4 + 5).
 8. 🔴 **Hridoy:** publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists ·
    **a screener user for Topu** (Only Assigned Data) · his WAVV seat and numbers (Kevin pays).
-9. **Mohimenul:** item 6 Graduate (must now also mark the shop in Supabase) · item 7 stale sweep +
+9. **Mohimenul:** item 6 Graduate **built** (`Screener: Graduate` + `Graduate Sweep`, inactive; live end-to-end
+   test needs a go-ahead since it creates a real opp in Kevin's pipeline; Supabase mark to add) · item 7 stale sweep +
    daily summary · delete test rows in `screener_calls` / `screener_attempts` · rotate the Instantly key.
 
 ### D. Changed or on hold because of the meeting

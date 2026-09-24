@@ -660,5 +660,69 @@ ok(JSON.stringify(Object.keys(lc).sort()) === JSON.stringify(LOGCOLS.slice().sor
 ok(JSON.stringify(ctr.nodes.find(n => n.name.startsWith('Store: screener_attempts')).parameters.columns.schema.map(c => c.id).sort()) === JSON.stringify(LOGCOLS.slice().sort()), 'upsert schema == screener_attempts columns');
 ok(JSON.stringify(conn(ctr, 'Skip?')) === '[["Log Row"],["Split Ladder Ops"]]' && JSON.stringify(conn(ctr, 'Unmarked answered call?')) === '[["Screener: Compare Step"],["Log Row"]]', 'every path ends in the log');
 
+console.log('=== 11) Graduate (item 6: into Kevin\'s pipeline) ===');
+const gradWf = wf('Screener Graduate.json'), sweepWf = wf('Screener Graduate Sweep.json');
+const OV = 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f', SCR = 'CvDwpavqkHSRhg5Bn3L4';
+const PICK_G = codeOf(sweepWf, 'Pick ready leads (10 min grace)');
+const ago = m => new Date(Date.now() - m * 60000).toISOString();
+const pickG = opps => new Function('$json', '$input', '$', PICK_G)({}, { first: () => ({ json: { opportunities: opps } }) }, () => null).map(i => i.json);
+ok(sweepWf.nodes.find(n => n.name === 'Pick ready leads (10 min grace)').parameters.mode === 'runOnceForAllItems', 'pick returns a list, so it runs once for all items');
+const so = o => Object.assign({ id: 'O1', contactId: 'C1', pipelineId: SCR, pipelineStageId: OV, status: 'open', lastStageChangeAt: ago(30) }, o);
+ok(pickG([so()]).length === 1 && pickG([so()])[0].screener_opp_id === 'O1', 'Owner Verified for 30 min -> graduates');
+ok(pickG([so({ lastStageChangeAt: ago(3) })]).length === 0, 'Owner Verified for 3 min -> waits (the screener can still correct the mark)');
+ok(pickG([so({ pipelineStageId: 'f83777fa-1dc0-4163-aa84-ef501126d82b' }), so({ status: 'won' }), so({ pipelineId: 'OTHER' })]).length === 0, 'other stages, closed opps, other pipelines -> never');
+
+const GD = codeOf(gradWf, 'Graduation Plan');
+const gplan = ({ tags = ['screening', 'owner-confirmed', 'screened-pt-10-11', 'wavv-none'], email = '', opps, contact } = {}) => run(GD, {}, {
+  'When Called (graduate)': item({ contact_id: 'C1', screener_opp_id: 'O1' }),
+  'GHL: Get Contact': item(contact !== undefined ? contact : { contact: { id: 'C1', tags, email, companyName: 'Happy Plumbing' } }),
+  'GHL: All Opps for Contact': item(opps !== undefined ? opps : { opportunities: [ so() ] })
+});
+let g = gplan();
+ok(g.action === 'graduate' && g.create.pipelineId === '9E6y34DlG1Imr8FV42RV' && g.create.pipelineStageId === '060f44a8-4cd8-4561-8c84-7150bfd57498', 'no email -> Cold Outbound Call / Day 1 Call A (Import Contact To New rule)');
+ok(gplan({ email: 'a@b.com' }).create.pipelineId === 'O7LMZpDOFM2SYO65twC5' && gplan({ email: 'a@b.com' }).create.pipelineStageId === 'f6aa7e0f-6b83-4a7b-b8b9-620753554b3a', 'email -> Client Acquisition / New');
+ok(g.create.contactId === 'C1' && g.create.name === 'Happy Plumbing' && g.create.locationId === 'rzaMhqeo2apNI1p6DG5z' && g.create.status === 'open', 'the new opportunity: this contact, company name, open');
+ok(g.pt_block === 'PT 10-11' && g.block_user === 'T4p1bK3yo6Bl14OK1LP3', 'block tag -> the PT 10-11 follower for Kevin\'s board');
+ok(JSON.stringify(g.remove_tags.slice().sort()) === '["screening","wavv-none"]', 'removes screening and leftover wavv tags, keeps owner-confirmed + block tag');
+g = gplan({ opps: { opportunities: [ so(), { id: 'K9', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'open' } ] } });
+ok(g.action === 'graduate' && g.create === null && g.kevin_opp_id === 'K9', 'already has an open Kevin opportunity (re-screen trap / retry) -> reused, nothing created');
+ok(gplan({ opps: { opportunities: [ so(), { id: 'K8', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'lost' } ] } }).create !== null, 'a closed Kevin opportunity does not count');
+ok(gplan({ tags: ['screening'] }).action === 'skip', 'not owner-confirmed -> skip');
+ok(gplan({ opps: { opportunities: [ so({ pipelineStageId: '0c160182-e74d-4ace-9d3b-c4404043ef4b' }) ] } }).action === 'skip', 'corrected away from Owner Verified since the sweep -> skip');
+ok(gplan({ contact: { error: { message: '502' } } }).retry === true && gplan({ opps: { error: { message: 'x' } } }).retry === true, 'unreadable contact / opp search failed -> retry');
+ok(gplan({ tags: ['screening', 'owner-confirmed'] }).block_user === '', 'no block tag -> no follower (answered outside PT 06-16)');
+
+const GO = codeOf(gradWf, 'Graduation Ops');
+const gops = (plan, created) => new Function('$json', '$input', '$', GO)({}, {}, n => {
+  if (n === 'Graduation Plan') return { first: () => ({ json: plan }) };
+  if (n === 'GHL: Create Kevin Opp') { if (created === undefined) throw new Error('unexecuted'); return { first: () => ({ json: created }) }; }
+}).map(i => i.json);
+let go = gops(gplan(), { opportunity: { id: 'K1' } });
+ok(go.every(o => o.kevin_opp_id === 'K1') && go[0].url.endsWith('/opportunities/K1/followers') && go[0].body.followers[0] === 'T4p1bK3yo6Bl14OK1LP3', 'follower goes on the NEW Kevin opportunity');
+ok(go[go.length - 1].label.startsWith('close screener') && go[go.length - 1].url.endsWith('/opportunities/O1') && go[go.length - 1].body.status === 'won', 'closing the screener opportunity is LAST (a failure before it is retried)');
+ok(go.some(o => o.label === 'clear screener as owner' && o.body.assignedTo === null), 'the screener stops owning the contact');
+go = gops(gplan({ opps: { opportunities: [ so(), { id: 'K9', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'open' } ] } }));
+ok(go[0].kevin_opp_id === 'K9', 'reused opportunity: follower on the existing one');
+go = gops(gplan(), { error: { message: '422 duplicate' } });
+ok(go.length === 1 && go[0].method === 'SKIP' && go[0].error_text.includes('422'), 'create failed -> no writes at all (lead stays in Owner Verified for the next sweep)');
+ok(JSON.stringify(conn(gradWf, 'Kevin opp exists?')) === '[["GHL: Graduation Apply"],["Log Graduation"]]', 'a failed create goes straight to the log');
+
+const GL = codeOf(gradWf, 'Log Graduation');
+const glog = (plan, sent, res) => new Function('$json', '$input', '$', GL)({}, {}, n => {
+  if (n === 'Graduation Plan') return { first: () => ({ json: plan }) };
+  const v = n === 'Graduation Ops' ? sent : res; if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+})[0].json;
+const pl = gplan();
+let gl = glog(pl, gops(pl, { opportunity: { id: 'K1' } }), [{}, {}, {}, {}]);
+ok(gl.ok === true && gl.kevin_opp_id === 'K1' && gl.created_new === true && gl.grad_key === 'C1:O1', 'clean graduation logged');
+gl = glog(pl, gops(pl, { opportunity: { id: 'K1' } }), [{}, {}, {}, { error: { message: '500' } }]);
+ok(gl.ok === false && gl.reason.includes('close screener opportunity (won): 500'), 'failed close -> not ok, named');
+gl = glog(pl, gops(pl, { error: { message: '422 duplicate' } }), null);
+ok(gl.ok === false && gl.reason.includes('create Kevin opp: 422'), 'failed create -> not ok, named');
+ok(glog(gplan({ tags: ['screening'] }), null, null).ok === true, 'final skip -> ok');
+const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevin_pipeline','created_new','pt_block','action','ok','reason','at'];
+ok(JSON.stringify(Object.keys(gl).sort()) === JSON.stringify(GRADCOLS.slice().sort()), 'Log Graduation fields == screener_graduations columns');
+ok(sweepWf.nodes.find(n => n.name === 'Screener: Graduate').parameters.workflowId.value === require('../workflows/screener/build/ids.json').graduate, 'the sweep calls Screener: Graduate');
+
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

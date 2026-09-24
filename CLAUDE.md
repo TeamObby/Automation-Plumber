@@ -48,8 +48,9 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **Screener** (`workflows/screener/`) is separate on purpose: it writes to the n8n data table
   `screener_calls`, not to GHL, until the GHL guard branches exist.
   Since item 4, `Screener: Compare Step` does write GHL, but only for contacts tagged `screening`.
-  Keep `Screener: Capture Call`, `Screener: Mark + Compare`, `Screener: Write-back Retry`, `Screener: No Answer`
-  and `Screener: WAVV Disposition` inactive.
+  Keep `Screener: Capture Call`, `Screener: Mark + Compare`, `Screener: Write-back Retry`, `Screener: No Answer`,
+  `Screener: WAVV Disposition` and `Screener: Graduate Sweep` inactive. Published (sub-workflows only):
+  Classify Transcript, Compare Step, Attempt Counter (2026-09-24); Graduate still to publish.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her.
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 
