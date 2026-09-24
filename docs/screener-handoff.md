@@ -9,10 +9,12 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 ## 1. Where it stands in one paragraph
 
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
-**Mohimenul's n8n items 1–3 are built** (capture + dedupe, AI classifier + eval, Pacific hour
-block). The **guards are not in yet**, so no screener call may be made and Mohimenul's workflows
-stay **inactive**. The immediate critical path is: guards → publish `Screener Outcome Changed` →
-Mohimenul's item 4 → one real test call.
+**Mohimenul's n8n items 1–6 are built** (capture + AI verdict, hour block, compare + write-back,
+attempt ladder, graduate) and tested on the test contact, except Graduate end to end. The **guards
+are not in yet**, so no screener call may be made and the entry workflows stay **inactive**. After
+Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
+due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, activate
+the entry workflows, publish `Screener Outcome Changed`) → one real test call.
 
 ---
 
@@ -73,11 +75,17 @@ blocks duplicate phone numbers.
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live, **needs guard (mid-workflow)** |
 | GHL | Move Leads Into Cadence | `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | live, **needs guard** |
 | n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
-| n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow |
+| n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow, published |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
-| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow — **`BLOCK_USER` map still empty** |
+| n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow, published — `BLOCK_USER` filled |
 | n8n | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | item 4, inactive |
 | n8n | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | retries failed GHL writes, inactive |
+| n8n | Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | item 5, sub-workflow, published |
+| n8n | Screener: No Answer | `aZyzUwwNdDWvaCAk` | item 5, `/webhook/screener-no-answer`, inactive |
+| n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition`, inactive |
+| n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **publish before go-live** |
+| n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
+| n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset **Dana Happy** only |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
 `/webhook/screener-disposition`
@@ -92,23 +100,51 @@ contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workb
 
 ---
 
-## 3. What is left, in order
+## 3. What is left — plain priority order (updated 2026-09-24, after Kevin's meeting)
 
-1. **The four guards** (Hridoy + Claude together) — §1 of the plan. Nothing else may go live first.
-2. **Publish `Screener Outcome Changed`** once Mohimenul's item 4 exists.
-3. **Change `Import Contact To New`** — new `plumber` contacts go to the screener pipeline with
-   `screening` and must **not** create a Kevin opportunity.
-4. **Smart Lists** — Kevin's ten block lists + Gold; screener queues need the screener users.
-5. **Two screener users** — after hiring; role *Only Assigned Data*.
-6. **Mohimenul:** item 4 is **built** (Compare Step + Mark + Compare + Write-back Retry) but unproven —
-   its "done when" is 20 role-played calls, which needs the guards. Items **5–7 are not built**:
-   attempt ladder (`/webhook/screener-no-answer` has no listener), graduate, stale sweep + `screen_log`.
-   Two things he needs from us: the ten block-user IDs for `BLOCK_USER` in the Compare Step's `Decide`
-   node (still all `''`, so no lead ever gets a block follower), and the `screen_log` sheet contract.
-7. **Kevin:** 2nd/3rd WAVV seat + numbers + Trust Hub, recording policy for CA/WA/NV, team-disposition
-   decision, hiring.
+Kevin's order: **the list first, then the screener**; underneath both, **Supabase becomes the source of
+truth**; rule no. 1 is **simplicity**. No hard dates — work top to bottom. Meeting notes with
+timestamps: [`meeting-2026-09-24.md`](meeting-2026-09-24.md).
+Visual map of the plan (private claude.ai artifact, Mohimenul's account):
+https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 
----
+### Mohimenul — finish the screener items first (spec §10.2)
+1. ✅ Items 1–5 built and tested on the test contact; ✅ Classify, Compare Step, Attempt Counter published;
+   ✅ Dana Happy reset.
+2. ✅ **Item 6 Graduate** built (`Screener: Graduate` + `Graduate Sweep`, inactive). Open: one end-to-end live
+   test (creates a real opportunity in Kevin's pipeline → needs a go-ahead, then delete it) and
+   publishing `Screener: Graduate` before go-live.
+3. **Item 7a — the screener log.** Hridoy's `screen_log` Sheet exists, but logs now belong in Supabase;
+   decide which (simplicity says one place).
+4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
+   on re-screen; list failed write-backs older than 48 h).
+5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
+
+### Mohimenul — then the new work from the meeting
+6. **Design the Supabase tables and columns** (Mohimenul decides; Kevin named only the tables: shops with
+   Supabase id ↔ GHL id + tier + set, raw data, transcripts incl. screener calls, call logs).
+7. **Screener → Supabase:** one write from the Compare Step and one from the Attempt Counter; Graduate marks
+   the shop too.
+8. **Connect the team Claude accounts to GoHighLevel**, then check the duplicate automations Kevin's Claude
+   reported (the GHL connector must be authorised; it only attaches at session start).
+9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
+   MCP connector so Kevin's Claude can read the code.
+10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0009`, and the test-rig rows in
+    `screener_attempts` / `screener_graduations`); rotate the exposed Instantly key.
+
+### Hridoy (GHL side, and the list)
+- **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
+- **The four guards** (§1 of the plan) — nothing screener-side goes live before them.
+- Publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists · **Topu's screener user**
+  (Only Assigned Data) · Topu's WAVV seat and numbers (Kevin pays).
+
+### Go-live switches (once the guards exist)
+Publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
+`Write-back Retry`, `Graduate Sweep` → one real test call with Hridoy on the test contact.
+
+### People
+- **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.
+- **Tosif** — third helper if needed.
 
 ## 4. Decisions that must not drift
 

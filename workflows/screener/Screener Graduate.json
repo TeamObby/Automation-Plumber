@@ -1,0 +1,581 @@
+{
+  "id": "M2LD6njhVMO9Ol7w",
+  "name": "Screener: Graduate",
+  "active": false,
+  "nodes": [
+    {
+      "name": "When Called (graduate)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "contact_id",
+              "type": "string"
+            },
+            {
+              "name": "screener_opp_id",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GHL: Get Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('When Called (graduate)').first().json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "GHL: All Opps for Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&contact_id={{ $('When Called (graduate)').first().json.contact_id }}&limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Graduation Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Graduation (spec §8): the only exit from the screener into Kevin's machine.\n// Kevin's opportunity goes where Import Contact To New would have put it: an email -> Client\n// Acquisition / New, no email -> Cold Outbound Call / Day 1 Call A. If the contact already has an\n// open opportunity in Kevin's pipelines (the re-screen trap, or a retry after a partial failure),\n// that one is reused and nothing new is created.\nconst OWNER_VERIFIED = 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f';\nconst CLIENT_ACQ = { pipelineId: 'O7LMZpDOFM2SYO65twC5', pipelineStageId: 'f6aa7e0f-6b83-4a7b-b8b9-620753554b3a', name: 'Client Acquisition / New' };\nconst COLD_CALL  = { pipelineId: '9E6y34DlG1Imr8FV42RV', pipelineStageId: '060f44a8-4cd8-4561-8c84-7150bfd57498', name: 'Cold Outbound Call / Day 1 Call A' };\nconst LOCATION = 'rzaMhqeo2apNI1p6DG5z';\n// Kevin's campaign pipelines (AGENTS.md). Only an open opportunity in one of these counts as \"already\n// in Kevin's machine\"; a contact can have opportunities in unrelated pipelines (the test contact is\n// also the AI-receptionist demo record), and reusing one of those would strand the lead.\nconst KEVIN_PIPELINES = ['O7LMZpDOFM2SYO65twC5', '1A1RkYaL93s2rqbQ3Opi', '9E6y34DlG1Imr8FV42RV', '3onA8GkJnSwgzIGTGSpI',\n  'TwW6o0JdPXUlcwvX0EvI', 'smoNRUaagZYOElKFLwtp', 'OOu5TjgalfGZElEIoSbq'];\nconst BLOCK_USER = {\n  'PT 06-07': 'ZU6NEmag5FFcYAYwtu75', 'PT 07-08': 'QKMhxRVQX45dq2bxF5a5',\n  'PT 08-09': 'u24gWdO3FlXhwjwhm6sE', 'PT 09-10': 'hdIv63msJcYjhwfIJ4eg',\n  'PT 10-11': 'T4p1bK3yo6Bl14OK1LP3', 'PT 11-12': 'nTHz8ZbvpMxoWqsyJsLs',\n  'PT 12-13': 'u1v0arwCtQw8kr9FSYIT', 'PT 13-14': '7KI79ZeuhHa1WrmFSaPH',\n  'PT 14-15': 'j5w26gAQTznnaAgqRePi', 'PT 15-16': 'QlDlzTUPYag7RxkJ2B5Q'\n};\n\nconst input = $('When Called (graduate)').first().json;\nconst got = $('GHL: Get Contact').first().json;\nconst found = $('GHL: All Opps for Contact').first().json;\nconst contact = (got && got.contact) || null;\nconst s = v => String(v == null ? '' : v).trim();\nconst out = (action, reason, extra) => ({ json: Object.assign({\n  contact_id: s(input.contact_id), screener_opp_id: s(input.screener_opp_id), action, reason,\n  retry: false, create: null, kevin_opp_id: '', kevin_pipeline: '', pt_block: '', block_user: '', remove_tags: []\n}, extra) });\n\nif (!contact || !contact.id) return out('skip', 'contact not readable', { retry: true });\nif (!found || found.error) return out('skip', 'opportunity search failed', { retry: true });\nconst tags = (contact.tags || []).map(t => s(t).toLowerCase());\nif (!tags.includes('owner-confirmed')) return out('skip', 'contact is not owner-confirmed');\nconst opps = found.opportunities || [];\nconst mine = opps.find(o => s(o.id) === s(input.screener_opp_id));\nif (!mine || (mine.status || 'open') !== 'open' || mine.pipelineStageId !== OWNER_VERIFIED)\n  return out('skip', 'screener opportunity is no longer open in Owner Verified');\n\nconst block = (tags.find(t => /^screened-pt-\\d\\d-\\d\\d$/.test(t)) || '').replace('screened-pt-', 'PT ');\nconst existing = opps.find(o => KEVIN_PIPELINES.includes(o.pipelineId) && (o.status || 'open') === 'open');\nconst target = s(contact.email) ? CLIENT_ACQ : COLD_CALL;\nconst name = s(contact.companyName) || s([contact.firstName, contact.lastName].filter(Boolean).join(' ')) || s(contact.contactName) || 'Plumber';\nreturn out('graduate', existing ? 'already has an open opportunity in Kevin’s pipelines: reused' : 'new opportunity in ' + target.name, {\n  create: existing ? null : { pipelineId: target.pipelineId, pipelineStageId: target.pipelineStageId, locationId: LOCATION, contactId: s(contact.id), name, status: 'open' },\n  kevin_opp_id: existing ? s(existing.id) : '',\n  kevin_pipeline: existing ? s(existing.pipelineId) : target.name,\n  pt_block: block, block_user: BLOCK_USER[block] || '',\n  remove_tags: tags.filter(t => t === 'screening' || t.startsWith('wavv-'))\n});\n"
+      }
+    },
+    {
+      "name": "Graduate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "graduate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "New Kevin opp needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        208
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !!$json.create }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "GHL: Create Kevin Opp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/opportunities/",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Graduation Plan').first().json.create) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Graduation Ops",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        208
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The writes, in order. Closing the screener opportunity is LAST: if anything before it fails, the\n// lead stays in Owner Verified and the next sweep retries, finding the Kevin opportunity it already\n// made instead of creating another.\nconst GHL = 'https://services.leadconnectorhq.com';\nconst d = $('Graduation Plan').first().json;\nlet created = null;\ntry { created = $('GHL: Create Kevin Opp').first().json; } catch (e) { created = null; }\nconst kevin_opp_id = d.kevin_opp_id || String((created && created.opportunity && created.opportunity.id) || (created && created.id) || '');\nif (!kevin_opp_id) return [{ json: { label: 'no Kevin opportunity: create failed', method: 'SKIP', failed_create: true,\n  error_text: (created && created.error && (created.error.message || JSON.stringify(created.error))) || 'no id returned' } }];\nconst ops = [];\nconst op = (label, method, url, body) => ops.push({ json: { label, method, url, body, kevin_opp_id } });\nif (d.block_user) op('block follower on Kevin opp', 'POST', GHL + '/opportunities/' + kevin_opp_id + '/followers', { followers: [d.block_user] });\nif (d.remove_tags.length) op('remove screening + wavv tags', 'DELETE', GHL + '/contacts/' + d.contact_id + '/tags', { tags: d.remove_tags });\nop('clear screener as owner', 'PUT', GHL + '/contacts/' + d.contact_id, { assignedTo: null });\nop('close screener opportunity (won)', 'PUT', GHL + '/opportunities/' + d.screener_opp_id, { status: 'won' });\nreturn ops;\n"
+      }
+    },
+    {
+      "name": "Kevin opp exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        208
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.method }}",
+              "rightValue": "SKIP",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "GHL: Graduation Apply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2016,
+        120
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 250
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Log Graduation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One screener_graduations row per attempt. ok=false leaves the screener opportunity open in\n// Owner Verified, so the next sweep retries it.\nconst d = $('Graduation Plan').first().json;\nconst pick = n => { try { return $(n).all().map(i => i.json); } catch (e) { return null; } };\nconst sent = pick('Graduation Ops') || [];\nconst res = pick('GHL: Graduation Apply') || [];\nconst failed = sent.map((o, i) => ({ o, r: res[i] }))\n  .filter(x => x.o.failed_create || (x.r && x.r.error))\n  .map(x => x.o.failed_create ? 'create Kevin opp: ' + x.o.error_text : x.o.label + ': ' + (x.r.error.message || JSON.stringify(x.r.error)));\nconst kevin = (sent[0] && sent[0].kevin_opp_id) || d.kevin_opp_id || '';\nconst now = new Date().toISOString();\nreturn [{ json: {\n  grad_key: d.contact_id + ':' + d.screener_opp_id, contact_id: d.contact_id, screener_opp_id: d.screener_opp_id,\n  kevin_opp_id: kevin, kevin_pipeline: d.kevin_pipeline, created_new: !!d.create && !!kevin,\n  pt_block: d.pt_block, action: d.action,\n  ok: !d.retry && failed.length === 0 && (d.action !== 'graduate' || !!kevin),\n  reason: [d.reason].concat(failed).filter(Boolean).join(' | '), at: now\n} }];\n"
+      }
+    },
+    {
+      "name": "Store: screener_graduations",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1iX0aTvMYawwyH4H",
+          "cachedResultName": "screener_graduations"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "grad_key",
+              "condition": "eq",
+              "keyValue": "={{ $json.grad_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "grad_key",
+              "displayName": "grad_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "screener_opp_id",
+              "displayName": "screener_opp_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "kevin_opp_id",
+              "displayName": "kevin_opp_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "kevin_pipeline",
+              "displayName": "kevin_pipeline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_new",
+              "displayName": "created_new",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pt_block",
+              "displayName": "pt_block",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ok",
+              "displayName": "ok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "at",
+              "displayName": "at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Graduate  (spec §8 · §10.2 item 6)\nOne Owner Verified lead into Kevin’s machine: create his opportunity by the Import Contact To New rule (email -> Client Acquisition / New, else Cold Call / Day 1 Call A) or reuse an open one, copy the PT block follower, remove screening + wavv tags, clear the screener as owner, and close the screener opportunity LAST so a failure is retried by the next sweep. Called only by Screener: Graduate Sweep.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "When Called (graduate)": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "GHL: All Opps for Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: All Opps for Contact": {
+      "main": [
+        [
+          {
+            "node": "Graduation Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Create Kevin Opp": {
+      "main": [
+        [
+          {
+            "node": "Graduation Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Kevin opp needed?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Create Kevin Opp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graduation Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graduate?": {
+      "main": [
+        [
+          {
+            "node": "New Kevin opp needed?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Graduation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graduation Plan": {
+      "main": [
+        [
+          {
+            "node": "Graduate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Graduation Apply": {
+      "main": [
+        [
+          {
+            "node": "Log Graduation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kevin opp exists?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Graduation Apply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Graduation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graduation Ops": {
+      "main": [
+        [
+          {
+            "node": "Kevin opp exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Graduation": {
+      "main": [
+        [
+          {
+            "node": "Store: screener_graduations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}

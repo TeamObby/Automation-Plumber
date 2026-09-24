@@ -60,9 +60,18 @@ Credentials are not compared — the MCP omits them.
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Gatekeeper Handler (gk twin) | `rcrCVXDZp8ix9pKp` | [open](https://n8n.meetobby.com/workflow/rcrCVXDZp8ix9pKp) | ✅ | ✓ [json+ctx](workflows/missed-call/) — copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps |
 | Send Cold Email 1 (3:30AM) | `6wdNiXnexS3zT5b2` | [open](https://n8n.meetobby.com/workflow/6wdNiXnexS3zT5b2) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
-| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3; writes only to data table `screener_calls` |
-| Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | [open](https://n8n.meetobby.com/workflow/LbGY5ptzldJjnTZJ) | — (sub-workflow) | ✓ [json+ctx](workflows/screener/) — spec item 2; who answered, `gpt-4.1-mini`, strict schema |
+| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3(+4); data table `screener_calls`, then hands the verdict to Compare Step |
+| Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | [open](https://n8n.meetobby.com/workflow/LbGY5ptzldJjnTZJ) | ✅ published sub-workflow (re-publish after edits) | ✓ [json+ctx](workflows/screener/) — spec item 2; who answered, `gpt-4.1-mini`, strict schema |
 | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | [open](https://n8n.meetobby.com/workflow/FMUXvDBXsigHA4vb) | — (manual test harness) | ✓ [json+ctx](workflows/screener/) — 8 transcripts × 3 runs; last run 8/8 stable + correct |
+| Screener: Compare Step | `3pwiQXC8etTcKf5Z` | [open](https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z) | ✅ published sub-workflow (re-publish after edits) | ✓ [json+ctx](workflows/screener/) — item 4; mark vs AI → stage, tags, block follower. Writes GHL, only for contacts tagged `screening` |
+| Screener: Write-back Retry | `IvxTYaChixQOiNzt` | [open](https://n8n.meetobby.com/workflow/IvxTYaChixQOiNzt) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4 recovery; every 15 min re-runs the Compare Step for `writeback_ok = false` rows |
+| Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | [open](https://n8n.meetobby.com/workflow/Wwx2R76IrhLMYU7K) | ✅ published sub-workflow (re-publish after edits) | ✓ [json+ctx](workflows/screener/) — item 5; the Attempt ladder, table `screener_attempts` `9V6VL0XiKeadY9Lc` |
+| Screener: No Answer | `aZyzUwwNdDWvaCAk` | [open](https://n8n.meetobby.com/workflow/aZyzUwwNdDWvaCAk) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-no-answer` |
+| Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | [open](https://n8n.meetobby.com/workflow/QOYHMP5ZGQcnG3ED) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-disposition` (Voicemail / Bad Number) |
+| Screener: Graduate | `M2LD6njhVMO9Ol7w` | [open](https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w) | — (sub-workflow; **publish before go-live**) | ✓ [json+ctx](workflows/screener/) — item 6; Owner Verified → Kevin's pipeline, table `screener_graduations` `1iX0aTvMYawwyH4H` |
+| Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | [open](https://n8n.meetobby.com/workflow/jZAgBUQvffv1NCMC) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 6; every 10 min, 10-min grace window |
+| Screener: Test Rig | `UvApCCNACHD0uwTu` | [open](https://n8n.meetobby.com/workflow/UvApCCNACHD0uwTu) | — (manual only, never activate) | ✓ [json+ctx](workflows/screener/) — hard-wired to test contact Dana Happy: `read` / `mark` (plays the screener) / `reset` |
+| Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **keep inactive until the GHL guards exist** | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
 
 ---
 
@@ -121,12 +130,23 @@ Credentials are not compared — the MCP omits them.
 - **Credentials in use:** GHL `httpMultipleHeadersAuth` → `DtotRKnzjDewbSsv`
   ("GHL [ Waterline Growth subaccount ]") · OpenAI `openAiApi` → `B4xA6dDfoOhHJMOo`
 
-## Screener data (n8n data table)
+## Screener data (n8n data tables)
 - **`screener_calls`** `3WK4mrEYwvDeDUVO` — one row per answered screener call (upsert on `call_id`), written by
   `Screener: Capture Call`: caller identity, Pacific hour block + tag, transcript, and the AI verdict
   (`ai_call_outcome`, `ai_owner_reached`, `ai_confidence`, `ai_evidence_quote`, `ai_quote_verified`, `ai_ok`).
-  Only rows with `ai_ok = true` block a replay of the same call; failed rows are retried.
-  Read by the compare step (spec §4.1, item 4 — not built yet). Column list in the Capture context file.
+  `writeback_ok` / `writeback_result` / `writeback_fail_ms` record whether the GHL write-back (Compare Step) finished;
+  a success only clears a failure recorded before its own run started (versioned on `writeback_fail_ms`). A replay of
+  the same call stops only when `ai_ok` **and** `writeback_ok` are true; `ai_ok` alone → the compare is retried
+  with the stored verdict (no AI call); otherwise the call is re-classified. GHL never re-sends a webhook, so
+  the real recovery is `Screener: Write-back Retry` (every 15 min, rows `writeback_ok = false`, last 48 h).
+  The compare step (item 4) does **not** read this table: the verdict travels on the contact's `Screen AI Verdict`
+  field. The table is the per-call log for the accuracy report (item 8). Column list in the Capture context file.
+- **`screener_attempts`** `9V6VL0XiKeadY9Lc` — one row per unanswered dial event (no-answer / voicemail /
+  bad-number), written by `Screener: Attempt Counter`; key `event_key` (`wavv:<call id>` or `na:<contact>:<ms>`).
+- **`screener_graduations`** `1iX0aTvMYawwyH4H` — one row per graduation attempt, written by `Screener: Graduate`;
+  key `grad_key` (`contact_id:screener_opp_id`).
+- Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0009`) and the 2026-09-24 test-rig rows on contact
+  `2Z5mwZe5RT4NQdNW85vj` are **test data** — delete them in the n8n UI before real calls (the MCP can't delete rows).
 
 ## Screener log workbook (Google Sheets)
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated
@@ -140,7 +160,7 @@ not "how is the campaign doing". Setup script:
   (authorised on team@meetobby.com; the OAuth grant is still listed under the project's old name,
   "Untitled project").
 - **Credential to write it:** the existing `googleSheetsOAuth2Api` → `nVa0UTFYjGo1apqU`.
-- **Who writes it (Mohimenul, §10.2 item 7, not built yet):** the **Compare Step's `Report`** node and
+- **Who writes it (Mohimenul, §10.2 item 7, not built yet — on hold since the 2026-09-24 meeting moved logs to Supabase):** the **Compare Step's `Report`** node and
   the attempt-ladder path, `cellFormat: USER_ENTERED`, **appendOrUpdate on `call_id`** so a re-marked
   call updates its row. The ladder's rows have no `call_id` and plain-append.
 - **Columns:** `timestamp_pt`, `date_pt`, `contact_id`, `company`, `screener`, `screener_user_id`,

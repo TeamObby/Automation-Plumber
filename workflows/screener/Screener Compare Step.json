@@ -1,0 +1,439 @@
+{
+  "id": "3pwiQXC8etTcKf5Z",
+  "name": "Screener: Compare Step",
+  "active": false,
+  "nodes": [
+    {
+      "name": "When Called by Screener",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "contact_id",
+              "type": "string"
+            },
+            {
+              "name": "verdict_json",
+              "type": "string"
+            },
+            {
+              "name": "source",
+              "type": "string"
+            },
+            {
+              "name": "force",
+              "type": "boolean"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GHL: Guard Read",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('When Called by Screener').first().json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Plan Save",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Persist-then-read (spec §4.1 ordering): save the new verdict BEFORE the read Decide uses — but\n// only on a contact being screened, only if it changed, and never over a NEWER call's verdict\n// (a retry of an old call must not rewind the contact). Decide applies the same 'older' rule.\nconst input = $('When Called by Screener').first().json;\nconst contact = ($json && $json.contact) || null;\nconst s = v => String(v == null ? '' : v).trim();\nconst parse = raw => { try { const v = JSON.parse(raw); return v && typeof v === 'object' && !Array.isArray(v) ? v : null; } catch (e) { return null; } };\nconst tags = ((contact && contact.tags) || []).map(t => s(t).toLowerCase());\nconst f = ((contact && contact.customFields) || []).find(x => x.id === 'boOwqb5qGOmbWBopWvTv');\nconst storedRaw = s(f && f.value);\nconst incoming = s(input.verdict_json) ? parse(input.verdict_json) : null;\nconst stored = parse(storedRaw);\nconst older = !!incoming && !!stored && incoming.call_id !== stored.call_id && Date.parse(stored.answered_at) > Date.parse(incoming.answered_at);\nreturn { json: {\n  // Version of this run's outcome: taken BEFORE the save and the read, so a success can only clear\n  // a failure recorded before this run looked at GHL (Record Write-back filters on it).\n  run_started_ms: Date.now(),\n  save: !!incoming && tags.includes('screening') && !older && storedRaw !== s(input.verdict_json),\n  older\n}};\n"
+      }
+    },
+    {
+      "name": "Save verdict first?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.save }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "GHL: Save Verdict",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        208
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('When Called by Screener').first().json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customFields: [ { id: 'boOwqb5qGOmbWBopWvTv', value: $('When Called by Screener').first().json.verdict_json } ] }) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "GHL: Get Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('When Called by Screener').first().json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "GHL: Find Screener Opp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=CvDwpavqkHSRhg5Bn3L4&contact_id={{ $('When Called by Screener').first().json.contact_id }}&limit=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The shared compare step (spec §4.1): the screener's mark meets the AI verdict, and this node\n// decides the whole write-back as a list of GHL requests (ops). The nodes after it only execute.\n// Called from Capture Call (a new AI verdict) and from Mark + Compare (the screener picked).\n// Ordering: a new verdict is SAVED to the contact (GHL: Save Verdict) BEFORE the contact read this\n// node uses, and GHL saves the screener's mark before firing its webhook. So whichever run reads\n// second sees both values — two overlapping runs can never both 'wait'. If that save FAILED, this\n// run has no such guarantee: a 'wait' then reports retry, and Screener: Write-back Retry reruns it.\nconst PIPELINE = 'CvDwpavqkHSRhg5Bn3L4';   // Screener — Plumbers\nconst STAGE = {\n  'Owner Verified': 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f',\n  'Gatekeeper':     'f83777fa-1dc0-4163-aa84-ef501126d82b',\n  'Not Sure':       '0c160182-e74d-4ace-9d3b-c4404043ef4b',\n  'Disqualified':   '65f9e1b4-8688-456d-845e-ebe0781101b9'\n};\nconst FIELD = {\n  outcome:  'iTZa77JWntQs2QBuo9QU',   // Screener Outcome (the screener's pick; n8n never writes it)\n  date:     'MUkHW8R17PIksrSnpz6g',   // Date Screened\n  noise:    'AbbR6jH9PFMLJCRdCqMp',   // Screen Noise\n  verdict:  'boOwqb5qGOmbWBopWvTv'    // Screen AI Verdict (JSON written by Capture Call)\n};\n// Block label-users for the opportunity follower (spec §6) — the GHL users PT 06-07 … PT 15-16\n// (Hridoy, 2026-09-23). A block with no id here gets its tag but no follower, and is reported.\nconst BLOCK_USER = {\n  'PT 06-07': 'ZU6NEmag5FFcYAYwtu75', 'PT 07-08': 'QKMhxRVQX45dq2bxF5a5',\n  'PT 08-09': 'u24gWdO3FlXhwjwhm6sE', 'PT 09-10': 'hdIv63msJcYjhwfIJ4eg',\n  'PT 10-11': 'T4p1bK3yo6Bl14OK1LP3', 'PT 11-12': 'nTHz8ZbvpMxoWqsyJsLs',\n  'PT 12-13': 'u1v0arwCtQw8kr9FSYIT', 'PT 13-14': '7KI79ZeuhHa1WrmFSaPH',\n  'PT 14-15': 'j5w26gAQTznnaAgqRePi', 'PT 15-16': 'QlDlzTUPYag7RxkJ2B5Q'\n};\nconst MIN_CONFIDENCE = 0.6;   // below this the prompt defines the model as guessing\nconst OWNER_MARKS = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };\nconst DEAD_ENDS = ['Wrong Number', 'Not A Plumber', 'Do Not Call'];\nconst MARKS = ['Owner - Busy', 'Owner - Quiet', 'Gatekeeper', 'Not Sure'].concat(DEAD_ENDS);\nconst BLOCK_TAGS = Object.keys(BLOCK_USER).map(b => 'screened-' + b.toLowerCase().replace(' ', '-'));\nconst GHL = 'https://services.leadconnectorhq.com';\n\nconst input = $('When Called by Screener').first().json;\nconst got = $('GHL: Get Contact').first().json;\nconst found = $('GHL: Find Screener Opp').first().json;\nconst contact = (got && got.contact) || null;\nconst contact_id = String(input.contact_id || '').trim();\nconst s = v => String(v == null ? '' : v).trim();\n// The call this run is about (its screener_calls row gets writeback_ok); '' on the mark path.\nconst call_id = (() => { try { return s(JSON.parse(input.verdict_json).call_id); } catch (e) { return ''; } })();\n\nconst done = (action, reason, extra) => ({ json: Object.assign({\n  contact_id, call_id, source: s(input.source), action, reason, result: '', stage_id: '', mismatch: false, retry: false, notes: [], ops: []\n}, extra) });\n\n// Guard: only contacts that are being screened. A misfired webhook must never touch Kevin's leads.\nif (!contact_id) return done('skip', 'no contact_id');\n// A failed read may be transient: 'retry' leaves writeback_ok = false for Screener: Write-back Retry.\nif (!contact || !contact.id) return done('skip', 'contact not readable: ' + s(got && got.error && (got.error.description || got.error.message)), { retry: true });\nconst tags = (contact.tags || []).map(t => s(t).toLowerCase());\nif (!tags.includes('screening')) return done('skip', 'contact is not tagged screening');\n\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst parseVerdict = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' && !Array.isArray(v) ? v : null; } catch (e) { return null; } };\n\nconst notes = [];\nconst stored = parseVerdict(cf(FIELD.verdict));\nlet newVerdict = s(input.verdict_json) ? parseVerdict(input.verdict_json) : null;\n// A retry of an OLDER call must never replace the verdict of a newer one (same rule as Plan Save).\nconst older = (a, b) => !!a && !!b && a.call_id !== b.call_id && Date.parse(b.answered_at) > Date.parse(a.answered_at);\nif (older(newVerdict, stored)) { notes.push('call ' + s(newVerdict.call_id) + ' is older than the verdict on file: ignored'); newVerdict = null; }\nconst verdict = newVerdict || stored;\n// GHL: Save Verdict normally stored it already; if that request failed, write it again here.\nconst verdictUnsaved = !!newVerdict && s(cf(FIELD.verdict)) !== s(input.verdict_json);\nconst rawMark = s(cf(FIELD.outcome));\nconst mark = MARKS.includes(rawMark) ? rawMark : '';\nconst force = input.force === true || input.force === 'true';\nif (rawMark && !mark) notes.push('unknown Screener Outcome \"' + rawMark + '\" treated as unmarked');\n\n// The AI backs \"owner\" only with a clean, confident, verifiable verdict (spec §4 cross-check).\nconst aiOwner = !!verdict && !verdict.ai_error && verdict.call_outcome === 'owner' &&\n  verdict.owner_reached === 'yes' && Number(verdict.confidence) >= MIN_CONFIDENCE && verdict.quote_verified === true;\n\n// Screener's mark wins; the AI catches mistakes. Dead ends need no AI: nothing the model says\n// turns a wrong number into a lead, and a do-not-call must stop the dialling now.\nlet result = '', mismatch = false, reason = '';\nif (DEAD_ENDS.includes(mark))            { result = 'Disqualified'; reason = mark; }\nelse if (!mark && !force)                { reason = 'waiting for the screener\\'s mark'; }\nelse if (!mark)                          { result = 'Not Sure'; mismatch = true; reason = 'nothing marked'; }\nelse if (!verdict && !force)             { reason = 'waiting for the AI verdict'; }\nelse if (OWNER_MARKS[mark])              { result = aiOwner ? 'Owner Verified' : 'Not Sure'; mismatch = !aiOwner; reason = aiOwner ? 'screener and AI agree: owner' : 'screener says owner, AI does not confirm'; }\nelse if (mark === 'Gatekeeper')          { result = aiOwner ? 'Not Sure' : 'Gatekeeper'; mismatch = aiOwner; reason = aiOwner ? 'screener says gatekeeper, AI says owner' : 'gatekeeper'; }\nelse                                     { result = 'Not Sure'; mismatch = aiOwner; reason = aiOwner ? 'screener not sure, AI says owner' : 'not sure'; }\n\n// ---- contact fields: written on wait too (the verdict and the noise must land either way) ----\nconst fields = [];\nif (verdictUnsaved) fields.push({ id: FIELD.verdict, value: s(input.verdict_json) });\nconst noise = OWNER_MARKS[mark] || '';\nif (s(cf(FIELD.noise)) !== noise && (mark || result)) fields.push({ id: FIELD.noise, value: noise });\n\nconst ops = [];\nconst op = (label, method, url, body) => ops.push({ label, method, url, body });\nconst pacificDate = iso => { const t = Date.parse(iso); return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(isNaN(t) ? new Date() : new Date(t)); };\n\nlet stage_id = '', opp = null, retry = false;\nif (result) {\n  fields.push({ id: FIELD.date, value: pacificDate(verdict && verdict.answered_at) });\n  const contactBody = { customFields: fields };\n  if (mark === 'Do Not Call') contactBody.dnd = true;\n  op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, contactBody);\n\n  // Tags — replace, never append (spec §6): a lead is in one block, one noise class, at most.\n  const owner = result === 'Owner Verified';\n  const blockTag = owner && verdict ? s(verdict.pt_block_tag) : '';\n  const want = [];\n  if (owner) { want.push('owner-confirmed', 'screen-' + noise); if (blockTag) want.push(blockTag); }\n  if (mismatch) want.push('screen-mismatch');\n  const managed = ['owner-confirmed', 'screen-busy', 'screen-quiet', 'screen-mismatch'].concat(BLOCK_TAGS);\n  const add = want.filter(t => !tags.includes(t));\n  const remove = managed.filter(t => tags.includes(t) && !want.includes(t));\n  if (add.length) op('add tags', 'POST', GHL + '/contacts/' + contact_id + '/tags', { tags: add });\n  if (remove.length) op('remove tags', 'DELETE', GHL + '/contacts/' + contact_id + '/tags', { tags: remove });\n  if (owner && !blockTag) notes.push('answered outside PT 06-16: no block tag or follower');\n\n  // Stage + block follower on the screener opportunity.\n  const opps = ((found && found.opportunities) || []).filter(o => o.pipelineId === PIPELINE && (o.status || 'open') === 'open');\n  opp = opps[0] || null;\n  stage_id = STAGE[result];\n  if (!opp && found && found.error) { retry = true; notes.push('opportunity search failed: stage and follower not written'); }\n  else if (!opp) notes.push('no open Screener — Plumbers opportunity: stage and follower not written');\n  else {\n    // GHL's opportunity SEARCH lags writes by seconds (live test 2026-09-24), so its stage and\n    // followers can be stale: never skip on them. Both writes are idempotent — always send them.\n    op('move stage -> ' + result, 'PUT', GHL + '/opportunities/' + opp.id, { pipelineId: PIPELINE, pipelineStageId: stage_id });\n    const wantUser = owner && verdict ? (BLOCK_USER[s(verdict.pt_block)] || '') : '';\n    if (owner && blockTag && !wantUser) notes.push('no user id for ' + s(verdict.pt_block) + ': follower skipped');\n    const dropUsers = Object.values(BLOCK_USER).filter(u => u && u !== wantUser);\n    op('remove other block followers', 'DELETE', GHL + '/opportunities/' + opp.id + '/followers', { followers: dropUsers });\n    if (wantUser) op('add block follower', 'POST', GHL + '/opportunities/' + opp.id + '/followers', { followers: [wantUser] });\n  }\n} else if (fields.length) {\n  op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, { customFields: fields });\n}\n// Waiting on a verdict that was NOT on the contact before our read: a Mark run may have read in\n// between and waited too (codex review). Not done — the retry sweep reruns it save-first.\nif (!result && verdictUnsaved) { retry = true; notes.push('verdict was not saved before the read: retry'); }\n\nreturn done(result ? 'apply' : 'wait', reason, {\n  result, stage_id, mismatch, retry, notes, ops,\n  mark: rawMark, ai_outcome: verdict ? s(verdict.call_outcome) : '', ai_owner: aiOwner,\n  opp_id: opp ? opp.id : '', verdict_call_id: verdict ? s(verdict.call_id) : ''\n});\n"
+      }
+    },
+    {
+      "name": "Anything to write?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ops.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Split Ops",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        208
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One item per GHL request, in order. GHL: Apply runs them one at a time (batch size 1).\nconst plan = $('Decide').first().json;\nreturn plan.ops.map((o, i) => ({ json: Object.assign({ n: i + 1, contact_id: plan.contact_id }, o) }));\n"
+      }
+    },
+    {
+      "name": "GHL: Apply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2240,
+        208
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 250
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// What the compare step did, for the caller and the execution log. A failed request does not\n// stop the others (onError continue); it is listed here instead. ok=false leaves the call's row at\n// writeback_ok=false, and Screener: Write-back Retry reruns the whole compare (save-first).\nconst plan = $('Decide').first().json;\nconst run_started_ms = $('Plan Save').first().json.run_started_ms;\nlet sent = [];\ntry { sent = $('Split Ops').all().map(i => i.json); } catch (e) { sent = []; }   // nothing to write\nconst failed = sent.length === 0 ? [] : $input.all().map((r, i) => ({ r: r.json, op: sent[i] }))\n  .filter(x => x.r && x.r.error)\n  .map(x => (x.op ? x.op.label : '?') + ': ' + (x.r.error.message || JSON.stringify(x.r.error)));\nreturn [{ json: {\n  contact_id: plan.contact_id, call_id: plan.call_id, action: plan.action, result: plan.result, reason: plan.reason,\n  mismatch: plan.mismatch, notes: plan.notes, requests: sent.length, failed,\n  ok: failed.length === 0 && !plan.retry, run_started_ms\n} }];\n"
+      }
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Compare Step  (spec §4.1 · §10.2 item 4)\nShared by Capture Call (AI verdict arrived) and Mark + Compare (screener picked). Saves a new verdict FIRST, then reads the contact, pairs Screener Outcome with Screen AI Verdict, and writes stage, tags, block follower, Date Screened, Screen Noise.\nGuard: does nothing unless the contact is tagged screening. Waits (writes only the verdict/noise) until both marks exist, unless force=true. ok=false (a failed request, or a retryable state) leaves writeback_ok=false for Screener: Write-back Retry. All logic is in Decide; the rest only executes its ops.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "When Called by Screener": {
+      "main": [
+        [
+          {
+            "node": "GHL: Guard Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Guard Read": {
+      "main": [
+        [
+          {
+            "node": "Plan Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Save Verdict": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save verdict first?": {
+      "main": [
+        [
+          {
+            "node": "GHL: Save Verdict",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Save": {
+      "main": [
+        [
+          {
+            "node": "Save verdict first?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "GHL: Find Screener Opp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Find Screener Opp": {
+      "main": [
+        [
+          {
+            "node": "Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Ops": {
+      "main": [
+        [
+          {
+            "node": "GHL: Apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Apply": {
+      "main": [
+        [
+          {
+            "node": "Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to write?": {
+      "main": [
+        [
+          {
+            "node": "Split Ops",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide": {
+      "main": [
+        [
+          {
+            "node": "Anything to write?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}

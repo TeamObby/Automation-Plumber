@@ -1,0 +1,754 @@
+{
+  "id": "Wwx2R76IrhLMYU7K",
+  "name": "Screener: Attempt Counter",
+  "active": false,
+  "nodes": [
+    {
+      "name": "When Called (attempt event)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "contact_id",
+              "type": "string"
+            },
+            {
+              "name": "event",
+              "type": "string"
+            },
+            {
+              "name": "wavv_call_id",
+              "type": "string"
+            },
+            {
+              "name": "event_key",
+              "type": "string"
+            },
+            {
+              "name": "at_ms",
+              "type": "number"
+            },
+            {
+              "name": "received_at",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The event from Screener: No Answer or Screener: WAVV Disposition. Only a countable event for a\n// known contact goes on; anything else ends the run.\nconst e = $input.first().json;\nif (!e || !e.event || !e.contact_id) return [];\nreturn [{ json: e }];\n"
+      }
+    },
+    {
+      "name": "Recent attempts for contact",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "9V6VL0XiKeadY9Lc",
+          "cachedResultName": "screener_attempts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "contact_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.contact_id }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 20,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "DESC"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Attempt Dedupe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Once per dial. The input is the contact's recent screener_attempts rows ({} when none).\n//  - a WAVV note carries its call id: a replay finds its own row -> stop if it was written back,\n//    or retry with the SAME attempt number if it was not (never counted twice);\n//  - a no-answer tag event has no id: a second no-answer for the contact within WINDOW_MS is the\n//    same dial delivered twice (a real redial takes longer than one ring cycle).\nconst WINDOW_MS = 30 * 1000;\nconst e = $('Event').first().json;\nconst rows = $input.all().map(i => i.json).filter(r => r && r.event_key);\nlet route = 'count', stored_attempt_no = null, reason = '';\nconst same = e.event_key && e.event_key.startsWith('wavv:') ? rows.find(r => r.event_key === e.event_key) : null;\nif (same) {\n  if (same.ok === true) { route = 'duplicate'; reason = 'this WAVV call was already counted'; }\n  else { stored_attempt_no = Number(same.attempt_no) || null; reason = 'retrying an event whose write-back failed'; }\n} else if (e.event === 'no-answer') {\n  const recent = rows.find(r => r.event === 'no-answer' && Number(r.at_ms) > e.at_ms - WINDOW_MS && Number(r.at_ms) <= e.at_ms);\n  if (recent) { route = 'duplicate'; reason = 'no-answer for this contact ' + Math.round((e.at_ms - recent.at_ms) / 1000) + 's ago'; }\n}\nreturn [{ json: Object.assign({}, e, { route, stored_attempt_no, dedupe_reason: reason }) }];\n"
+      }
+    },
+    {
+      "name": "Filter: not a duplicate",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "duplicate",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "GHL: Get Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Attempt Dedupe').first().json.contact_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "GHL: Find Screener Opp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1568,
+        300
+      ],
+      "parameters": {
+        "url": "=https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=CvDwpavqkHSRhg5Bn3L4&contact_id={{ $('Attempt Dedupe').first().json.contact_id }}&limit=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Ladder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The Attempt ladder (spec §2.1, §9 events 3+4). A stage is the call that is DUE: after dial n the\n// lead is in Attempt n+1, and after the 4th unanswered dial it leaves the queue as Exhausted.\n// Bad Number -> Disqualified. Screen Attempts is SET to the event's attempt number (never +1 on\n// the stored value), so a retried event lands on the same number.\nconst PIPELINE = 'CvDwpavqkHSRhg5Bn3L4';\nconst LADDER = ['7ff9193f-1e0a-4c93-9626-a6aab22b666b', 'd3d8862e-bc2e-443f-97e6-f77e577ac09e',\n  'abb54fb0-dbfc-44d9-aa21-796b91b7540b', 'ec53d2ba-8322-45d6-9d60-283cc4fc016e'];   // Attempt 1..4\nconst EXHAUSTED = 'c1db8172-84bf-45a1-8f0e-5625157574a5';\nconst DISQUALIFIED = '65f9e1b4-8688-456d-845e-ebe0781101b9';\nconst NAMES = { [EXHAUSTED]: 'Exhausted', [DISQUALIFIED]: 'Disqualified' };\nLADDER.forEach((id, i) => { NAMES[id] = 'Attempt ' + (i + 1); });\nconst TERMINAL = { 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f': 'Owner Verified', 'f83777fa-1dc0-4163-aa84-ef501126d82b': 'Gatekeeper',\n  '0c160182-e74d-4ace-9d3b-c4404043ef4b': 'Not Sure', [EXHAUSTED]: 'Exhausted', [DISQUALIFIED]: 'Disqualified' };\nconst F = { outcome: 'iTZa77JWntQs2QBuo9QU', date: 'MUkHW8R17PIksrSnpz6g', attempts: 'vcqKnq23gN5wIIHqRww4', verdict: 'boOwqb5qGOmbWBopWvTv' };\nconst NOT_A_PERSON = ['voicemail', 'no_conversation'];   // AI verdicts that are not an answered human\nconst GHL = 'https://services.leadconnectorhq.com';\n\nconst e = $('Attempt Dedupe').first().json;\nconst got = $('GHL: Get Contact').first().json;\nconst found = $('GHL: Find Screener Opp').first().json;\nconst contact = (got && got.contact) || null;\nconst s = v => String(v == null ? '' : v).trim();\nconst out = (action, reason, extra) => ({ json: Object.assign({\n  contact_id: e.contact_id, event: e.event, event_key: e.event_key, wavv_call_id: e.wavv_call_id, at_ms: e.at_ms,\n  received_at: e.received_at, action, reason, attempt_no: e.stored_attempt_no || null, result_stage: '', retry: false, force_compare: false, ops: []\n}, extra) });\n\nif (!contact || !contact.id) return out('skip', 'contact not readable: ' + s(got && got.error && (got.error.description || got.error.message)), { retry: true });\nconst tags = (contact.tags || []).map(t => s(t).toLowerCase());\nif (!tags.includes('screening')) return out('skip', 'contact is not tagged screening');\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst parse = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' ? v : null; } catch (err) { return null; } };\n\nconst opps = ((found && found.opportunities) || []).filter(o => o.pipelineId === PIPELINE && (o.status || 'open') === 'open');\nconst opp = opps[0] || null;\nif (!opp && found && found.error) return out('skip', 'opportunity search failed', { retry: true });\n\nconst attempt_no = e.stored_attempt_no || (Number(cf(F.attempts)) || 0) + 1;\nconst ops = [];\nconst op = (label, method, url, body) => ops.push({ label, method, url, body });\nop('Screen Attempts = ' + attempt_no, 'PUT', GHL + '/contacts/' + e.contact_id, { customFields: [ { id: F.attempts, value: attempt_no } ] });\n\n// Lead already decided (an answered call, or a terminal stage). A NEW event leaves it alone. A RETRY\n// of an event that half-failed (codex review) still repairs its count, but never moves the stage:\n// whatever put the lead in a terminal stage since may be newer than this event.\nconst decided = s(cf(F.date)) ? 'already screened (an answered call decided this lead)'\n  : (opp && TERMINAL[opp.pipelineStageId] ? 'opportunity already in ' + TERMINAL[opp.pipelineStageId] : '');\nif (decided && e.stored_attempt_no) return out('repair', 'retry: Screen Attempts repaired, stage left — ' + decided, { attempt_no, ops });\nif (decided) return out('skip', decided);\n\n// Bad Number is a dead end whatever came before (codex review): it wins over the unmarked-call case.\n// An answered human call that the screener never marked: this dial is \"the next call\", so the\n// compare runs now with nothing marked -> Not Sure + screen-mismatch (spec §4.1). It owns the stage.\nconst verdict = parse(cf(F.verdict));\nif (e.event !== 'bad-number' && verdict && !s(cf(F.outcome)) && !NOT_A_PERSON.includes(s(verdict.call_outcome))) {\n  return out('force', 'previous answered call was never marked', { attempt_no, ops, force_compare: true });\n}\n\nconst stage = e.event === 'bad-number' ? DISQUALIFIED : (attempt_no >= LADDER.length ? EXHAUSTED : LADDER[attempt_no]);\nif (!opp) return out('apply', 'no open Screener — Plumbers opportunity: only Screen Attempts written', { attempt_no, ops });\nop('move stage -> ' + NAMES[stage], 'PUT', GHL + '/opportunities/' + opp.id, { pipelineId: PIPELINE, pipelineStageId: stage });\nreturn out('apply', e.event + ' #' + attempt_no, { attempt_no, result_stage: NAMES[stage], ops });\n"
+      }
+    },
+    {
+      "name": "Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2016,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "skip",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Split Ladder Ops",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $('Ladder').first().json.ops.map(o => ({ json: o }));\n"
+      }
+    },
+    {
+      "name": "GHL: Ladder Apply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2464,
+        400
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 250
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Ladder Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Which ladder requests failed (GHL: Ladder Apply continues on error).\nconst sent = $('Split Ladder Ops').all().map(i => i.json);\nconst failed = $input.all().map((r, i) => ({ r: r.json, op: sent[i] }))\n  .filter(x => x.r && x.r.error)\n  .map(x => (x.op ? x.op.label : '?') + ': ' + (x.r.error.message || JSON.stringify(x.r.error)));\nreturn [{ json: { failed, requests: sent.length, force_compare: $('Ladder').first().json.force_compare === true } }];\n"
+      }
+    },
+    {
+      "name": "Unmarked answered call?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2912,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.force_compare }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Screener: Compare Step",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3136,
+        496
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "3pwiQXC8etTcKf5Z",
+          "cachedResultName": "Screener: Compare Step"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "contact_id": "={{ $('Ladder').first().json.contact_id }}",
+            "verdict_json": "",
+            "source": "ladder",
+            "force": true
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "verdict_json",
+              "displayName": "verdict_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "force",
+              "displayName": "force",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "Log Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One screener_attempts row per event, whichever path ran. ok=false keeps a failed event visible\n// (and a replay of a WAVV note retries it with the same attempt number).\nconst l = $('Ladder').first().json;\nconst pick = n => { try { return $(n).first().json; } catch (err) { return null; } };\nconst rep = pick('Ladder Report');\nconst cmp = l.force_compare ? pick('Screener: Compare Step') : null;\nconst failed = (rep && rep.failed) || [];\nconst ok = !l.retry && failed.length === 0 && (!l.force_compare || !!(cmp && cmp.ok === true));\nreturn [{ json: {\n  event_key: l.event_key, contact_id: l.contact_id, event: l.event, wavv_call_id: l.wavv_call_id,\n  attempt_no: l.attempt_no, action: l.action,\n  result_stage: cmp ? (cmp.result || cmp.action) : l.result_stage,\n  ok, reason: [l.reason].concat(failed, cmp && cmp.reason ? ['compare: ' + cmp.reason] : []).filter(Boolean).join(' | '),\n  at_ms: l.at_ms, received_at: l.received_at\n} }];\n"
+      }
+    },
+    {
+      "name": "Store: screener_attempts (upsert on event_key)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3584,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "9V6VL0XiKeadY9Lc",
+          "cachedResultName": "screener_attempts"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "event_key",
+              "condition": "eq",
+              "keyValue": "={{ $json.event_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_key",
+              "displayName": "event_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event",
+              "displayName": "event",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "wavv_call_id",
+              "displayName": "wavv_call_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "attempt_no",
+              "displayName": "attempt_no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "result_stage",
+              "displayName": "result_stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ok",
+              "displayName": "ok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "at_ms",
+              "displayName": "at_ms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "received_at",
+              "displayName": "received_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Attempt Counter  (spec §9 events 3 + 4 · §10.2 item 5)\nSub-workflow, called by Screener: No Answer and Screener: WAVV Disposition. No-answer dials and the WAVV auto-dispositions Voicemail / Bad Number walk a screening lead up the ladder: dial n -> Attempt n+1, 4th -> Exhausted, Bad Number -> Disqualified. Screen Attempts is SET, not incremented; every event is a row in screener_attempts (dedupe on the WAVV call id, or a 30 s window for no-answer). A dial after an answered call nobody marked forces the Compare Step (Not Sure + mismatch).\nKeep INACTIVE until the four GHL guard branches exist.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "When Called (attempt event)": {
+      "main": [
+        [
+          {
+            "node": "Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event": {
+      "main": [
+        [
+          {
+            "node": "Recent attempts for contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent attempts for contact": {
+      "main": [
+        [
+          {
+            "node": "Attempt Dedupe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attempt Dedupe": {
+      "main": [
+        [
+          {
+            "node": "Filter: not a duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: not a duplicate": {
+      "main": [
+        [
+          {
+            "node": "GHL: Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Get Contact": {
+      "main": [
+        [
+          {
+            "node": "GHL: Find Screener Opp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Find Screener Opp": {
+      "main": [
+        [
+          {
+            "node": "Ladder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip?": {
+      "main": [
+        [
+          {
+            "node": "Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Ladder Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Ladder Ops": {
+      "main": [
+        [
+          {
+            "node": "GHL: Ladder Apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Ladder Apply": {
+      "main": [
+        [
+          {
+            "node": "Ladder Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screener: Compare Step": {
+      "main": [
+        [
+          {
+            "node": "Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unmarked answered call?": {
+      "main": [
+        [
+          {
+            "node": "Screener: Compare Step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ladder Report": {
+      "main": [
+        [
+          {
+            "node": "Unmarked answered call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ladder": {
+      "main": [
+        [
+          {
+            "node": "Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Row": {
+      "main": [
+        [
+          {
+            "node": "Store: screener_attempts (upsert on event_key)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}

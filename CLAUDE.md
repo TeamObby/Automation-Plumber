@@ -45,8 +45,16 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **The opportunity's stage is the queue.** A stage means "the call/email that is due next".
   Nightly schedulers (3:00 / 3:30 / 4:00 / 4:30 AM) move opps between the email and call
   pipelines; `Email Sent → Move To Sent Stage` is the load-bearing hinge of the email path.
-- **Screener** (`workflows/screener/`) is separate on purpose: it writes to the n8n data table
-  `screener_calls`, not to GHL, until the GHL guard branches exist. Keep `Screener: Capture Call` inactive.
+- **Screener** (`workflows/screener/`) is separate on purpose. It writes GHL only for contacts tagged
+  `screening` (stage, tags, followers in its own pipeline); `Screener: Graduate` is the one piece that
+  creates opportunities in Kevin's pipelines. Its own state lives in n8n data tables (`screener_calls`,
+  `screener_attempts`, `screener_graduations`); after the 2026-09-24 meeting, Supabase becomes the source
+  of truth and the screener will write there too.
+  Keep the entry workflows inactive until the GHL guards exist: `Capture Call`, `Mark + Compare`,
+  `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`. Sub-workflows published
+  2026-09-24: Classify Transcript, Compare Step, Attempt Counter; `Graduate` still to publish.
+  `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her.
+  GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 
 ## Working on live workflows (n8n MCP)
 - Build/edit with the MCP's SDK flow: `get_sdk_reference` → `get_node_types` → `validate_workflow` →
@@ -58,6 +66,17 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   - A data-table filter with `condition: 'isTrue'` was silently saved without its condition.
     Use `condition: 'eq', keyValue: '={{ true }}'`.
   - `maxTries` / `waitBetweenTries` are dropped on save (n8n defaults apply).
+  - **An unpublished sub-workflow only runs under a *manual* top-level execution.** A sub-workflow
+    calling another, or any call from an active workflow, fails with "Workflow is not active". Publish
+    every screener sub-workflow before go-live, and re-publish after each `update_workflow`
+    (publishing snapshots the current draft). `publish_workflow` is a production action — ask first.
+  - `execute_workflow` with a webhook input always feeds the workflow's **first** webhook trigger:
+    one webhook per workflow if it must be testable.
+  - GHL `GET /opportunities/search` lags writes by seconds; `GET /contacts/{id}` does not. Never
+    skip an opportunity write because search says it is already done.
+  - An apostrophe in a top-level `//` comment of the SDK code (e.g. `contact's`) breaks the MCP
+    parser for everything after it ("Unterminated string constant" at a later line). Keep
+    apostrophes out of generator-level comments; inside `jsCode` strings they are fine.
   - Large tool results are saved to disk under the session's `tool-results/` folder; read them
     with `jq` instead of paging.
 - **Don't run `update_workflow` and `execute_workflow` in parallel.** The execution can race the
@@ -67,7 +86,7 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   them `TEST-…` and list them in the context file.
 - **Screener workflows are built from source, not edited in n8n.** The source of truth is
   `workflows/screener/build/src/*.js` (one file per code node; the prompt and schema live in
-  `prep_transcript.js`) plus `gen_*.js` (node wiring). To change one:
+  `prep_transcript.js`) plus `gen_*.js` (node wiring); workflow IDs live in `build/ids.json`. To change one:
   edit `src/` → `build.sh` → `node tests/screener.test.js` → paste `build/out/<name>.sdk.js` into
   `validate_workflow` then `update_workflow` → re-run the eval / a manual webhook test.
   `build.sh` also rewrites `workflows/screener/*.json`, so the snapshot always equals what was

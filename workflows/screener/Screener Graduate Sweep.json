@@ -1,0 +1,167 @@
+{
+  "id": "jZAgBUQvffv1NCMC",
+  "name": "Screener: Graduate Sweep",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Every 10 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GHL: Owner Verified screener opps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/opportunities/search?location_id=rzaMhqeo2apNI1p6DG5z&pipeline_id=CvDwpavqkHSRhg5Bn3L4&pipeline_stage_id=c8e33d9d-fd1b-46f6-87a6-7cc47841642f&status=open&limit=50",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpMultipleHeadersAuth",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "credentials": {
+        "httpMultipleHeadersAuth": {
+          "id": "DtotRKnzjDewbSsv",
+          "name": "GHL [ Waterline Growth subaccount ] Multiple Headers Auth account"
+        }
+      }
+    },
+    {
+      "name": "Pick ready leads (10 min grace)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Screener opportunities ready to graduate (spec §8). Owner Verified for at least GRACE_MS, so a\n// screener who corrects the mark within that window never sends the lead to Kevin. The sweep is the\n// only caller and runs one lead at a time, so two runs can never create the same opportunity.\nconst GRACE_MS = 10 * 60 * 1000;\nconst OWNER_VERIFIED = 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f';\nconst PIPELINE = 'CvDwpavqkHSRhg5Bn3L4';\nconst now = Date.now();\nconst opps = (($input.first() || {}).json || {}).opportunities || [];\nreturn opps\n  .filter(o => o.pipelineId === PIPELINE && o.pipelineStageId === OWNER_VERIFIED && (o.status || 'open') === 'open')\n  .filter(o => now - Date.parse(o.lastStageChangeAt || o.updatedAt || 0) >= GRACE_MS)\n  .map(o => ({ json: { contact_id: String(o.contactId || (o.contact && o.contact.id) || ''), screener_opp_id: String(o.id) } }))\n  .filter(i => i.json.contact_id);\n"
+      }
+    },
+    {
+      "name": "Screener: Graduate",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "M2LD6njhVMO9Ol7w",
+          "cachedResultName": "Screener: Graduate"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "contact_id": "={{ $json.contact_id }}",
+            "screener_opp_id": "={{ $json.screener_opp_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "screener_opp_id",
+              "displayName": "screener_opp_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Graduate Sweep  (spec §8 · §10.2 item 6)\nEvery 10 min: screener opportunities in Owner Verified for at least 10 min (the screener can still correct the mark inside that window) go through Screener: Graduate, one at a time. A lead whose graduation failed stays in Owner Verified and is picked up again.\nKeep INACTIVE until the four GHL guard branches exist.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "Every 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "GHL: Owner Verified screener opps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL: Owner Verified screener opps": {
+      "main": [
+        [
+          {
+            "node": "Pick ready leads (10 min grace)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick ready leads (10 min grace)": {
+      "main": [
+        [
+          {
+            "node": "Screener: Graduate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}
