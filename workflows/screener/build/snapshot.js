@@ -37,6 +37,6 @@ fs.mkdirSync(out, { recursive: true });
 const note = { meta: { snapshot: 'Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)' } };
 const IDS = require('./ids.json');
 for (const [file, sdk] of [['Screener Classify Transcript.json', 'classifier'], ['Screener Capture Call.json', 'capture'],
-    ['Screener Classifier Eval.json', 'eval'], ['Screener Compare Step.json', 'compare'], ['Screener Mark + Compare.json', 'mark'], ['Screener Write-back Retry.json', 'retry'], ['Screener Test Rig.json', 'testrig']])
+    ['Screener Classifier Eval.json', 'eval'], ['Screener Compare Step.json', 'compare'], ['Screener Mark + Compare.json', 'mark'], ['Screener Write-back Retry.json', 'retry'], ['Screener Test Rig.json', 'testrig'], ['Screener Attempt Counter.json', 'counter'], ['Screener No Answer.json', 'noanswer'], ['Screener WAVV Disposition.json', 'disposition']])
   fs.writeFileSync(out + file, JSON.stringify(build(__dirname + '/out/' + sdk + '.sdk.js', IDS[sdk], note), null, 2) + '\n');
 for (const f of fs.readdirSync(out).filter(f => f.endsWith(".json"))) { const j = JSON.parse(fs.readFileSync(out + f)); console.log(f, j.nodes.length, 'nodes', JSON.stringify(j.connections).length, 'conn-bytes'); }

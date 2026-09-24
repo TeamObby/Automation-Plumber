@@ -1,12 +1,12 @@
 // The Execute Workflow node that calls "Screener: Compare Step" — shared by Capture and Mark.
 const COMPARE_ID = require('./ids.json').compare;
-exports.callCompare = ({ pos, verdict, source }) => `const compare = node({
+exports.callCompare = ({ pos, verdict, source, force = false }) => `const compare = node({
   type: 'n8n-nodes-base.executeWorkflow', version: 1.3,
   config: { name: 'Screener: Compare Step', position: ${JSON.stringify(pos)}, parameters: {
     source: 'database',
     workflowId: { __rl: true, mode: 'id', value: '${COMPARE_ID}', cachedResultName: 'Screener: Compare Step' },
     workflowInputs: { mappingMode: 'defineBelow',
-      value: { contact_id: expr('{{ $json.contact_id }}'), verdict_json: ${verdict}, source: '${source}', force: false },
+      value: { contact_id: expr('{{ $json.contact_id }}'), verdict_json: ${verdict}, source: '${source}', force: ${force} },
       matchingColumns: [],
       schema: [
         { id: 'contact_id', displayName: 'contact_id', required: false, defaultMatch: false, display: true, canBeUsedToMatch: true, type: 'string' },

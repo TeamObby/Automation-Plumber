@@ -1,6 +1,6 @@
 // The contact and its screener opportunity as they are now: exactly what the Compare Step touches.
 const F = { 'iTZa77JWntQs2QBuo9QU': 'screener_outcome', 'MUkHW8R17PIksrSnpz6g': 'date_screened',
-  'AbbR6jH9PFMLJCRdCqMp': 'screen_noise', 'boOwqb5qGOmbWBopWvTv': 'screen_ai_verdict' };
+  'AbbR6jH9PFMLJCRdCqMp': 'screen_noise', 'boOwqb5qGOmbWBopWvTv': 'screen_ai_verdict', 'vcqKnq23gN5wIIHqRww4': 'screen_attempts' };
 const STAGES = { '7ff9193f-1e0a-4c93-9626-a6aab22b666b': 'Attempt 1', 'd3d8862e-bc2e-443f-97e6-f77e577ac09e': 'Attempt 2',
   'abb54fb0-dbfc-44d9-aa21-796b91b7540b': 'Attempt 3', 'ec53d2ba-8322-45d6-9d60-283cc4fc016e': 'Attempt 4',
   'c8e33d9d-fd1b-46f6-87a6-7cc47841642f': 'Owner Verified', 'f83777fa-1dc0-4163-aa84-ef501126d82b': 'Gatekeeper',

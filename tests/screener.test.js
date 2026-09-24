@@ -544,5 +544,109 @@ ok(JSON.stringify(rReset.ops.find(o => o.label.includes('followers')).body.follo
 ok(rReset.ops.find(o => o.label.includes('tags')).body.tags.length === 14 && !rReset.ops.find(o => o.label.includes('tags')).body.tags.includes('screening'),
    'reset: removes the 14 result tags, keeps screening');
 
+console.log('=== 10) Attempt Counter (item 5: the Attempt ladder) ===');
+const ctr = wf('Screener Attempt Counter.json');
+const naWf = wf('Screener No Answer.json'), dispWf = wf('Screener WAVV Disposition.json');
+const NNA = codeOf(naWf, 'Normalize No Answer'), NDISP = codeOf(dispWf, 'Normalize Disposition');
+const CTR_ID = require('../workflows/screener/build/ids.json').counter;
+[[naWf, 'screener-no-answer'], [dispWf, 'screener-disposition']].forEach(([w, path]) => {
+  const hookN = w.nodes.find(n => n.type === 'n8n-nodes-base.webhook');
+  const call = w.nodes.find(n => n.name === 'Screener: Attempt Counter');
+  ok(hookN.parameters.path === path && call.parameters.workflowId.value === CTR_ID &&
+     ['contact_id', 'event', 'wavv_call_id', 'event_key', 'at_ms', 'received_at'].every(k => call.parameters.workflowInputs.value[k] === '={{ $json.' + k + ' }}'),
+     path + ' -> Screener: Attempt Counter with every event field');
+});
+ok(ctr.nodes.filter(n => n.type === 'n8n-nodes-base.webhook').length === 0 &&
+   JSON.stringify(conn(ctr, 'When Called (attempt event)')) === '[["Event"]]', 'the counter is a sub-workflow (one testable webhook per workflow)');
+const note = d => '[ WAVV: 019f71fc-83da-7bb5 ] To: (805) 265-3731 (363) From: (805) 572-7879 Duration: 8 seconds Disposition: ' + d + ' Tag: wavv-x (15) Note: Auto-disposition';
+const nd = d => run(NDISP, { body: { contact_id: 'C1', customData: { note: note(d) } } });
+ok(nd('Voicemail').event === 'voicemail' && nd('Voicemail').event_key === 'wavv:019f71fc-83da-7bb5', 'Voicemail note -> an attempt, keyed on the WAVV call id');
+ok(nd('Bad Number').event === 'bad-number', 'Bad Number note -> bad-number');
+ok(nd('No Answer').event === '' && nd('Canceled').event === '', 'No Answer / Canceled notes ignored (the no-answer webhook counts those; no double count)');
+ok(nd('Cold Good').event === '' && nd('Gatekeeper Good').event === '', 'answered-call dispositions ignored (the Compare Step owns those)');
+ok(run(NDISP, { body: { contact_id: 'C1', customData: { note: 'just a note' } } }).event === '', 'non-WAVV note ignored');
+const na = run(NNA, { body: { contact_id: 'C1', full_name: 'X' } });
+ok(na.event === 'no-answer' && na.contact_id === 'C1' && na.event_key.startsWith('na:C1:') && na.at_ms > 0, 'no-answer webhook -> event with a time-stamped key');
+const EVT = codeOf(ctr, 'Event');
+const evt = j => new Function('$json', '$input', '$', EVT)({}, { first: () => ({ json: j }) }, () => null);
+ok(evt({ contact_id: 'C1', event: '' }).length === 0 && evt({ contact_id: '', event: 'voicemail' }).length === 0 && evt({ contact_id: 'C1', event: 'voicemail' }).length === 1, 'only a countable event for a known contact goes on');
+
+// Dedupe
+const DED = codeOf(ctr, 'Attempt Dedupe');
+const ded = (e, rows) => new Function('$json', '$input', '$', DED)({}, { all: () => rows.map(json => ({ json })) }, () => ({ first: () => ({ json: e }) }))[0].json;
+const NOW = 1790000000000;
+const eNa = { contact_id: 'C1', event: 'no-answer', event_key: 'na:C1:' + NOW, at_ms: NOW };
+ok(ded(eNa, [{}]).route === 'count', 'first event for the contact -> count');
+ok(ded(eNa, [{ event_key: 'na:C1:x', event: 'no-answer', at_ms: NOW - 10000, ok: true }]).route === 'duplicate', 'no-answer 10 s after another -> the same dial delivered twice');
+ok(ded(eNa, [{ event_key: 'na:C1:x', event: 'no-answer', at_ms: NOW - 120000, ok: true }]).route === 'count', 'no-answer 2 min after the last -> a new dial');
+ok(ded(eNa, [{ event_key: 'wavv:z', event: 'voicemail', at_ms: NOW - 5000, ok: true }]).route === 'count', 'a voicemail just before does not swallow a no-answer');
+const eVm = { contact_id: 'C1', event: 'voicemail', event_key: 'wavv:abc', at_ms: NOW };
+ok(ded(eVm, [{ event_key: 'wavv:abc', ok: true, attempt_no: 2 }]).route === 'duplicate', 'same WAVV call, written back -> duplicate');
+const again = ded(eVm, [{ event_key: 'wavv:abc', ok: false, attempt_no: 2 }]);
+ok(again.route === 'count' && again.stored_attempt_no === 2, 'same WAVV call, write-back failed -> retried with the SAME attempt number');
+
+// Ladder
+const LAD = codeOf(ctr, 'Ladder');
+const LS = { a1: '7ff9193f-1e0a-4c93-9626-a6aab22b666b', a2: 'd3d8862e-bc2e-443f-97e6-f77e577ac09e', a3: 'abb54fb0-dbfc-44d9-aa21-796b91b7540b',
+  a4: 'ec53d2ba-8322-45d6-9d60-283cc4fc016e', ex: 'c1db8172-84bf-45a1-8f0e-5625157574a5', dq: '65f9e1b4-8688-456d-845e-ebe0781101b9' };
+const FA = 'vcqKnq23gN5wIIHqRww4';
+const lad = ({ event = 'no-answer', attempts, stored = null, stage = LS.a1, fields = [], tags = ['screening'], contact, opps } = {}) => {
+  const cfs = fields.slice(); if (attempts != null) cfs.push({ id: FA, value: attempts });
+  return run(LAD, {}, {
+    'Attempt Dedupe': item({ contact_id: 'C1', event, event_key: 'k', at_ms: NOW, stored_attempt_no: stored }),
+    'GHL: Get Contact': item(contact !== undefined ? contact : { contact: { id: 'C1', tags, customFields: cfs } }),
+    'GHL: Find Screener Opp': item(opps !== undefined ? opps : { opportunities: [ { id: 'O1', pipelineId: 'CvDwpavqkHSRhg5Bn3L4', pipelineStageId: stage, status: 'open' } ] })
+  });
+};
+const stageOp = l => { const o = l.ops.find(x => x.label.startsWith('move stage')); return o ? o.body.pipelineStageId : ''; };
+const attOp = l => { const o = l.ops.find(x => x.label.startsWith('Screen Attempts')); return o ? o.body.customFields[0] : null; };
+[[undefined, LS.a2, 1], [1, LS.a3, 2], [2, LS.a4, 3], [3, LS.ex, 4]].forEach(([before, want, n]) => {
+  const l = lad({ attempts: before });
+  ok(l.action === 'apply' && l.attempt_no === n && attOp(l).id === FA && attOp(l).value === n && stageOp(l) === want,
+     `dial ${n} unanswered -> Screen Attempts ${n}, stage ${want === LS.ex ? 'Exhausted' : 'Attempt ' + (n + 1)}`);
+});
+ok(stageOp(lad({ event: 'voicemail', attempts: 1 })) === LS.a3, 'voicemail counts like a no-answer');
+ok(stageOp(lad({ event: 'bad-number', attempts: 0 })) === LS.dq && lad({ event: 'bad-number', attempts: 0 }).attempt_no === 1, 'bad number -> Disqualified (and the dial is counted)');
+ok(lad({ attempts: 2, stored: 2 }).attempt_no === 2, 'a retried event reuses its stored attempt number (never +1 twice)');
+ok(lad({ tags: ['plumber'] }).action === 'skip', 'not tagged screening -> skip');
+ok(lad({ contact: { error: { message: '502' } } }).retry === true, 'contact unreadable -> skip, retryable');
+ok(lad({ fields: [{ id: F.date, value: '2026-09-24' }] }).action === 'skip', 'already screened (Date Screened set) -> the ladder leaves it alone');
+ok(lad({ stage: LS.ex }).action === 'skip' && lad({ stage: 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f' }).action === 'skip', 'terminal stage -> skip');
+ok(lad({ opps: { error: { message: 'timeout' } } }).retry === true, 'opportunity search failed -> retryable');
+const noOpp = lad({ opps: { opportunities: [] }, attempts: 0 });
+ok(noOpp.action === 'apply' && !stageOp(noOpp) && attOp(noOpp).value === 1, 'no screener opp -> only Screen Attempts written');
+// The unmarked answered call (spec §4.1)
+const human = V({ call_outcome: 'gatekeeper', owner_reached: 'no' });
+let lf = lad({ attempts: 0, fields: [{ id: F.verdict, value: JSON.stringify(human) }] });
+ok(lf.action === 'force' && lf.force_compare && !stageOp(lf) && attOp(lf).value === 1, 'dial after an answered call nobody marked -> force the compare (it owns the stage)');
+lf = lad({ attempts: 0, fields: [{ id: F.verdict, value: JSON.stringify(V({ call_outcome: 'voicemail', owner_reached: 'no' })) }] });
+ok(lf.action === 'apply' && !lf.force_compare, 'a voicemail verdict is not an answered human -> normal ladder');
+lf = lad({ attempts: 0, fields: [{ id: F.verdict, value: JSON.stringify(human) }, { id: F.outcome, value: 'Gatekeeper' }] });
+ok(!lf.force_compare, 'marked call -> no force');
+ok(lad({ attempts: 0 }).ops.every(o => o.url.includes('/contacts/C1') || o.url.includes('/opportunities/O1')), 'ladder writes only this contact and its screener opp');
+const forceNode = ctr.nodes.find(n => n.name === 'Screener: Compare Step');
+ok(forceNode.parameters.workflowInputs.value.force === true && forceNode.parameters.workflowInputs.value.source === 'ladder' &&
+   forceNode.parameters.workflowId.value === require('../workflows/screener/build/ids.json').compare, 'the force call goes to the shared Compare Step with force=true');
+
+// Log row
+const LOG = codeOf(ctr, 'Log Row');
+const logOf = (l, nodes) => new Function('$json', '$input', '$', LOG)({}, {}, n => {
+  if (n === 'Ladder') return { first: () => ({ json: l }) };
+  if (!(n in nodes)) throw new Error('unexecuted'); return { first: () => ({ json: nodes[n] }) };
+})[0].json;
+const base = { event_key: 'k', contact_id: 'C1', event: 'no-answer', at_ms: NOW, received_at: 'r', attempt_no: 1, action: 'apply', result_stage: 'Attempt 2', reason: 'no-answer #1', retry: false, force_compare: false };
+ok(logOf(base, { 'Ladder Report': { failed: [] } }).ok === true, 'applied cleanly -> ok');
+const lb = logOf(base, { 'Ladder Report': { failed: ['move stage -> Attempt 2: 500'] } });
+ok(lb.ok === false && lb.reason.includes('500'), 'a failed request -> ok false, named');
+ok(logOf(Object.assign({}, base, { action: 'skip', retry: true, attempt_no: null }), {}).ok === false, 'retryable skip -> ok false');
+ok(logOf(Object.assign({}, base, { action: 'skip', attempt_no: null, reason: 'not tagged' }), {}).ok === true, 'final skip -> ok (nothing to do)');
+const lc = logOf(Object.assign({}, base, { action: 'force', force_compare: true, result_stage: '' }), { 'Ladder Report': { failed: [] }, 'Screener: Compare Step': { ok: true, result: 'Not Sure', reason: 'nothing marked' } });
+ok(lc.ok === true && lc.result_stage === 'Not Sure' && lc.reason.includes('compare: nothing marked'), 'forced compare -> its result is logged');
+ok(logOf(Object.assign({}, base, { action: 'force', force_compare: true }), { 'Ladder Report': { failed: [] }, 'Screener: Compare Step': { ok: false } }).ok === false, 'forced compare failed -> ok false');
+const LOGCOLS = ['event_key','contact_id','event','wavv_call_id','attempt_no','action','result_stage','ok','reason','at_ms','received_at'];
+ok(JSON.stringify(Object.keys(lc).sort()) === JSON.stringify(LOGCOLS.slice().sort()), 'Log Row fields == screener_attempts columns');
+ok(JSON.stringify(ctr.nodes.find(n => n.name.startsWith('Store: screener_attempts')).parameters.columns.schema.map(c => c.id).sort()) === JSON.stringify(LOGCOLS.slice().sort()), 'upsert schema == screener_attempts columns');
+ok(JSON.stringify(conn(ctr, 'Skip?')) === '[["Log Row"],["Split Ladder Ops"]]' && JSON.stringify(conn(ctr, 'Unmarked answered call?')) === '[["Screener: Compare Step"],["Log Row"]]', 'every path ends in the log');
+
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

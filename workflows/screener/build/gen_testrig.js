@@ -65,7 +65,7 @@ const state = node({
   output: [{ action: 'read', stage: 'Attempt 1', followers: [], tags: ['screening'], fields: {} }]
 });
 
-const note = sticky('## Screener: Test Rig  (manual only, never activate)\\nHard-wired to the team test contact Dana Happy 2Z5mwZe5RT4NQdNW85vj and its screener opp FAstcBVvrgbpds2gQIV3. Body action: read (state only), mark (outcome: plays the screener by setting Screener Outcome), reset (clears the screener fields, tags, block followers, opp back to Attempt 1). Do Not Call is refused: it would set DND on the receptionist demo record.', [rigOps, apply, state], { color: 3 });
+const note = sticky('## Screener: Test Rig  (manual only, never activate)\\nHard-wired to the team test contact Dana Happy 2Z5mwZe5RT4NQdNW85vj and its screener opp FAstcBVvrgbpds2gQIV3. Body action: read (state only), mark (outcome: plays the screener by setting Screener Outcome), reset (clears the five screener fields incl. Screen Attempts, tags, block followers, opp back to Attempt 1). Do Not Call is refused: it would set DND on the receptionist demo record.', [rigOps, apply, state], { color: 3 });
 
 export default workflow('screener-test-rig', 'Screener: Test Rig')
   .add(hook).to(rigOps)

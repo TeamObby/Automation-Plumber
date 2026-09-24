@@ -123,9 +123,18 @@ live `Call Recorded Trigger` already sends (n8n reads `customData.call_id`, `ghl
 `wavv_caller_id`, `call_answered_at_timestamp`, `call_transcript`, `call_recording_url`,
 `call_duration_seconds`, `contact_name`). Hour-block tags are spelled `screened-pt-10-11`.
 
-**Next on this side: items 5, 6, 7.** Item 5 is the gap that blocks a live test — nothing listens on
-`/webhook/screener-no-answer`, so an unanswered dial never advances the Attempt stage, and the
-ladder (not the recorded-call path) is what walks a lead to Attempt 4.
+**Item 5 built 2026-09-24:** `Screener: Attempt Counter` `Wwx2R76IrhLMYU7K` (sub-workflow, table
+`screener_attempts`) behind `Screener: No Answer` `aZyzUwwNdDWvaCAk` (`/webhook/screener-no-answer`) and
+`Screener: WAVV Disposition` `QOYHMP5ZGQcnG3ED` (`/webhook/screener-disposition`). Live on the test rig:
+four no-answers walk Dana Attempt 1 → 2 → 3 → 4 → **Exhausted**, voicemail counts, Bad Number →
+Disqualified, duplicates dropped. ⚠️ Before go-live, **publish the sub-workflows** (Classify, Compare,
+Attempt Counter) — n8n refuses an unpublished sub-workflow called from anything but a manual run.
+
+**For Hridoy — events 3 and 4:** `Call No Answer`'s screener branch POSTs the standard contact payload
+(`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
+POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
+
+**Next on this side: `screen_log`, items 6, 7.**
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard

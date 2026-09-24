@@ -48,7 +48,8 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **Screener** (`workflows/screener/`) is separate on purpose: it writes to the n8n data table
   `screener_calls`, not to GHL, until the GHL guard branches exist.
   Since item 4, `Screener: Compare Step` does write GHL, but only for contacts tagged `screening`.
-  Keep `Screener: Capture Call`, `Screener: Mark + Compare` and `Screener: Write-back Retry` inactive.
+  Keep `Screener: Capture Call`, `Screener: Mark + Compare`, `Screener: Write-back Retry`, `Screener: No Answer`
+  and `Screener: WAVV Disposition` inactive.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her.
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
 
@@ -62,6 +63,12 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   - A data-table filter with `condition: 'isTrue'` was silently saved without its condition.
     Use `condition: 'eq', keyValue: '={{ true }}'`.
   - `maxTries` / `waitBetweenTries` are dropped on save (n8n defaults apply).
+  - **An unpublished sub-workflow only runs under a *manual* top-level execution.** A sub-workflow
+    calling another, or any call from an active workflow, fails with "Workflow is not active". Publish
+    every screener sub-workflow before go-live, and re-publish after each `update_workflow`
+    (publishing snapshots the current draft). `publish_workflow` is a production action — ask first.
+  - `execute_workflow` with a webhook input always feeds the workflow's **first** webhook trigger:
+    one webhook per workflow if it must be testable.
   - GHL `GET /opportunities/search` lags writes by seconds; `GET /contacts/{id}` does not. Never
     skip an opportunity write because search says it is already done.
   - An apostrophe in a top-level `//` comment of the SDK code (e.g. `contact's`) breaks the MCP
