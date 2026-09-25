@@ -44,15 +44,16 @@ const age = dateAge(cf(F.date));
 const stale = n => n !== null && n > set.stale_days;
 
 const ops = [], notes = [];
-const op = (label, method, url, body) => ops.push({ label, method, url, body });
+// kind says which rule a write belongs to, so a replay can drop re-screen writes and keep expiry ones.
+const op = (kind, label, method, url, body) => ops.push({ kind, label, method, url, body });
 
 // 1. Expire the hour-block marks.
 const hourTags = tags.filter(t => t === 'owner-confirmed' || /^screened-pt-\d\d-\d\d$/.test(t));
 const expire = hourTags.length > 0 && stale(age);
 if (expire) {
-  op('remove hour-block tags', 'DELETE', GHL + '/contacts/' + cid + '/tags', { tags: hourTags });
+  op('expire', 'remove hour-block tags', 'DELETE', GHL + '/contacts/' + cid + '/tags', { tags: hourTags });
   // Only where the screener puts block followers: its own opportunity and Kevin's (never e.g. a demo pipeline).
-  opps.filter(o => isOpen(o) && (o.pipelineId === SCREENER || KEVIN.includes(o.pipelineId))).forEach(o => op('remove block followers (' + (o.pipelineId === SCREENER ? 'screener' : 'Kevin') + ' opp)',
+  opps.filter(o => isOpen(o) && (o.pipelineId === SCREENER || KEVIN.includes(o.pipelineId))).forEach(o => op('expire', 'remove block followers (' + (o.pipelineId === SCREENER ? 'screener' : 'Kevin') + ' opp)',
     'DELETE', GHL + '/opportunities/' + o.id + '/followers', { followers: BLOCK_USERS }));
 } else if (hourTags.length && age === null) notes.push('owner-confirmed without a Date Screened: left alone');
 
@@ -69,12 +70,12 @@ const rescreen = !!why && !blocked;
 if (rescreen) {
   const body = { customFields: Object.values(F).map(id => ({ id, value: '' })) };
   if (set.screener_user_id) body.assignedTo = set.screener_user_id; else notes.push('no screener assigned');
-  op('clear screener fields', 'PUT', GHL + '/contacts/' + cid, body);
+  op('rescreen', 'clear screener fields', 'PUT', GHL + '/contacts/' + cid, body);
   const drop = tags.filter(t => (RESULT_TAGS.includes(t) || /^screened-pt-\d\d-\d\d$/.test(t)) && !(expire && hourTags.includes(t)));
-  if (drop.length) op('remove result tags', 'DELETE', GHL + '/contacts/' + cid + '/tags', { tags: drop });
-  if (!tags.includes('screening')) op('add screening tag', 'POST', GHL + '/contacts/' + cid + '/tags', { tags: ['screening'] });
-  op('screener opp -> Attempt 1 (open)', 'PUT', GHL + '/opportunities/' + scr.id, { pipelineId: SCREENER, pipelineStageId: ST.attempt1, status: 'open' });
-  if (!(expire && isOpen(scr))) op('remove block followers (screener opp)', 'DELETE', GHL + '/opportunities/' + scr.id + '/followers', { followers: BLOCK_USERS });
+  if (drop.length) op('rescreen', 'remove result tags', 'DELETE', GHL + '/contacts/' + cid + '/tags', { tags: drop });
+  if (!tags.includes('screening')) op('rescreen', 'add screening tag', 'POST', GHL + '/contacts/' + cid + '/tags', { tags: ['screening'] });
+  op('rescreen', 'screener opp -> Attempt 1 (open)', 'PUT', GHL + '/opportunities/' + scr.id, { pipelineId: SCREENER, pipelineStageId: ST.attempt1, status: 'open' });
+  if (!(expire && isOpen(scr))) op('rescreen', 'remove block followers (screener opp)', 'DELETE', GHL + '/opportunities/' + scr.id + '/followers', { followers: BLOCK_USERS });
 }
 
 const action = rescreen ? (expire ? 'expire+rescreen' : 'rescreen') : (expire ? 'expire' : 'none');

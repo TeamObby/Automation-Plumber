@@ -45,6 +45,12 @@ nothing is replayed. The lead counts as blocked (reason kept: "not re-screened: 
 stopped)"), is listed under *Needs a human* ("half-done re-screens stopped — check by hand"), and its pending row is
 cleared (the saved writes are dropped, so the summary says it once). Expire-only replays (hour tags and block
 followers off) still run: expiry applies whatever the guards say.
+**Write kinds (5th codex review, 2026-09-25).** Expiry and re-screen share the label `remove block followers
+(screener opp)`, so the label cannot tell them apart: a blocked replay of a half-failed *expiry* was being dropped,
+leaving the lead on Kevin's hour board. Decide now tags every write `kind: 'expire' | 'rescreen'`, Sweep Report keeps
+the kind in `ops_json`, and a blocked replay drops only the `rescreen` writes and still replays the `expire` ones
+(reason "… | expiry writes replayed"). A saved row without kinds counts as re-screen only by the writes a re-screen
+alone makes (clear fields, result tags, `screening`, Attempt 1).
 
 ## What a re-screen writes
 Clear Screener Outcome, Screen AI Verdict, Screen Attempts, Date Screened, Screen Noise (+ `assignedTo` = the
@@ -68,6 +74,9 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
 - Replay guards: offline only (§14: DND stopped, open Kevin opp stopped with the reason kept, expire-only replay
   still allowed, stopped clears the pending row, summary line; mutation-checked). Deployed 2026-09-25 and re-pulled;
   not run live because a real run (DRY_RUN off) would also sweep any real stale leads.
+- Write kinds: offline (§14: the codex repro — expiry with a failed screener-opp follower removal is replayed with an
+  open Kevin opp; a mixed plan keeps its expiry writes; an old row without kinds; saved rows keep kinds;
+  mutation-checked). Deployed 2026-09-25 and re-pulled.
 
 ## TODOs
 - `SCREENER_USER_ID` optional (Topu has normal access). While empty, the summary still warns "no screener

@@ -1005,6 +1005,24 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
   const PEXP = Object.assign({}, P, { ops_json: JSON.stringify([{ label: 'remove hour-block tags', method: 'DELETE', url: 'u', body: {} }, { label: 'remove block followers (Kevin opp)', method: 'DELETE', url: 'k', body: {} }]) });
   pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [PEXP]);
   ok(pp.ops.length === 2 && pp.stopped.length === 0, 'expire-only saved writes are still replayed with an open Kevin opp (expiry applies either way)');
+  // 5th codex review: expiry and re-screen share the label 'remove block followers (screener opp)'
+  const EXPK = (label, url) => ({ kind: 'expire', label, method: 'DELETE', url, body: {} });
+  const PEXPF = Object.assign({}, P, { ops_json: JSON.stringify([EXPK('remove hour-block tags', 't'), EXPK('remove block followers (screener opp)', 's'), EXPK('remove block followers (Kevin opp)', 'k')]) });
+  pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [PEXPF]);
+  ok(pp.ops.length === 3 && pp.stopped.length === 0 && pp.planned[0].action === 'retry', 'codex repro: an expiry whose screener-opp follower removal failed is still replayed with an open Kevin opp');
+  const PMIX = Object.assign({}, P, { ops_json: JSON.stringify([EXPK('remove hour-block tags', 't'), EXPK('remove block followers (screener opp)', 's'),
+    { kind: 'rescreen', label: 'clear screener fields', method: 'PUT', url: 'c', body: {} }, { kind: 'rescreen', label: 'add screening tag', method: 'POST', url: 'g', body: {} },
+    { kind: 'rescreen', label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'a', body: {} }]) });
+  pp = planP([Object.assign({}, NODATE, { dnd: true })], [PMIX]);
+  ok(pp.stopped.length === 1 && JSON.stringify(pp.ops.map(o => o.url)) === '["t","s"]' && pp.blocked.length === 1 && /expiry writes replayed/.test(pp.blocked[0].reason),
+     'expire+rescreen plan now blocked (DND): the re-screen writes are dropped, the expiry writes still replayed, lead listed for a human');
+  const POLD = Object.assign({}, P, { ops_json: JSON.stringify([{ label: 'remove hour-block tags', method: 'DELETE', url: 't', body: {} }, { label: 'remove block followers (screener opp)', method: 'DELETE', url: 's', body: {} }]) });
+  pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [POLD]);
+  ok(pp.ops.length === 2 && pp.stopped.length === 0, 'a row saved without kinds: the shared follower label alone does not count as a re-screen');
+  const EXS = sweep({ tags: ['screening', 'owner-confirmed', 'screened-pt-10-11'], date: '2026-09-01', opps: [sopp(STG.gk)] });
+  ok(EXS.ops.length > 0 && EXS.ops.every(o => o.kind === 'expire' || o.kind === 'rescreen')
+     && EXS.ops.filter(o => o.kind === 'rescreen').every(o => /clear screener fields|result tags|screening tag|Attempt 1|screener opp/.test(o.label))
+     && EXS.ops.find(o => o.label === 'remove hour-block tags').kind === 'expire', 'Decide tags every write with its rule (expire / rescreen)');
   const DSD = sweep({ tags: ['screening'], opps: [sopp(STG.gk), kopp('open', MANR)], dnd: true });
   ok(DSD.open_kevin === true && DSD.dnd === true, 'Decide reports the current guards for every contact');
   const CDP = codeOf(dsWf, 'Candidates');
@@ -1028,6 +1046,8 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
   ok(rpp.pending_save.find(p => p.contact_id === 'P1').first_failed_at === P.first_failed_at && !rpp.pending_clear.includes('P1'), 'failing again keeps the first failure time');
   const rstop = repP(Object.assign({}, PL, { planned: [], stopped: [ { contact_id: 'P1', company: 'P', why: 'contact is DND' } ] }), [], [], [P]);
   ok(rstop.pending_clear.includes('P1') && rstop.stopped.length === 1, 'a stopped replay leaves the pending table (reported once, not looped daily)');
+  const RK = repP(PL, [ Object.assign({ kind: 'rescreen' }, SENT[0]), Object.assign({ kind: 'rescreen' }, SENT[1]), SENT[2] ], [ {}, { error: { message: '500' } }, {} ], [P]);
+  ok(JSON.parse(RK.pending_save[0].ops_json).every(o => o.kind === 'rescreen'), 'saved writes keep their kind for the next replay');
   ok(repP(PL, [], [], [P], { dry_run: true }).pending_save.length === 0 && repP(PL, [], [], [P], { dry_run: true }).pending_clear.length === 0, 'a dry run never touches the pending table');
   const PCH = codeOf(dsWf, 'Pending sweep changes');
   const ch = new Function('$json', '$input', '$', PCH)({}, { first: () => ({ json: { pending_save: [{ contact_id: 'A' }], pending_clear: ['P1'] } }) }, () => null).map(i => i.json);

@@ -17,7 +17,7 @@ const now = new Date().toISOString();
 const pending_save = set.dry_run === true ? [] : [...failedContacts].map(cid => {
   const x = failedOps.find(f => f.o.contact_id === cid);
   const prev = pending.get(cid);
-  return { contact_id: cid, ops_json: JSON.stringify(sent.filter(o => o.contact_id === cid).map(({ label, method, url, body }) => ({ label, method, url, body }))),
+  return { contact_id: cid, ops_json: JSON.stringify(sent.filter(o => o.contact_id === cid).map(({ kind, label, method, url, body }) => ({ kind, label, method, url, body }))),
     error: x.o.label + ': ' + (x.r ? msg(x.r) : 'no response'), queued_at: now, first_failed_at: (prev && prev.first_failed_at) || now };
 });
 const pending_clear = set.dry_run === true ? [] : [...pending.keys()].filter(cid =>
