@@ -145,9 +145,12 @@ Credentials are not compared — the MCP omits them.
   field. The table is the per-call log for the accuracy report (item 8). Column list in the Capture context file.
 - **`screener_attempts`** `9V6VL0XiKeadY9Lc` — one row per unanswered dial event (no-answer / voicemail /
   bad-number), written by `Screener: Attempt Counter`; key `event_key` (`wavv:<call id>` or `na:<contact>:<ms>`).
+- **`screener_sweep_pending`** `J61RThPMfxykZt1N` — contacts whose Daily Sweep writes half failed (all their writes as
+  `ops_json`); the next sweep replays them unless the lead moved since. Normally empty.
 - **`screener_graduations`** `1iX0aTvMYawwyH4H` — one row per graduating lead, upserted by `Screener: Graduate`
   on every attempt; key `grad_key` (`contact_id:screener_opp_id`). `ok = true` only once the screener
-  opportunity is closed; `ok = false` means the sweep is still retrying it (`reason` names the failed write).
+  opportunity is closed; `ok = false` means the sweep is still retrying it (`reason` names the failed write). `first_failed_at`
+  = the first unresolved failure (kept across retries; the daily summary flags it after a day).
 - Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0011`) and the 2026-09-24 test-rig rows on contact
   `2Z5mwZe5RT4NQdNW85vj` are **test data** — delete them in the n8n UI before real calls (the MCP can't delete rows).
 

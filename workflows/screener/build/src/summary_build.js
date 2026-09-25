@@ -8,7 +8,7 @@ const counts = pick('GHL: stage counts').map((j, i) => ({ name: names[i], n: j &
 const d24 = pick('Supabase: last 24h')[0] || {};
 const rows = n => pick(n).filter(r => r && r.id);
 const wb = rows('Failed write-backs').filter(r => now - Date.parse(r.received_at || r.createdAt) > 2 * DAY);
-const grad = rows('Failed graduations').filter(r => now - Date.parse(r.at || r.updatedAt) > DAY);
+const grad = rows('Failed graduations').filter(r => now - Date.parse(r.first_failed_at || r.createdAt || r.at) > DAY);   // first failure, not the latest retry
 const pend = rows('Pending log writes');
 const n = x => (x == null || isNaN(Number(x)) ? 0 : Number(x));
 const list = (a, f) => a.slice(0, 8).map(f).join(', ') + (a.length > 8 ? ' +' + (a.length - 8) + ' more' : '');
@@ -26,13 +26,15 @@ else {
 }
 const ex = rep.expired || [], rs = rep.rescreened || [];
 L.push('*Stale sweep:* ' + ex.length + ' dropped from the hour lists · ' + rs.length + ' back to Attempt 1'
+  + ((rep.retried || []).length ? ' · ' + rep.retried.length + ' earlier half-done sweeps finished' : '')
   + ((rep.blocked || []).length ? ' · ' + rep.blocked.length + ' not re-screened (open Kevin opportunity / DND)' : '')
   + ((rep.deferred || []).length ? ' · ' + rep.deferred.length + ' deferred to tomorrow' : ''));
 if (rs.length) L.push('   re-screened: ' + list(rs, d => d.company));
 if (rs.some(d => /no screener assigned/.test(d.reason || ''))) L.push(':warning: re-screened leads have no screener assigned (set SCREENER_USER_ID in the sweep settings).');
 
 const human = [];
-if ((rep.failed || []).length) human.push(rep.failed.length + ' sweep requests failed: ' + list(rep.failed, x => x));
+if ((rep.pending_save || []).length) human.push(rep.pending_save.length + ' leads half changed by the sweep (writes failed): retried tomorrow — ' + list(rep.pending_save, p => p.contact_id + ' (' + p.error + ')'));
+if ((rep.superseded || []).length) human.push(rep.superseded.length + ' leads moved after a half-failed sweep, not replayed — check by hand: ' + list(rep.superseded, d => d.company || d.contact_id));
 if ((rep.errors || []).length) human.push(rep.errors.length + ' contacts not readable: ' + list(rep.errors, d => d.contact_id));
 if ((rep.search_errors || []).length) human.push('searches failed: ' + rep.search_errors.join('; '));
 if ((rep.truncated || []).length) human.push('more than 100 leads in: ' + rep.truncated.join(', ') + ' (only the first 100 were swept)');

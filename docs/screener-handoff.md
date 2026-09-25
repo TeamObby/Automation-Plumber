@@ -129,7 +129,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 4. ✅ **Item 7b — `Screener: Daily Sweep`** (inactive, 05:00 PT) built and tested live on Dana: 14-day expiry
    drops stale owners from Kevin's hour lists; Gatekeeper / Not Sure / Exhausted / graduated owners whose Kevin opp
    closed go back to Attempt 1 (never with an open Kevin opp); Slack summary with stage counts, last 24 h, sweep
-   results and what needs a human. Slack: `#daily-screener-summary` (Obby bot, first post 2026-09-25). **Open:** `SCREENER_USER_ID` (Topu) for re-screens.
+   results and what needs a human. Slack: `#daily-screener-summary` (Obby bot, first post 2026-09-25). 3rd codex review fixed: half-failed re-screens
+   are saved and finished next run; the log version is stamped at the contact read; stuck graduations use
+   `first_failed_at`. **Re-publish Compare Step** (needs OK) for the stamp fix. **Open:** `SCREENER_USER_ID` (Topu) for re-screens.
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
 
 ### Mohimenul — then the new work from the meeting

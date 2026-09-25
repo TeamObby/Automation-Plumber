@@ -369,7 +369,7 @@ ok(JSON.stringify(conn(compareWf, 'When Called by Screener')) === '[["GHL: Guard
    JSON.stringify(conn(compareWf, 'Plan Save')) === '[["Save verdict first?"]]' &&
    JSON.stringify(conn(compareWf, 'Save verdict first?')) === '[["GHL: Save Verdict"],["GHL: Get Contact"]]' &&
    JSON.stringify(conn(compareWf, 'GHL: Save Verdict')) === '[["GHL: Get Contact"]]' &&
-   JSON.stringify(conn(compareWf, 'GHL: Get Contact')) === '[["GHL: Find Screener Opp"]]', 'Guard Read -> Save Verdict -> fresh Get Contact -> Decide');
+   JSON.stringify(conn(compareWf, 'GHL: Get Contact')) === '[["Stamp Read"]]' && JSON.stringify(conn(compareWf, 'Stamp Read')) === '[["GHL: Find Screener Opp"]]', 'Guard Read -> Save Verdict -> fresh Get Contact -> Stamp Read -> Decide');
 const PLAN_SAVE = codeOf(compareWf, 'Plan Save');
 const planSave = (contact, verdictJson) => run(PLAN_SAVE, { contact }, { 'When Called by Screener': item({ contact_id: 'C1', verdict_json: verdictJson }) });
 const withVerdict = (tags, v) => ({ id: 'C1', tags, customFields: v ? [ { id: F.verdict, value: JSON.stringify(v) } ] : [] });
@@ -759,7 +759,19 @@ ok(glog(pl, gsent, [{}, {}, {}], null, null).ok === false, 'writes done but neve
 gl = glog(pl, gops(pl, { error: { message: '422 duplicate' } }), null);
 ok(gl.ok === false && gl.reason.includes('create Kevin opp: 422'), 'failed create -> not ok, named');
 ok(glog(gplan({ tags: ['screening'] }), null, null).ok === true, 'final skip -> ok');
-const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevin_pipeline','created_new','pt_block','action','ok','reason','at'];
+{ const GLF = codeOf(gradWf, 'Log Graduation');
+  const glf = (prev, closeRes) => new Function('$json', '$input', '$', GLF)({}, {}, n => {
+    if (n === 'Graduation Plan') return { first: () => ({ json: gplan() }) };
+    if (n === 'Previous graduation') return { first: () => ({ json: prev }) };
+    const v = { 'Graduation Ops': gsent, 'GHL: Graduation Apply': [{}, {}, {}], 'Close Gate': [{ close: true, failed: [] }], 'GHL: Close Screener Opp': [closeRes] }[n];
+    return { all: () => v.map(json => ({ json })) };
+  })[0].json;
+  const first = glf({}, { error: { message: '500' } });
+  ok(first.ok === false && first.first_failed_at === first.at, 'first failure: first_failed_at = now');
+  ok(glf({ ok: false, first_failed_at: '2026-09-20T00:00:00.000Z' }, { error: { message: '500' } }).first_failed_at === '2026-09-20T00:00:00.000Z', 'a retry that fails again keeps the FIRST failure time (codex: at is refreshed every retry)');
+  ok(glf({ ok: false, first_failed_at: '2026-09-20T00:00:00.000Z' }, {}).first_failed_at === '', 'a graduation that finally succeeds clears it');
+  ok(JSON.stringify(conn(gradWf, 'When Called (graduate)')) === '[["Previous graduation"]]' && JSON.stringify(conn(gradWf, 'Previous graduation')) === '[["GHL: Get Contact"]]', 'Graduate reads its previous row first'); }
+const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevin_pipeline','created_new','pt_block','action','ok','reason','at','first_failed_at'];
 ok(JSON.stringify(Object.keys(gl).sort()) === JSON.stringify(GRADCOLS.slice().sort()), 'Log Graduation fields == screener_graduations columns');
 ok(sweepWf.nodes.find(n => n.name === 'Screener: Graduate').parameters.workflowId.value === require('../workflows/screener/build/ids.json').graduate, 'the sweep calls Screener: Graduate');
 
@@ -844,7 +856,13 @@ ok(/screener_log_upsert\(r jsonb\)/.test(SQL) && /when excluded\.decided_ms >= t
    && /transcript\s+= coalesce\(excluded\.transcript, t\.transcript\)/.test(SQL) && /revoke execute on function public\.screener_log_upsert\(jsonb\) from public, anon, authenticated/.test(SQL),
    'SQL: decision replaced only by a same-or-later read; facts never blanked; only service_role may call it');
 const DEC = codeOf(cmpWf, 'Decide');
-ok(/const read_ms = Date\.now\(\);/.test(DEC) && /ops: \[\], read_ms/.test(DEC), 'Decide stamps read_ms after the contact read, on every outcome');
+ok(/\$\('Stamp Read'\)\.first\(\)\.json\.read_ms/.test(DEC) && /ops: \[\], read_ms/.test(DEC), 'Decide versions its decision with the Stamp Read time, on every outcome');
+{ const STR = codeOf(cmpWf, 'Stamp Read');
+  const t0 = Date.now(), st = new Function('$json', '$input', '$', STR)({}, { all: () => [{ json: { contact: { id: 'C1' } } }] }, () => null)[0].json;
+  ok(st.contact.id === 'C1' && st.read_ms >= t0 && st.read_ms <= Date.now(), 'Stamp Read passes the contact through and stamps the moment the read returned');
+  const dSt = run(DEC, {}, { 'When Called by Screener': item({ contact_id: 'C1', verdict_json: '' }), 'GHL: Get Contact': item({ contact: { id: 'C1', tags: [], customFields: [] } }),
+    'GHL: Find Screener Opp': item({ opportunities: [] }), 'Stamp Read': item({ read_ms: 4242 }) });
+  ok(dSt.read_ms === 4242, 'Decide uses the stamp, not its own later clock (codex: a slow opp search must not make an older snapshot look newer)'); }
 slr = lcr({ plan: { read_ms: 1234 } });
 ok(slr.row.decided_ms === 1234, 'call row carries the decision version (Decide read_ms)');
 ok(typeof lar({}).row.decided_ms === 'number', 'dial row carries a version too');
@@ -968,8 +986,47 @@ ok(d14sm.needs_human && /1 GHL write-backs failing for 48 h\+: Old Plumbing/.tes
 ok(/dry run/.test(sumOf({ rep: { dry_run: true } }).text) && /Supabase not readable/.test(sumOf({ d24: { error: { message: '401' } } }).text), 'dry runs and an unreadable Supabase are said out loud');
 ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred/.test(sumOf({ rep: { deferred: ['X'] } }).text), 'blocked and deferred leads are counted');
 
+{ // half-failed sweeps (codex review): saved, replayed, or dropped when the lead moved since
+  const planP = (decs, pend) => new Function('$json', '$input', '$', SPL)({}, { all: () => decs.map(json => ({ json })) },
+    n => n === 'Settings' ? { first: () => ({ json: DSET }) } : { all: () => (pend || []).map(json => ({ json })) })[0].json;
+  const P = { contact_id: 'P1', ops_json: JSON.stringify([{ label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'u', body: {} }]), error: 'x: 500', queued_at: '2026-09-24T12:00:00.000Z', first_failed_at: '2026-09-24T12:00:00.000Z' };
+  let pp = planP([{ contact_id: 'P1', company: 'P', action: 'none', reason: '', ops: [], scr_stage_changed_at: '2026-09-20T00:00:00.000Z' }], [P]);
+  ok(pp.planned.length === 1 && pp.planned[0].action === 'retry' && pp.ops.length === 1 && pp.ops[0].contact_id === 'P1', 'half-failed re-screen (Date Screened already cleared, so nothing new is planned): the saved writes are replayed');
+  pp = planP([{ contact_id: 'P1', company: 'P', action: 'none', reason: '', ops: [], scr_stage_changed_at: '2026-09-24T18:00:00.000Z' }], [P]);
+  ok(pp.planned.length === 0 && pp.superseded.length === 1, 'the lead moved after the failure (a newer call/dial): not replayed, reported');
+  pp = planP([{ contact_id: 'P1', company: 'P', action: 'rescreen', reason: '', ops: [{ label: 'fresh', method: 'PUT', url: 'u', body: {} }] }], [P]);
+  ok(pp.ops.length === 1 && pp.ops[0].label === 'fresh', 'if the lead still needs work, the fresh plan wins over the saved writes');
+  const CDP = codeOf(dsWf, 'Candidates');
+  const cdp = new Function('$json', '$input', '$', CDP)({}, {}, n => {
+    if (n === 'GHL: owner-confirmed contacts') return { first: () => ({ json: { contacts: [] } }) };
+    if (n === 'Stale searches' || n === 'GHL: screener opps') return { all: () => [] };
+    if (n === 'Pending sweeps') return { all: () => [{ json: { contact_id: 'P1' } }] };
+  })[0].json;
+  ok(JSON.stringify(cdp.contact_ids) === '["P1"]', 'a pending contact is always re-read, whatever stage it is in now');
+  const repP = (plan, sent, res, pend, settings = {}) => new Function('$json', '$input', '$', SRP)({}, {}, n => {
+    const v = { 'Settings': [Object.assign({}, DSET, settings)], 'Candidates': [{ contact_ids: ['A', 'P1'] }], 'Plan Sweep': [plan], 'Split Sweep Ops': sent, 'GHL: Sweep Apply': res, 'Pending sweeps': pend }[n];
+    if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+  })[0].json;
+  const PL = { planned: [ { contact_id: 'A', action: 'rescreen' }, { contact_id: 'P1', action: 'retry' } ], deferred: [], blocked: [], errors: [], superseded: [] };
+  const SENT = [ { contact_id: 'A', label: 'clear screener fields', method: 'PUT', url: 'ua', body: {} }, { contact_id: 'A', label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'ub', body: {} }, { contact_id: 'P1', label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'uc', body: {} } ];
+  let rpp = repP(PL, SENT, [ {}, { error: { message: '500' } }, {} ], [P]);
+  ok(rpp.pending_save.length === 1 && rpp.pending_save[0].contact_id === 'A' && JSON.parse(rpp.pending_save[0].ops_json).length === 2 && /Attempt 1/.test(rpp.pending_save[0].error),
+     'codex case: fields cleared but the stage move failed -> the contact is saved with ALL its writes for the next run');
+  ok(JSON.stringify(rpp.pending_clear) === '["P1"]' && rpp.retried.length === 1, 'a replayed contact that now succeeded leaves the pending table');
+  rpp = repP(PL, SENT, [ {}, { error: { message: '500' } }, { error: { message: '503' } } ], [P]);
+  ok(rpp.pending_save.find(p => p.contact_id === 'P1').first_failed_at === P.first_failed_at && !rpp.pending_clear.includes('P1'), 'failing again keeps the first failure time');
+  ok(repP(PL, [], [], [P], { dry_run: true }).pending_save.length === 0 && repP(PL, [], [], [P], { dry_run: true }).pending_clear.length === 0, 'a dry run never touches the pending table');
+  const PCH = codeOf(dsWf, 'Pending sweep changes');
+  const ch = new Function('$json', '$input', '$', PCH)({}, { first: () => ({ json: { pending_save: [{ contact_id: 'A' }], pending_clear: ['P1'] } }) }, () => null).map(i => i.json);
+  ok(ch.length === 2 && ch[0].op === 'save' && ch[1].op === 'clear' && ch[1].contact_id === 'P1', 'pending changes: one save item, one clear item');
+  const sm2 = sumOf({ rep: { pending_save: [{ contact_id: 'A', error: 'x: 500' }], superseded: [{ company: 'Moved Co' }], retried: [{}] } });
+  ok(sm2.needs_human && /half changed by the sweep/.test(sm2.text) && /Moved Co/.test(sm2.text) && /1 earlier half-done sweeps finished/.test(sm2.text), 'summary: half-done sweeps, superseded leads, and finished retries are reported');
+  const old2 = new Date(Date.now() - 3 * 86400000).toISOString(), recent2 = new Date().toISOString();
+  ok(/1 graduations failing/.test(sumOf({ grads: [ { id: 1, contact_id: 'G1', reason: 'x', at: recent2, first_failed_at: old2 } ] }).text), 'a graduation failing for 3 days is flagged even though its last retry was just now (codex)');
+}
 ok(JSON.stringify(conn(dsWf, 'Any candidates?')) === '[["One contact"],["Sweep Report"]]' && JSON.stringify(conn(dsWf, 'Write to GHL?')) === '[["Split Sweep Ops"],["Sweep Report"]]'
-   && JSON.stringify(conn(dsWf, 'Sweep Report')) === '[["Stage count searches"]]' && JSON.stringify(conn(dsWf, 'Build Summary')) === '[["Slack: daily summary"]]',
+   && JSON.stringify(conn(dsWf, 'Sweep Report')) === '[["Pending sweep changes","Stage count searches"]]' && JSON.stringify(conn(dsWf, 'Build Summary')) === '[["Slack: daily summary"]]'
+   && JSON.stringify(conn(dsWf, 'Save or clear?')) === '[["Save pending sweep"],["Clear pending sweep"]]' && JSON.stringify(conn(dsWf, 'GHL: screener opps')) === '[["Pending sweeps"]]',
    'wiring: no candidates / dry run both still reach the report and the Slack summary');
 ok(['Supabase: last 24h', 'Failed write-backs', 'Failed graduations', 'Pending log writes'].every(n => dsWf.nodes.find(x => x.name === n).executeOnce === true), 'the summary reads run once, not once per stage');
 ok(/create or replace view public\.screener_last_24h/.test(SQL), 'SQL: screener_last_24h view defined');

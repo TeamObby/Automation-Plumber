@@ -18,4 +18,7 @@ $('GHL: screener opps').all().forEach((it, i) => {
   list.forEach(o => add(o.contactId || (o.contact && o.contact.id), label));
   if (list.length >= PAGE) truncated.push(label);
 });
+// A contact whose earlier sweep half failed is always re-read, whatever stage it is in now.
+(() => { try { return $('Pending sweeps').all().map(i => i.json); } catch (e) { return []; } })()
+  .filter(r => r && r.contact_id).forEach(r => add(r.contact_id, 'pending retry'));
 return [{ json: { contact_ids: [...found.keys()], sources: Object.fromEntries(found), search_errors, truncated } }];

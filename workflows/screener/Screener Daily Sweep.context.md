@@ -28,6 +28,16 @@ GHL: Get Contact → GHL: All Opps for Contact (`status=all`) → **Decide** →
 searches, `meta.total`) → **Supabase: last 24h** (view `screener_last_24h`) → failed write-backs / failed
 graduations / pending log writes (n8n tables) → **Build Summary** → **Slack: daily summary**.
 
+## Half-failed sweeps (codex review, 2026-09-25)
+A re-screen clears Date Screened first; if a later write failed (e.g. the stage move), the next sweep would no
+longer see the lead as stale and it would stay half changed. Now a contact with any failed write is saved in
+**`screener_sweep_pending`** `J61RThPMfxykZt1N` (`contact_id`, `ops_json` = all its writes, `error`, `queued_at`,
+`first_failed_at`); pending contacts are always re-read (**Pending sweeps** → Candidates). **Plan Sweep**: if the
+fresh decision plans writes, those win; if it plans nothing, the saved writes are **replayed** (all idempotent) —
+unless the screener opportunity moved **after** `queued_at` (a newer call or dial happened), then they are dropped
+and the lead is reported ("moved after a half-failed sweep — check by hand"). **Sweep Report** decides the table
+changes; a side branch saves / clears them. A dry run never touches the table.
+
 ## What a re-screen writes
 Clear Screener Outcome, Screen AI Verdict, Screen Attempts, Date Screened, Screen Noise (+ `assignedTo` = the
 screener when `SCREENER_USER_ID` is set — **needed: the screener sees Only Assigned Data**) → remove leftover result
@@ -42,6 +52,11 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
   `screening` on, screener opp open in Attempt 1).
 - Found live: the follower removal also ran on Dana's open **demo** opportunity (harmless, nothing there); now
   limited to screener + Kevin opportunities (test added), deployed with the Slack settings.
+
+- Half-failed sweep, live 2026-09-25: Dana put in Gatekeeper with no Date Screened (codex's state) and a saved
+  "move to Attempt 1" queued after it → the sweep (123884) found her by the Gatekeeper search **and** the pending
+  table, replayed exactly that write (Dana back in Attempt 1, checked by a direct GET) and cleared the row; the next
+  run (123885) had no pending row. The summary said "1 earlier half-done sweeps finished".
 
 ## TODOs
 - `SCREENER_USER_ID` = Topu's GHL user once Hridoy creates it.

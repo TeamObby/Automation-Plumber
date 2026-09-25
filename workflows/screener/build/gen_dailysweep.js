@@ -46,6 +46,13 @@ ${code('searches', 'Stale searches', '672, 300', 'stale_searches.js', '', "{ lab
 
 ${get('stageOpps', 'GHL: screener opps', '896, 300', "expr('{{ $json.url }}')")}
 
+const pendRead = node({
+  type: 'n8n-nodes-base.dataTable', version: 1.1,
+  config: { name: 'Pending sweeps', position: [1008, 480], executeOnce: true, alwaysOutputData: true, onError: 'continueRegularOutput', parameters: { resource: 'row', operation: 'get', dataTableId: ${T('J61RThPMfxykZt1N', 'screener_sweep_pending')}, matchType: 'allConditions',
+    filters: { conditions: [] }, returnAll: false, limit: 100 } },
+  output: [{ id: 1, contact_id: 'C1', ops_json: '[]', error: '500', queued_at: '2026-09-25T00:00:00.000Z', first_failed_at: '2026-09-25T00:00:00.000Z' }]
+});
+
 ${code('candidates', 'Candidates', '1120, 300', 'stale_candidates.js', '', "{ contact_ids: ['C1'], sources: {}, search_errors: [], truncated: [] }")}
 
 const anyCand = ifElse({ version: 2.2, config: { name: 'Any candidates?', position: [1344, 300], parameters: { conditions: ${cond('$json.contact_ids.length > 0')} } } });
@@ -83,6 +90,27 @@ const apply = node({
 
 ${code('report', 'Sweep Report', '3360, 300', 'stale_report.js', '', "{ dry_run: false, candidates: 0, expired: [], rescreened: [], blocked: [], errors: [], deferred: [], failed: [], search_errors: [], truncated: [] }")}
 
+${code('pendChanges', 'Pending sweep changes', '3584, 560', 'sweep_pending_changes.js', '', "{ op: 'save', contact_id: 'C1' }")}
+
+const pendIf = ifElse({ version: 2.2, config: { name: 'Save or clear?', position: [3808, 560], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [ { leftValue: expr('{{ $json.op }}'), rightValue: 'save', operator: { type: 'string', operation: 'equals' } } ], combinator: 'and' } } } });
+
+const pendSave = node({
+  type: 'n8n-nodes-base.dataTable', version: 1.1,
+  config: { name: 'Save pending sweep', position: [4032, 480], retryOnFail: true, onError: 'continueRegularOutput', parameters: { resource: 'row', operation: 'upsert', dataTableId: ${T('J61RThPMfxykZt1N', 'screener_sweep_pending')}, matchType: 'allConditions',
+    filters: { conditions: [ { keyName: 'contact_id', condition: 'eq', keyValue: expr('{{ $json.contact_id }}') } ] },
+    columns: { mappingMode: 'defineBelow', value: { contact_id: expr('{{ $json.contact_id }}'), ops_json: expr('{{ $json.ops_json }}'), error: expr('{{ $json.error }}'), queued_at: expr('{{ $json.queued_at }}'), first_failed_at: expr('{{ $json.first_failed_at }}') }, matchingColumns: [],
+      schema: ${JSON.stringify(['contact_id', 'ops_json', 'error', 'queued_at', 'first_failed_at'].map(id => ({ id, displayName: id, required: false, defaultMatch: false, display: true, type: 'string', readOnly: false, removed: false })))},
+      attemptToConvertTypes: false, convertFieldsToString: false }, options: {} } },
+  output: [{ id: 1 }]
+});
+
+const pendClear = node({
+  type: 'n8n-nodes-base.dataTable', version: 1.1,
+  config: { name: 'Clear pending sweep', position: [4032, 640], retryOnFail: true, onError: 'continueRegularOutput', parameters: { resource: 'row', operation: 'deleteRows', dataTableId: ${T('J61RThPMfxykZt1N', 'screener_sweep_pending')}, matchType: 'allConditions',
+    filters: { conditions: [ { keyName: 'contact_id', condition: 'eq', keyValue: expr('{{ $json.contact_id }}') } ] }, options: {} } },
+  output: [{ id: 1 }]
+});
+
 ${code('stageUrls', 'Stage count searches', '3584, 300', 'summary_stage_urls.js', '', "{ name: 'Attempt 1', url: 'https://x' }")}
 
 ${get('stageCounts', 'GHL: stage counts', '3808, 300', "expr('{{ $json.url }}')")}
@@ -113,11 +141,12 @@ const slack = node({
   output: [{ ok: true }]
 });
 
-const note = sticky('## Screener: Daily Sweep  (spec §7 · §10.2 item 7b)\\n1. Stale sweep. Leads tagged owner-confirmed, or in Gatekeeper / Not Sure / Exhausted, or graduated: Date Screened older than 14 days -> owner-confirmed, the screened-pt tag and the block followers come off (Kevin keeps working the lead, it just leaves the fresh hour lists). Gatekeeper / Not Sure / Exhausted / graduated owners go back to Attempt 1 with screening, but never with an open opportunity in Kevin pipelines (re-screen trap) and never DND. Max 50 contacts a run; DRY_RUN in Settings.\\n2. Daily summary to Slack: stage counts (empty Attempt 1 = load the next set), last 24 h from Supabase, what the sweep did, and what needs a human.\\nKeep INACTIVE until go-live.', [settings, decide, build], { color: 5 });
+const note = sticky('## Screener: Daily Sweep  (spec §7 · §10.2 item 7b)\\n1. Stale sweep. Leads tagged owner-confirmed, or in Gatekeeper / Not Sure / Exhausted, or graduated: Date Screened older than 14 days -> owner-confirmed, the screened-pt tag and the block followers come off (Kevin keeps working the lead, it just leaves the fresh hour lists). Gatekeeper / Not Sure / Exhausted / graduated owners go back to Attempt 1 with screening, but never with an open opportunity in Kevin pipelines (re-screen trap) and never DND. Max 50 contacts a run; DRY_RUN in Settings. A contact whose writes half fail is saved in screener_sweep_pending and finished next run, unless it moved since (then reported).\\n2. Daily summary to Slack: stage counts (empty Attempt 1 = load the next set), last 24 h from Supabase, what the sweep did, and what needs a human.\\nKeep INACTIVE until go-live.', [settings, decide, build], { color: 5 });
 
 export default workflow('screener-daily-sweep', 'Screener: Daily Sweep')
-  .add(daily).to(settings).to(ownerSearch).to(searches).to(stageOpps).to(candidates)
+  .add(daily).to(settings).to(ownerSearch).to(searches).to(stageOpps).to(pendRead).to(candidates)
   .to(anyCand.onTrue(one.to(getContact).to(allOpps).to(decide).to(plan).to(write.onTrue(split.to(apply).to(report)).onFalse(report))).onFalse(report))
+  .add(report).to(pendChanges).to(pendIf.onTrue(pendSave).onFalse(pendClear))
   .add(report).to(stageUrls).to(stageCounts).to(day).to(wb).to(grads).to(pend).to(build).to(slack)
   .add(note);
 `);

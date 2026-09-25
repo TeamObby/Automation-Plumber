@@ -5,9 +5,8 @@
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
-- **Sync state (2026-09-25):** snapshot = live. **Re-published** after the codex review: the log write goes
-  through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
-  `screener_log_pending` for `Screener: Log Retry`.
+- **⚠️ Sync state (2026-09-25, 3rd codex review):** snapshot = the n8n **draft** with **Stamp Read** (below); the
+  published version still stamps `read_ms` inside Decide until it is re-published (needs OK).
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict
@@ -29,8 +28,9 @@ The one place where the screener's mark (`Screener Outcome`) meets the AI verdic
    transcript) → **Build Log Row** → *Log it?* → **Supabase: screener_log** (POST to the function
    `screener_log_upsert`, `onError: continue`) → *Log write failed?* → (**Queue Pending Log** →
    **Store: screener_log_pending**) → **Return**, which hands back Report's output unchanged — callers
-   read `ok` / `result` from it. **Versioned (codex review 2026-09-25):** Decide stamps `read_ms` right
-   after the contact read; the row carries it as `decided_ms`, and the function replaces the decision only
+   read `ok` / `result` from it. **Versioned (codex review 2026-09-25):** **Stamp Read** stamps `read_ms` the moment the contact read
+   returns — before the opportunity search, which can be slow (3rd codex review: stamping in Decide let an older
+   snapshot delayed by that search look newer); the row carries it as `decided_ms`, and the function replaces the decision only
    for a same-or-later read — a late waiting run can no longer erase a decided row (reproduced and
    verified in SQL: stale wait kept Owner Verified / match true; a newer correction replaced it). One row per answered call (`call:<call_id>`),
    updated by every run for that call. Decision fields are always sent (`match` / `result_stage` are

@@ -52,6 +52,12 @@ const getContact = node({
   output: [{ contact: { id: 'C1', tags: ['screening'], customFields: [] } }]
 });
 
+const stampRead = node({
+  type: 'n8n-nodes-base.code', version: 2,
+  config: { name: 'Stamp Read', position: [1232, 420], parameters: { mode: 'runOnceForAllItems', jsCode: ${JSON.stringify("// The version of this run's contact snapshot for the screener log: the time the contact read returned.\nconst read_ms = Date.now();\nreturn $input.all().map(i => ({ json: Object.assign({}, i.json, { read_ms }) }));\n")} } },
+  output: [{ read_ms: 1 }]
+});
+
 const findOpp = node({
   type: 'n8n-nodes-base.httpRequest', version: 4.4,
   config: { name: 'GHL: Find Screener Opp', position: [1344, 300], retryOnFail: true, onError: 'continueRegularOutput',
@@ -110,7 +116,7 @@ const note = sticky('## Screener: Compare Step  (spec §4.1 · §10.2 item 4)\\n
 export default workflow('screener-compare-step', 'Screener: Compare Step')
   .add(whenCalled).to(guardRead).to(planSave)
   .to(saveFirst.onTrue(saveVerdict.to(getContact)).onFalse(getContact))
-  .add(getContact).to(findOpp).to(decide)
+  .add(getContact).to(stampRead).to(findOpp).to(decide)
   .to(hasOps.onTrue(split.to(apply).to(report)).onFalse(report))
   .add(report).to(findCall).to(${logChain})
   .add(note);

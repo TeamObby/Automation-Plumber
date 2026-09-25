@@ -40,9 +40,10 @@ const found = $('GHL: Find Screener Opp').first().json;
 const contact = (got && got.contact) || null;
 const contact_id = String(input.contact_id || '').trim();
 const s = v => String(v == null ? '' : v).trim();
-// When this run's view of GHL was taken (just after the contact read): the version of its decision
-// in the screener log, so a run that read earlier can never overwrite one that read later.
-const read_ms = Date.now();
+// When this run's view of GHL was taken: stamped by Stamp Read the moment the contact read returned
+// (before the opportunity search, which can be slow), so it versions exactly this contact snapshot in
+// the screener log and a run that read earlier can never overwrite one that read later (codex review).
+const read_ms = (() => { try { return Number($('Stamp Read').first().json.read_ms) || Date.now(); } catch (e) { return Date.now(); } })();
 // The call this run is about (its screener_calls row gets writeback_ok); '' on the mark path.
 const call_id = (() => { try { return s(JSON.parse(input.verdict_json).call_id); } catch (e) { return ''; } })();
 

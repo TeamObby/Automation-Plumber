@@ -1,5 +1,7 @@
 // One screener_graduations row per attempt. A graduation is ok only once the screener opportunity
 // is closed; ok=false means it is still open in Owner Verified, so the next sweep retries it.
+// first_failed_at keeps the FIRST unresolved failure across those retries (at is refreshed by each one),
+// so the daily summary can flag a graduation that has been failing for a day (codex review).
 const d = $('Graduation Plan').first().json;
 const pick = n => { try { return $(n).all().map(i => i.json); } catch (e) { return null; } };
 const err = r => r.error.message || JSON.stringify(r.error);
@@ -15,10 +17,11 @@ if (closeRes && closeRes.error) failed.push('close screener opportunity (won): '
 const closed = !!closeRes && !closeRes.error;
 const kevin = (sent[0] && sent[0].kevin_opp_id) || d.kevin_opp_id || '';
 const now = new Date().toISOString();
+const prev = (() => { try { return $('Previous graduation').first().json || {}; } catch (e) { return {}; } })();
 return [{ json: {
   grad_key: d.contact_id + ':' + d.screener_opp_id, contact_id: d.contact_id, screener_opp_id: d.screener_opp_id,
   kevin_opp_id: kevin, kevin_pipeline: d.kevin_pipeline, created_new: !!d.create && !!kevin,
   pt_block: d.pt_block, action: d.action,
   ok: !d.retry && failed.length === 0 && (d.action !== 'graduate' || (!!kevin && closed)),
   reason: [d.reason].concat(failed).filter(Boolean).join(' | '), at: now
-} }];
+} }].map(r => { r.json.first_failed_at = r.json.ok ? '' : (prev.ok === false && prev.first_failed_at ? prev.first_failed_at : now); return r; });
