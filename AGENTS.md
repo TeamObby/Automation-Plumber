@@ -12,6 +12,7 @@ that captures intent/why/gotchas the code alone can't.
 ## n8n environment
 - **Instance:** https://n8n.meetobby.com
 - **Project:** `Obby LLC <team@meetobby.com>` — id `GyTFr8xmUVNQbsod` (personal)
+- **Timezone:** America/Los_Angeles — schedule triggers fire in Pacific time (confirmed 2026-09-25).
 - **Target folder:** Products → **Call Campaign - Plumbers** — id `gUcE8vB9KWuBkKSP`
   (subfolders exist in n8n but are ignored here — the flat Registry below is the map)
 
@@ -19,6 +20,8 @@ that captures intent/why/gotchas the code alone can't.
 - The **n8n MCP is the live link** — it's configured at the Claude connector level, NOT
   in any single chat, so it stays connected across sessions. Nothing about the "link"
   is stored in this repo; this repo stores **which workflows to point it at**.
+- Also in this project (`.mcp.json`, git-ignored): the **GoHighLevel** MCP (`leadconnector`) and the **Supabase**
+  MCP (signed in to the Waterline account — project `screener-helper`). They attach at session start.
 - To re-orient in a fresh chat: read this file → open the relevant `context.md` → use the
   **workflow ID** with the MCP (`get_workflow_details`, `update_workflow`, …).
 - **Editing live workflows is real.** Validate first; confirm destructive/outward-facing
@@ -151,8 +154,11 @@ Credentials are not compared — the MCP omits them.
   on every attempt; key `grad_key` (`contact_id:screener_opp_id`). `ok = true` only once the screener
   opportunity is closed; `ok = false` means the sweep is still retrying it (`reason` names the failed write). `first_failed_at`
   = the first unresolved failure (kept across retries; the daily summary flags it after a day).
-- Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0011`) and the 2026-09-24 test-rig rows on contact
-  `2Z5mwZe5RT4NQdNW85vj` are **test data** — delete them in the n8n UI before real calls (the MCP can't delete rows).
+- Rows whose key starts `TEST-` (calls `TEST-screener-0001` … `0011`) and the 2026-09-24/25 test-rig rows on contact
+  `2Z5mwZe5RT4NQdNW85vj` (in `screener_attempts` and `screener_graduations`) are **test data** — delete them in
+  the n8n UI before real calls (the MCP can't delete rows).
+- **`screener_log_pending`** `qKv7RxgTDsqb1plo` — Supabase log writes that failed, replayed by `Screener: Log Retry`
+  (see the Supabase section). Normally empty.
 
 ## Screener log — Supabase `screener_log` (item 7a, decided 2026-09-25)
 The screener log goes to **Supabase only**; the `screen_log` Sheet below is **not** written (kept for
@@ -172,7 +178,8 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
 - **Status:** table + view created (migration `create_screener_log`; RLS on, no policies
   on purpose — only the service_role key reads/writes). n8n side **live since 2026-09-25**: both sub-workflows re-published with the write (credential `Supabase [ Waterline
   screener-helper ]` `oUnRFJd1TMI1LmTd`), tested on Dana (execs 123666–123674; after the codex fixes 123685–123693). `screener_accuracy` counts
-  answered calls only.
+  answered calls only; `screener_last_24h` feeds the daily Slack summary (`Screener: Daily Sweep` → `#daily-screener-summary`,
+  Obby bot `QcTNBiXBrnH5rFkC`).
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated
@@ -537,3 +544,8 @@ before archiving.**
 - **Email Sent → Move To Sent Stage** has it in **two** node headers (get-email, subsequence-remove).
 - ⚠️ **It is the same token value in all four workflows** — **one rotation invalidates every one
   of them**, so move them all to a shared credential together, in one pass.
+- **Supabase (Obby product projects, not ours):** the security advisor on team@meetobby.com's `obby-staging`
+  (`review_report_claims`, `scheduled_texts`, `call_chunks`, `advisor_cards`, `advisor_card_phrasings`) and
+  `TeamObby's Project` (`review_report_claims`, `scheduled_texts`) reports tables with **RLS disabled** — readable
+  and writable with the public anon key (2026-09-25). Enabling RLS without policies breaks the apps using them:
+  pass to the owner of those apps; do not run the fix blind.

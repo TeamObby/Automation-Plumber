@@ -9,12 +9,14 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 ## 1. Where it stands in one paragraph
 
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
-**Mohimenul's n8n items 1–6 are built** (capture + AI verdict, hour block, compare + write-back,
-attempt ladder, graduate) and tested live on the test contact, Graduate end to end included. The **guards
+**Mohimenul's n8n items 1–7 are built** (capture + AI verdict, hour block, compare + write-back,
+attempt ladder, graduate, the Supabase screener log, the daily stale sweep + Slack summary) and tested live on
+the test contact, Graduate end to end included; three Codex review rounds on them are fixed. The **guards
 are not in yet**, so no screener call may be made and the entry workflows stay **inactive**. After
 Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
-due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, activate
-the entry workflows, publish `Screener Outcome Changed`) → one real test call.
+due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, set the
+screener's user id in the Daily Sweep, activate the entry workflows, publish `Screener Outcome Changed`) →
+one real test call. Only item 8 (accuracy on real calls) is left on Mohimenul's screener list.
 
 ---
 
@@ -92,7 +94,16 @@ blocks duplicate phone numbers.
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
 `/webhook/screener-disposition`
 
-**Screener log sheet** (2026-09-23, built and empty): "WaterLine — Screener Log"
+**Supabase** (the screener log, item 7a): project **`screener-helper`** `cifgvpqfodglnhywrofy` · org **Waterline**
+`nzuqwkcyipyergddujfw` (separate Supabase account; the MCP is signed in there) · table `screener_log`, write path
+function `screener_log_upsert` (versioned on `decided_ms`), views `screener_accuracy` + `screener_last_24h` —
+definitions in [`supabase/screener_log.sql`](../supabase/screener_log.sql) · n8n credential
+`Supabase [ Waterline screener-helper ]` `oUnRFJd1TMI1LmTd`.
+**n8n data tables:** `screener_calls` `3WK4mrEYwvDeDUVO` · `screener_attempts` `9V6VL0XiKeadY9Lc` ·
+`screener_graduations` `1iX0aTvMYawwyH4H` · `screener_log_pending` `qKv7RxgTDsqb1plo` · `screener_sweep_pending` `J61RThPMfxykZt1N`.
+**Slack:** daily summary → `#daily-screener-summary`, posted by `Slack [ Obby bot account ]` `QcTNBiXBrnH5rFkC`.
+
+**Screener log sheet — superseded by Supabase (not written)** (2026-09-23, built and empty): "WaterLine — Screener Log"
 `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` · tab `screen_log` gid `892532160` · `accuracy` gid
 `604528574` · bound script "Screener Log Setup"
 `1Z3LfH496my3HBQfctuQf1eBuOJayXfk_X9vmlGELSWn6bgI-P3sny2fB` · source
@@ -102,7 +113,7 @@ contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workb
 
 ---
 
-## 3. What is left — plain priority order (updated 2026-09-24, after Kevin's meeting)
+## 3. What is left — plain priority order (updated 2026-09-25)
 
 Kevin's order: **the list first, then the screener**; underneath both, **Supabase becomes the source of
 truth**; rule no. 1 is **simplicity**. No hard dates — work top to bottom. Meeting notes with
@@ -137,14 +148,21 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 ### Mohimenul — then the new work from the meeting
 6. **Design the Supabase tables and columns** (Mohimenul decides; Kevin named only the tables: shops with
    Supabase id ↔ GHL id + tier + set, raw data, transcripts incl. screener calls, call logs).
-7. **Screener → Supabase:** one write from the Compare Step and one from the Attempt Counter; Graduate marks
-   the shop too.
-8. **Connect the team Claude accounts to GoHighLevel**, then check the duplicate automations Kevin's Claude
-   reported (the GHL connector must be authorised; it only attaches at session start).
+7. **Screener → Supabase:** ✅ the Compare Step and the Attempt Counter already write `screener_log` (item 7a).
+   Left: Graduate marks the shop, and screener transcripts go to the transcripts table — both once those
+   tables exist (step 6).
+8. **Check the duplicate automations Kevin's Claude reported** — ✅ the GHL connector is set up here
+   (`leadconnector` in `.mcp.json`); the check itself is not done.
 9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
    MCP connector so Kevin's Claude can read the code.
-10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0011`, and the test-rig rows in
-    `screener_attempts` / `screener_graduations`); rotate the exposed Instantly key.
+10. **Cleanup:** delete the n8n test rows — `screener_calls` `TEST-screener-0001…0011`, the test-rig rows on
+    Dana (`2Z5mwZe5RT4NQdNW85vj`) in `screener_attempts` (2026-09-24/25) and `screener_graduations` (MCP can't
+    delete rows; n8n UI); the Supabase test rows are already deleted. Delete the test posts in
+    `#daily-screener-summary`. Rotate the exposed Instantly key. Tell the Obby product owner about the Supabase
+    RLS warning (AGENTS.md security backlog).
+11. **Git:** all screener work since item 6 is on branch **`screener-item-6`** (pushed; items 6, 7a, 7b and three
+    Codex review rounds). Open a PR to `main` — first check that the earlier `screener-item-4` merge really reached
+    `main` (on 2026-09-24 `origin/main` did not show it, so `screener-item-6` was branched from `screener-item-4`).
 
 ### Hridoy (GHL side, and the list)
 - **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
@@ -153,8 +171,10 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
   (Only Assigned Data) · Topu's WAVV seat and numbers (Kevin pays).
 
 ### Go-live switches (once the guards exist)
-Publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
-`Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
+Publish `Screener: Graduate` → set `SCREENER_USER_ID` (Topu's GHL user) in the Daily Sweep's Settings node
+(`build/src/daily_settings.js`, then build + deploy) → activate `Capture Call`, `Mark + Compare`, `No Answer`,
+`WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with
+Hridoy on the test contact.
 
 ### People
 - **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.

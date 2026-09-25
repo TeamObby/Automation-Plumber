@@ -2,7 +2,7 @@
 
 - **n8n ID:** `3pwiQXC8etTcKf5Z` · **URL:** https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z · **File:** `Screener Compare Step.json`
 - **Folder:** `workflows/screener/` · built from `build/src/decide.js` (+ `split_ops.js`, `report.js`, `log_call_row.js`) by `build/gen_compare.js` (+ `build/log_supabase.js`)
-- **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
+- **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24, last re-published 2026-09-25 (Stamp Read) — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
 - **Sync state (2026-09-25):** snapshot = live. Re-published with **Stamp Read** (3rd codex review); smoke test
