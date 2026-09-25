@@ -298,66 +298,107 @@ screener data replaces it.
 No single caller signal covers all three, so **the guard lives on the contact**, which every event
 carries: tag **`screening`** + **Owner = a screener user**.
 
-### The four GHL workflows to edit — and where the branch goes
+### The GHL guards — three, not four (re-verified live 2026-09-25)
 
-Two of them do housekeeping *before* the harmful part, and that housekeeping must keep running.
+Read from the live workflows through the builder's own API on 2026-09-25. Two rows of the original
+four-guard table were wrong and are corrected here.
 
-| Workflow (id) | Insert If/Else | Screener branch does | Why there |
+| Workflow (id) | Live steps today | Guard | Screener branch |
 |---|---|---|---|
-| **Call No Answer** `0092952f-83d2-44aa-bd9c-829d350c08ce` | **between step 1 (*Remove Tag*) and step 2 (*Add Tag* `last_call_missed`)** | POST `/webhook/screener-no-answer` | Blocking the whole thing strands `wavv-no-answer` on the contact; the next dial re-adds a tag that is already there, the trigger does not fire, and **attempt 2 becomes invisible** |
-| **Capture Wavv Disposition** `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | on **Branch A only**; **Branch B (wavv-tag cleanup) runs for everyone** | POST `/webhook/screener-disposition` with `{{note.body}}` — **load-bearing**: this is the only path that carries WAVV's **auto**-dispositions (`Voicemail`, `Bad Number`), which nothing else listens to | Branch A writes **Call Disposition** → Dispatcher → Cold/Gatekeeper Handler → moves the opp, sends the next cold email, sets Stop Phone Calls |
-| **Call Recorded Trigger** `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | first step | POST `/webhook/screener-call` (same payload it already builds) | else Capture Call Record writes a Call Router Context for a call Kevin never made |
-| **Move Leads Into Cadence** `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | first step | stop | fires on entry to Client Acq → New |
+| **Call No Answer** `0092952f-83d2-44aa-bd9c-829d350c08ce` (v36) | Remove Tag `wavv-no-answer`,`wavv-canceled` → Add Tag `last_call_missed` → Webhook `/webhook/call_no_answer` | If/Else **between *Remove Tag* and *Add Tag*** | Webhook POST `https://n8n.meetobby.com/webhook/screener-no-answer` (no custom data — n8n reads `contact_id` from GHL's standard payload, exactly as Kevin's Missed-Call Dispatcher already does) |
+| **Capture Wavv Disposition** `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` (v10) | Wait 7s → Webhook `/webhook/capture-wavv-disposition` (`note = {{note.body}}`) | If/Else **after the Wait** | Webhook POST `https://n8n.meetobby.com/webhook/screener-disposition`, custom data `note = {{note.body}}` |
+| **Call Recorded Trigger** `120588ca-915c-4a87-9f7e-ab6ca8b273fc` (v6) | Remove Tag `last_call_missed` → Wait 2s → Webhook `/webhook/call-recorded-capture` (19 custom-data keys) | If/Else **first** | Webhook POST `https://n8n.meetobby.com/webhook/screener-call` with the **same 19 custom-data keys** (n8n's `Normalize Call` reads 8 of them: `call_id`, `contact_name`, `ghl_user_id`, `wavv_caller_id`, `call_answered_at_timestamp`, `call_duration_seconds`, `call_recording_url`, `call_transcript`) |
+| ~~Move Leads Into Cadence~~ `571b33ab-…` | Webhook to `/webhook-test/move-leads-into-candence` | **none — dropped** | — |
+
+**Corrections to the old table:**
+- **Capture Wavv Disposition has no branches in GHL.** "Branch A / Branch B" are inside the **n8n**
+  workflow `zSOjEBiz3e7gbeBp`. A GHL guard therefore also skips n8n's Branch B (strip every `wavv-*`
+  tag) for screener contacts. That is cosmetic: the only `wavv-*` tags that trigger anything are
+  `wavv-no-answer` / `wavv-canceled`, and `Call No Answer` removes those itself before its guard;
+  **Graduate** strips every `wavv-*` tag at hand-off (`graduate_decide.js` `remove_tags`).
+- **Move Leads Into Cadence needs no guard, and a guard would be a bug.** It posts to a
+  `webhook-test` URL and its n8n workflow (`k9SYWSP5e0xRgHFb`) is inactive, so it does nothing
+  today. Graduate **creates Kevin's opportunity before it removes `screening`**, so a "stop if
+  `screening`" guard here would silently skip every graduated lead the day that URL is fixed.
+
+**No guard needed:** `Call Disposition OR Note Updated` and `Manual Review Items Changed` fire only
+on fields n8n writes, and the Capture Wavv Disposition guard stops that write. The two timezone /
+line-type follower workflows fire on screener opportunities too — harmless, 2 of the 10 follower
+slots (§6).
 
 **Rule of thumb: block what reaches back to the lead, keep what keeps the CRM clean.**
 
-Second layer in n8n (defence in depth): `Capture Call Record` filters `ghl_user_id` against the
-screener users; `Capture Wavv Disposition` filters the parsed `From:` against the screener number
-pool; `Dispatcher`'s `Prep + Gate` adds `screening` to its stop conditions.
+Second layer in n8n (defence in depth, **not built**): `Capture Call Record` filters `ghl_user_id`
+against the screener users; `Dispatcher`'s `Prep + Gate` adds `screening` to its stop conditions.
 
-### How to apply each guard in the GHL builder — mechanics, tested 2026-09-23
+### ⚠️ The If/Else must be built with Kevin as the FIRST branch (proven 2026-09-25)
 
-Learned by building `Screener Outcome Changed` and by a throwaway draft (since deleted). These are
-the details that decide whether an edit lands or silently does nothing.
+Tested on a throwaway **draft** copy of `Call No Answer` (`ZZ Guard Test - DELETE ME`
+`fed7700e-7581-4fac-adb6-ec2e5c25b703`, triggers inactive) and read back through the API:
+**when an If/Else is inserted, GHL moves every step below it into the FIRST branch and leaves the
+None branch empty.** Built the obvious way ("branch 1 = has `screening`"), Kevin's `Add Tag` +
+webhook would run **only for screener leads** and Kevin's own no-answers would do nothing.
+
+So every guard is built like this:
+
+| If/Else field | Value |
+|---|---|
+| Action name | `Screener lead?` |
+| Branch 1 name | `Kevin` |
+| Branch 1 condition | **Contact details → Standard fields → Tags** · **Does not include** · `screening` (API: `conditionSubType: tags`, `conditionOperator: index-of-false`, `conditionValue: ["screening"]`) |
+| None branch name | `Screener` |
+
+The existing steps land in **Kevin** untouched; the screener webhook is added under **Screener**.
+A contact with no tags at all goes to Kevin (does-not-include is true on an empty list).
+The draft ended in exactly the target shape — `Remove Tag → Screener lead? → [Kevin: Add Tag →
+Webhook call_no_answer] [Screener: Webhook screener-no-answer]` — and is the template to copy.
+
+### How to apply each guard in the GHL builder — mechanics
+
+These are the details that decide whether an edit lands or silently does nothing.
 
 **1. A trigger filter cannot express "does not have tag `screening`".** On the **Contact tag**
-trigger the filter row is only *Tag added / Tag removed → select a tag*: it picks **which tag fires
-the trigger** and offers **no operator**. So `Call No Answer` cannot be guarded at its trigger — it
-needs an **If/Else inside the workflow**. (On **Contact changed** the filter *does* take an
-operator: field + `Has changed` / `Has changed to`.)
+trigger the filter row only picks **which tag fires the trigger**, with no operator — so the guard is
+always an **If/Else inside the workflow**.
 
-**2. GHL drops an incomplete filter without telling you.** First attempt saved a trigger with a
-field but no operator: the canvas showed the trigger, the API returned an **empty trigger list**.
-Always confirm through the API after saving:
+**2. GHL drops an incomplete filter without telling you.** Always confirm through the API after
+saving — the builder loads both of these itself, so open the workflow and read its responses:
 
 ```
 GET backend.leadconnectorhq.com/workflow/<locationId>/trigger?workflowId=<id>     → triggers + conditions
 GET backend.leadconnectorhq.com/workflow/<locationId>/<id>?includeScheduledPauseInfo=true → workflowData.templates
 ```
 
-**Trust those two, never the canvas.**
+**Trust those two, never the canvas.** In `templates`, each step's `parent` is the branch it sits
+in — `Add Tag` and the Kevin webhook must have `parent` = the **Kevin** branch id.
 
-**3. Option labels are split by the search highlighter.** In the field picker `Screener Outcome`
-renders as `Screener` + `Outcome` in separate nodes — match on a parent's combined text.
+**3. Option labels are split by the search highlighter** (`Screener` + `Outcome`, `Tag` + `s`) —
+match on a parent's combined text.
 
-**4. The webhook URL box is rich text, not an input**, and typing opens a merge-field popup that
-intercepts clicks on everything below it. Dismiss it before clicking Save.
+**4. The webhook URL box is rich text** (a tiptap editor, not an input); typing opens a merge-field
+popup. Press Escape before Save.
 
-**5. Custom-data values become chips** — `{{contact.id}}` renders as a `Contact.ID` token. That is
-correct and is what gets posted.
+**5. Custom-data values become chips** — `{{contact.id}}` renders as `Contact.ID`. Correct.
 
-**Still unknown, and the reason `Call No Answer` is done together:** what happens to the steps
-*below* the insertion point when an If/Else goes in mid-workflow — do they re-parent into the first
-branch, or detach? Procedure that is safe either way:
+**6. Changing the operator clears the chosen tag.** Pick the operator first, then the tag.
 
-1. Work at a quiet hour: editing a **published** workflow applies as you save.
-2. Insert the If/Else after *Remove Tag* and configure **both branches fully** before touching the
-   existing steps.
-3. Re-read the workflow through the API; see where `Add Tag last_call_missed` and the webhook
-   actually sit.
-4. If they are not inside the "no `screening` tag" branch, delete and recreate them there — both
-   are trivial actions — then re-read the API again.
-5. Test on the tagged test contact before walking away.
+**7. Searching "Webhook" in the action picker also matches the Webhook step on the canvas.**
+Clicking the canvas one opens **Kevin's existing webhook** for editing. Pick from the picker list
+only; if the panel shows `call_no_answer` / `capture-wavv-disposition` / `call-recorded-capture`,
+press **Cancel**.
+
+**8. In the workflow list, "Draft workflow" sits right above "Duplicate workflow".** "Draft" on a
+live workflow **unpublishes it**.
+
+**9. A published workflow has a Save button** (it reads "Saved" until something changes). Edits
+are staged until it is pressed.
+
+**Procedure per workflow:** quiet hour (outside PT 06–16) → insert the If/Else as above → Save →
+read the API: the old steps have `parent` = Kevin → add the screener webhook under Screener →
+Save → read the API again → test on Dana (`2Z5mwZe5RT4NQdNW85vj`, tagged `screening`).
+A call-free test for `Call No Answer`: add `wavv-no-answer` to Dana (GHL MCP
+`contacts_add-tags`) → the Screener branch runs (Enrollment history) and `last_call_missed` is
+**not** added; the POST to the still-inactive n8n webhook fails harmlessly.
 
 **The Attempt ladder comes from the no-answer path**, not the recorded-call path — an unanswered
 dial produces no recording. That is the whole reason `Call No Answer` keeps running.

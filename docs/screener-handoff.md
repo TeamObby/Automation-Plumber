@@ -71,9 +71,10 @@ blocks duplicate phone numbers.
 |---|---|---|---|
 | GHL | `Screener Outcome Changed` | `29535603-03a9-470c-8d98-0cde44df6c04` | **Draft** — publish when n8n item 4 is live |
 | GHL | Call Recorded Trigger | `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | live, **needs guard** |
-| GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live, **needs guard (Branch A only)** |
+| GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live, **needs guard (after the Wait; GHL has no branches — A/B are in n8n)** |
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live, **needs guard (mid-workflow)** |
-| GHL | Move Leads Into Cadence | `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | live, **needs guard** |
+| GHL | Move Leads Into Cadence | `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | live but inert (posts to a `webhook-test` URL) — **no guard**; one would break Graduate |
+| GHL | ZZ Guard Test - DELETE ME | `fed7700e-7581-4fac-adb6-ec2e5c25b703` | **draft** copy of Call No Answer with the finished guard — the template; delete after the live edits |
 | n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
 | n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow, published |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
@@ -148,7 +149,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 
 ### Hridoy (GHL side, and the list)
 - **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
-- **The four guards** (§1 of the plan) — nothing screener-side goes live before them.
+- **The three guards** (§1 of the plan, re-verified live 2026-09-25) — nothing screener-side goes live before them.
+  ⚠️ Build each If/Else with **Kevin as the first branch** (`Tags does not include screening`): GHL moves the
+  existing steps into the first branch.
 - Publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists · **Topu's screener user**
   (Only Assigned Data) · Topu's WAVV seat and numbers (Kevin pays).
 
