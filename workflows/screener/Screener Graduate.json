@@ -28,6 +28,39 @@
       }
     },
     {
+      "name": "Previous graduation",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        112,
+        500
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1iX0aTvMYawwyH4H",
+          "cachedResultName": "screener_graduations"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "grad_key",
+              "condition": "eq",
+              "keyValue": "={{ $('When Called (graduate)').first().json.contact_id + ':' + $('When Called (graduate)').first().json.screener_opp_id }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
       "name": "GHL: Get Contact",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -332,7 +365,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// One screener_graduations row per attempt. A graduation is ok only once the screener opportunity\n// is closed; ok=false means it is still open in Owner Verified, so the next sweep retries it.\nconst d = $('Graduation Plan').first().json;\nconst pick = n => { try { return $(n).all().map(i => i.json); } catch (e) { return null; } };\nconst err = r => r.error.message || JSON.stringify(r.error);\nconst sent = pick('Graduation Ops') || [];\nconst res = pick('GHL: Graduation Apply') || [];\nconst gate = (pick('Close Gate') || [])[0] || null;\nconst closeRes = (pick('GHL: Close Screener Opp') || [])[0] || null;\nconst failed = sent.map((o, i) => ({ o, r: res[i] }))\n  .filter(x => x.o.failed_create || (x.r && x.r.error))\n  .map(x => x.o.failed_create ? 'create Kevin opp: ' + x.o.error_text : x.o.label + ': ' + err(x.r));\nif (gate && !gate.close) failed.push('screener opportunity left open: ' + (gate.failed.length ? 'a write failed' : 'writes unconfirmed'));\nif (closeRes && closeRes.error) failed.push('close screener opportunity (won): ' + err(closeRes));\nconst closed = !!closeRes && !closeRes.error;\nconst kevin = (sent[0] && sent[0].kevin_opp_id) || d.kevin_opp_id || '';\nconst now = new Date().toISOString();\nreturn [{ json: {\n  grad_key: d.contact_id + ':' + d.screener_opp_id, contact_id: d.contact_id, screener_opp_id: d.screener_opp_id,\n  kevin_opp_id: kevin, kevin_pipeline: d.kevin_pipeline, created_new: !!d.create && !!kevin,\n  pt_block: d.pt_block, action: d.action,\n  ok: !d.retry && failed.length === 0 && (d.action !== 'graduate' || (!!kevin && closed)),\n  reason: [d.reason].concat(failed).filter(Boolean).join(' | '), at: now\n} }];\n"
+        "jsCode": "// One screener_graduations row per attempt. A graduation is ok only once the screener opportunity\n// is closed; ok=false means it is still open in Owner Verified, so the next sweep retries it.\n// first_failed_at keeps the FIRST unresolved failure across those retries (at is refreshed by each one),\n// so the daily summary can flag a graduation that has been failing for a day (codex review).\nconst d = $('Graduation Plan').first().json;\nconst pick = n => { try { return $(n).all().map(i => i.json); } catch (e) { return null; } };\nconst err = r => r.error.message || JSON.stringify(r.error);\nconst sent = pick('Graduation Ops') || [];\nconst res = pick('GHL: Graduation Apply') || [];\nconst gate = (pick('Close Gate') || [])[0] || null;\nconst closeRes = (pick('GHL: Close Screener Opp') || [])[0] || null;\nconst failed = sent.map((o, i) => ({ o, r: res[i] }))\n  .filter(x => x.o.failed_create || (x.r && x.r.error))\n  .map(x => x.o.failed_create ? 'create Kevin opp: ' + x.o.error_text : x.o.label + ': ' + err(x.r));\nif (gate && !gate.close) failed.push('screener opportunity left open: ' + (gate.failed.length ? 'a write failed' : 'writes unconfirmed'));\nif (closeRes && closeRes.error) failed.push('close screener opportunity (won): ' + err(closeRes));\nconst closed = !!closeRes && !closeRes.error;\nconst kevin = (sent[0] && sent[0].kevin_opp_id) || d.kevin_opp_id || '';\nconst now = new Date().toISOString();\nconst prev = (() => { try { return $('Previous graduation').first().json || {}; } catch (e) { return {}; } })();\nreturn [{ json: {\n  grad_key: d.contact_id + ':' + d.screener_opp_id, contact_id: d.contact_id, screener_opp_id: d.screener_opp_id,\n  kevin_opp_id: kevin, kevin_pipeline: d.kevin_pipeline, created_new: !!d.create && !!kevin,\n  pt_block: d.pt_block, action: d.action,\n  ok: !d.retry && failed.length === 0 && (d.action !== 'graduate' || (!!kevin && closed)),\n  reason: [d.reason].concat(failed).filter(Boolean).join(' | '), at: now\n} }].map(r => { r.json.first_failed_at = r.json.ok ? '' : (prev.ok === false && prev.first_failed_at ? prev.first_failed_at : now); return r; });\n"
       }
     },
     {
@@ -476,6 +509,16 @@
               "type": "string",
               "readOnly": false,
               "removed": false
+            },
+            {
+              "id": "first_failed_at",
+              "displayName": "first_failed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -501,6 +544,17 @@
   ],
   "connections": {
     "When Called (graduate)": {
+      "main": [
+        [
+          {
+            "node": "Previous graduation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Previous graduation": {
       "main": [
         [
           {

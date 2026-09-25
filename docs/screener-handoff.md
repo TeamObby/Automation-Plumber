@@ -85,6 +85,8 @@ blocks duplicate phone numbers.
 | n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition`, inactive |
 | n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **publish before go-live** |
 | n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
+| n8n | Screener: Log Retry | `y2oXfZtH4y1mhWQG` | item 7a, every 15 min, replays failed Supabase log writes — inactive |
+| n8n | Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | item 7b, 05:00 PT stale sweep + Slack summary — inactive |
 | n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset / ungraduate **Dana Happy** only |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
@@ -118,11 +120,18 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 3. **Item 7a — the screener log → Supabase only** (decided 2026-09-25). ✅ Built and tested offline:
    table [`supabase/screener_log.sql`](../supabase/screener_log.sql) (+ `screener_accuracy` view), writes from
    the Compare Step and the Attempt Counter. ✅ Supabase project **`screener-helper`**
-   (`cifgvpqfodglnhywrofy`, org Waterline) created, table applied, n8n credential made, both
-   sub-workflows pushed as drafts. Next: re-publish Compare Step + Attempt Counter (needs OK) → live
-   test on Dana (one answered call, one no-answer) → reset.
-4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
-   on re-screen; list failed write-backs older than 48 h, and graduations still `ok = false` after a day).
+   (`cifgvpqfodglnhywrofy`, org Waterline) created, table applied, n8n credential made; ✅ **live** — both
+   sub-workflows re-published and tested on Dana 2026-09-25 (a no-answer row; a call row that waited with
+   `match` empty, then updated to Owner Verified / match true when marked). Codex fixes (2026-09-25): the
+   write is versioned (`screener_log_upsert`) and failed writes queue for `Screener: Log Retry`
+   (inactive); both sub-workflows re-published and re-tested live on Dana (a late stale write no longer
+   erases a decision).
+4. ✅ **Item 7b — `Screener: Daily Sweep`** (inactive, 05:00 PT) built and tested live on Dana: 14-day expiry
+   drops stale owners from Kevin's hour lists; Gatekeeper / Not Sure / Exhausted / graduated owners whose Kevin opp
+   closed go back to Attempt 1 (never with an open Kevin opp); Slack summary with stage counts, last 24 h, sweep
+   results and what needs a human. Slack: `#daily-screener-summary` (Obby bot, first post 2026-09-25). 3rd codex review fixed: half-failed re-screens
+   are saved and finished next run; the log version is stamped at the contact read; stuck graduations use
+   `first_failed_at`. Compare Step re-published with the stamp fix. **Open:** `SCREENER_USER_ID` (Topu) for re-screens.
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
 
 ### Mohimenul — then the new work from the meeting
@@ -134,7 +143,7 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    reported (the GHL connector must be authorised; it only attaches at session start).
 9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
    MCP connector so Kevin's Claude can read the code.
-10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0009`, and the test-rig rows in
+10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0011`, and the test-rig rows in
     `screener_attempts` / `screener_graduations`); rotate the exposed Instantly key.
 
 ### Hridoy (GHL side, and the list)
@@ -145,7 +154,7 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 
 ### Go-live switches (once the guards exist)
 Publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
-`Write-back Retry`, `Graduate Sweep` → one real test call with Hridoy on the test contact.
+`Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
 
 ### People
 - **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.

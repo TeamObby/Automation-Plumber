@@ -5,10 +5,8 @@
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
-- **⚠️ Sync state (2026-09-25):** this snapshot = the n8n **draft** (pushed with the screener_log write,
-  item 7a; Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]`
-  `oUnRFJd1TMI1LmTd`). The **published** version is still the one without the log until it is
-  re-published (needs OK) — until then no row reaches Supabase.
+- **Sync state (2026-09-25):** snapshot = live. Re-published with **Stamp Read** (3rd codex review); smoke test
+  123887: Stamp Read's time reached Decide's `read_ms` unchanged, Report → Return intact.
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict
@@ -27,9 +25,14 @@ The one place where the screener's mark (`Screener Outcome`) meets the AI verdic
    `onError: continue`) → **Report**. Report runs on both branches and always returns
    `ok` = no failed request **and** no `retry`; Capture stores it as `writeback_ok`.
 5. **Screener log (item 7a):** **Find call row** (`screener_calls` by call id, for duration, recording,
-   transcript) → **Build Log Row** → *Log it?* → **Supabase: screener_log** (PostgREST upsert,
-   `on_conflict=event_key`, `onError: continue`) → **Return**, which hands back Report's output
-   unchanged — callers read `ok` / `result` from it. One row per answered call (`call:<call_id>`),
+   transcript) → **Build Log Row** → *Log it?* → **Supabase: screener_log** (POST to the function
+   `screener_log_upsert`, `onError: continue`) → *Log write failed?* → (**Queue Pending Log** →
+   **Store: screener_log_pending**) → **Return**, which hands back Report's output unchanged — callers
+   read `ok` / `result` from it. **Versioned (codex review 2026-09-25):** **Stamp Read** stamps `read_ms` the moment the contact read
+   returns — before the opportunity search, which can be slow (3rd codex review: stamping in Decide let an older
+   snapshot delayed by that search look newer); the row carries it as `decided_ms`, and the function replaces the decision only
+   for a same-or-later read — a late waiting run can no longer erase a decided row (reproduced and
+   verified in SQL: stale wait kept Owner Verified / match true; a newer correction replaced it). One row per answered call (`call:<call_id>`),
    updated by every run for that call. Decision fields are always sent (`match` / `result_stage` are
    NULL while waiting, so a wait never counts as a miss; a dead-end mark has no `match`); call facts are
    sent only when known, so a later run never blanks them. Not logged: skipped runs, and a mark that
@@ -97,6 +100,25 @@ opp to Attempt 1, search still returned Not Sure; a read seconds later returned 
 contact read is current immediately (test B). So Decide no longer skips a stage move or follower change
 because search says it is "already there": both are idempotent and always sent (2 extra requests/run).
 Test F did not itself catch search stale (14 s had passed); the fix rests on the reset observation.
+
+## Screener log live test — 2026-09-25 (Dana Happy, after re-publishing)
+| Step | Exec | Supabase `screener_log` |
+|---|---|---|
+| no-answer (`Screener: No Answer`) | 123666 | `na:…` row: attempt 1 → Attempt 2, company, `match` NULL — **the credential works** |
+| answered owner call, AI first (`Capture Call`, `TEST-screener-0010`, 10:30 PT) | 123668 | `call:TEST-screener-0010`: PT 10-11, 48 s, recording, transcript, AI owner / yes / 0.95 / quote verified; `match` + `result_stage` NULL (waiting) |
+| rig marks `Owner - Busy` → `Mark + Compare` | 123671, 123672 | **same row updated**: mark, noise busy, `match` true, Owner Verified; duration + transcript kept (the mark run does not blank them) |
+| `screener_accuracy` | — | TEST-user 1 / 1 / 1 = 100 %; view then limited to calls (migration `screener_accuracy_calls_only`) |
+| rig reset | 123674 | Dana back to Attempt 1 (checked with a direct GET) |
+
+Both test rows were then deleted from Supabase. Left behind in n8n tables: `screener_calls`
+`TEST-screener-0010` and one `screener_attempts` row on Dana (listed with the other test rows).
+
+### Re-test after the codex fixes — 2026-09-25 (re-published)
+No-answer (123685) → `na:` row with `decided_ms`; call `TEST-screener-0011` (123687) → waiting row;
+mark `Owner - Busy` + Mark + Compare (123690, 123691) → same row Owner Verified / match true with a newer
+`decided_ms`, transcript kept. Then the earlier **waiting payload was replayed late** straight into
+`screener_log_upsert` with its older version: the row **stayed** Owner Verified / match true (codex's
+scenario, closed). Reset (123693, Dana back in Attempt 1 by a direct GET); both Supabase rows deleted.
 
 ## Versioned outcome (codex review, round 4 — 2026-09-24)
 Every caller records the run's outcome on the call's `screener_calls` row. A run that started

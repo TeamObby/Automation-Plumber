@@ -1,0 +1,220 @@
+{
+  "id": "y2oXfZtH4y1mhWQG",
+  "name": "Screener: Log Retry",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get pending log rows",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "qKv7RxgTDsqb1plo",
+          "cachedResultName": "screener_log_pending"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": []
+        },
+        "returnAll": false,
+        "limit": 100,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "ASC"
+      }
+    },
+    {
+      "name": "Pick replays",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pending screener_log payloads (a Supabase write that failed), oldest first. Each becomes one replay\n// of the versioned upsert; a row whose JSON is unreadable is reported and left for a human.\nreturn $input.all().map(i => i.json).filter(p => p && p.id && p.pending_key).map(p => {\n  let row = null;\n  try { row = JSON.parse(p.row_json); } catch (e) { row = null; }\n  return { json: { id: p.id, pending_key: p.pending_key, body: row ? { r: row } : null, bad: !row } };\n}).filter(i => !i.json.bad);\n"
+      }
+    },
+    {
+      "name": "Supabase: replay screener_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/rpc/screener_log_upsert",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 200
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "oUnRFJd1TMI1LmTd",
+          "name": "Supabase [ Waterline screener-helper ]"
+        }
+      }
+    },
+    {
+      "name": "Replayed OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pair each replay with its pending row; only a successful one is removed from the queue.\nconst sent = $('Pick replays').all().map(i => i.json);\nreturn $input.all().map((r, i) => ({ json: { id: sent[i] && sent[i].id, pending_key: sent[i] && sent[i].pending_key, ok: !(r.json && r.json.error) } }))\n  .filter(x => x.json.id && x.json.ok);\n"
+      }
+    },
+    {
+      "name": "Delete replayed row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "qKv7RxgTDsqb1plo",
+          "cachedResultName": "screener_log_pending"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## Screener: Log Retry  (item 7a)\nEvery 15 min: screener_log payloads whose Supabase write failed (screener_log_pending) are replayed through screener_log_upsert, Supabase only, never GHL. The upsert is versioned on decided_ms, so an old replay cannot overwrite a newer row. A replayed row leaves the queue; a failed one stays for the next run and for the daily summary.",
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get pending log rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get pending log rows": {
+      "main": [
+        [
+          {
+            "node": "Pick replays",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick replays": {
+      "main": [
+        [
+          {
+            "node": "Supabase: replay screener_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: replay screener_log": {
+      "main": [
+        [
+          {
+            "node": "Replayed OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replayed OK": {
+      "main": [
+        [
+          {
+            "node": "Delete replayed row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "snapshot": "Generated 2026-09-23 from the SDK source deployed via the n8n MCP (node ids and credentials omitted)"
+  }
+}

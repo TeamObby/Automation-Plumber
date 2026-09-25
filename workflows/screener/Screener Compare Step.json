@@ -153,6 +153,19 @@
       }
     },
     {
+      "name": "Stamp Read",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The version of this run's contact snapshot for the screener log: the time the contact read returned.\nconst read_ms = Date.now();\nreturn $input.all().map(i => ({ json: Object.assign({}, i.json, { read_ms }) }));\n"
+      }
+    },
+    {
       "name": "GHL: Find Screener Opp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -185,7 +198,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// The shared compare step (spec §4.1): the screener's mark meets the AI verdict, and this node\n// decides the whole write-back as a list of GHL requests (ops). The nodes after it only execute.\n// Called from Capture Call (a new AI verdict) and from Mark + Compare (the screener picked).\n// Ordering: a new verdict is SAVED to the contact (GHL: Save Verdict) BEFORE the contact read this\n// node uses, and GHL saves the screener's mark before firing its webhook. So whichever run reads\n// second sees both values — two overlapping runs can never both 'wait'. If that save FAILED, this\n// run has no such guarantee: a 'wait' then reports retry, and Screener: Write-back Retry reruns it.\nconst PIPELINE = 'CvDwpavqkHSRhg5Bn3L4';   // Screener — Plumbers\nconst STAGE = {\n  'Owner Verified': 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f',\n  'Gatekeeper':     'f83777fa-1dc0-4163-aa84-ef501126d82b',\n  'Not Sure':       '0c160182-e74d-4ace-9d3b-c4404043ef4b',\n  'Disqualified':   '65f9e1b4-8688-456d-845e-ebe0781101b9'\n};\nconst FIELD = {\n  outcome:  'iTZa77JWntQs2QBuo9QU',   // Screener Outcome (the screener's pick; n8n never writes it)\n  date:     'MUkHW8R17PIksrSnpz6g',   // Date Screened\n  noise:    'AbbR6jH9PFMLJCRdCqMp',   // Screen Noise\n  verdict:  'boOwqb5qGOmbWBopWvTv'    // Screen AI Verdict (JSON written by Capture Call)\n};\n// Block label-users for the opportunity follower (spec §6) — the GHL users PT 06-07 … PT 15-16\n// (Hridoy, 2026-09-23). A block with no id here gets its tag but no follower, and is reported.\nconst BLOCK_USER = {\n  'PT 06-07': 'ZU6NEmag5FFcYAYwtu75', 'PT 07-08': 'QKMhxRVQX45dq2bxF5a5',\n  'PT 08-09': 'u24gWdO3FlXhwjwhm6sE', 'PT 09-10': 'hdIv63msJcYjhwfIJ4eg',\n  'PT 10-11': 'T4p1bK3yo6Bl14OK1LP3', 'PT 11-12': 'nTHz8ZbvpMxoWqsyJsLs',\n  'PT 12-13': 'u1v0arwCtQw8kr9FSYIT', 'PT 13-14': '7KI79ZeuhHa1WrmFSaPH',\n  'PT 14-15': 'j5w26gAQTznnaAgqRePi', 'PT 15-16': 'QlDlzTUPYag7RxkJ2B5Q'\n};\nconst MIN_CONFIDENCE = 0.6;   // below this the prompt defines the model as guessing\nconst OWNER_MARKS = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };\nconst DEAD_ENDS = ['Wrong Number', 'Not A Plumber', 'Do Not Call'];\nconst MARKS = ['Owner - Busy', 'Owner - Quiet', 'Gatekeeper', 'Not Sure'].concat(DEAD_ENDS);\nconst BLOCK_TAGS = Object.keys(BLOCK_USER).map(b => 'screened-' + b.toLowerCase().replace(' ', '-'));\nconst GHL = 'https://services.leadconnectorhq.com';\n\nconst input = $('When Called by Screener').first().json;\nconst got = $('GHL: Get Contact').first().json;\nconst found = $('GHL: Find Screener Opp').first().json;\nconst contact = (got && got.contact) || null;\nconst contact_id = String(input.contact_id || '').trim();\nconst s = v => String(v == null ? '' : v).trim();\n// The call this run is about (its screener_calls row gets writeback_ok); '' on the mark path.\nconst call_id = (() => { try { return s(JSON.parse(input.verdict_json).call_id); } catch (e) { return ''; } })();\n\nconst done = (action, reason, extra) => ({ json: Object.assign({\n  contact_id, call_id, source: s(input.source), action, reason, result: '', stage_id: '', mismatch: false, retry: false, notes: [], ops: []\n}, extra) });\n\n// Guard: only contacts that are being screened. A misfired webhook must never touch Kevin's leads.\nif (!contact_id) return done('skip', 'no contact_id');\n// A failed read may be transient: 'retry' leaves writeback_ok = false for Screener: Write-back Retry.\nif (!contact || !contact.id) return done('skip', 'contact not readable: ' + s(got && got.error && (got.error.description || got.error.message)), { retry: true });\nconst tags = (contact.tags || []).map(t => s(t).toLowerCase());\nif (!tags.includes('screening')) return done('skip', 'contact is not tagged screening');\n\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst parseVerdict = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' && !Array.isArray(v) ? v : null; } catch (e) { return null; } };\n\nconst notes = [];\nconst stored = parseVerdict(cf(FIELD.verdict));\nlet newVerdict = s(input.verdict_json) ? parseVerdict(input.verdict_json) : null;\n// A retry of an OLDER call must never replace the verdict of a newer one (same rule as Plan Save).\nconst older = (a, b) => !!a && !!b && a.call_id !== b.call_id && Date.parse(b.answered_at) > Date.parse(a.answered_at);\nif (older(newVerdict, stored)) { notes.push('call ' + s(newVerdict.call_id) + ' is older than the verdict on file: ignored'); newVerdict = null; }\nconst verdict = newVerdict || stored;\n// GHL: Save Verdict normally stored it already; if that request failed, write it again here.\nconst verdictUnsaved = !!newVerdict && s(cf(FIELD.verdict)) !== s(input.verdict_json);\nconst rawMark = s(cf(FIELD.outcome));\nconst mark = MARKS.includes(rawMark) ? rawMark : '';\nconst force = input.force === true || input.force === 'true';\nif (rawMark && !mark) notes.push('unknown Screener Outcome \"' + rawMark + '\" treated as unmarked');\n\n// The AI backs \"owner\" only with a clean, confident, verifiable verdict (spec §4 cross-check).\nconst aiOwner = !!verdict && !verdict.ai_error && verdict.call_outcome === 'owner' &&\n  verdict.owner_reached === 'yes' && Number(verdict.confidence) >= MIN_CONFIDENCE && verdict.quote_verified === true;\n\n// Screener's mark wins; the AI catches mistakes. Dead ends need no AI: nothing the model says\n// turns a wrong number into a lead, and a do-not-call must stop the dialling now.\nlet result = '', mismatch = false, reason = '';\nif (DEAD_ENDS.includes(mark))            { result = 'Disqualified'; reason = mark; }\nelse if (!mark && !force)                { reason = 'waiting for the screener\\'s mark'; }\nelse if (!mark)                          { result = 'Not Sure'; mismatch = true; reason = 'nothing marked'; }\nelse if (!verdict && !force)             { reason = 'waiting for the AI verdict'; }\nelse if (OWNER_MARKS[mark])              { result = aiOwner ? 'Owner Verified' : 'Not Sure'; mismatch = !aiOwner; reason = aiOwner ? 'screener and AI agree: owner' : 'screener says owner, AI does not confirm'; }\nelse if (mark === 'Gatekeeper')          { result = aiOwner ? 'Not Sure' : 'Gatekeeper'; mismatch = aiOwner; reason = aiOwner ? 'screener says gatekeeper, AI says owner' : 'gatekeeper'; }\nelse                                     { result = 'Not Sure'; mismatch = aiOwner; reason = aiOwner ? 'screener not sure, AI says owner' : 'not sure'; }\n\n// ---- contact fields: written on wait too (the verdict and the noise must land either way) ----\nconst fields = [];\nif (verdictUnsaved) fields.push({ id: FIELD.verdict, value: s(input.verdict_json) });\nconst noise = OWNER_MARKS[mark] || '';\nif (s(cf(FIELD.noise)) !== noise && (mark || result)) fields.push({ id: FIELD.noise, value: noise });\n\nconst ops = [];\nconst op = (label, method, url, body) => ops.push({ label, method, url, body });\nconst pacificDate = iso => { const t = Date.parse(iso); return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(isNaN(t) ? new Date() : new Date(t)); };\n\nlet stage_id = '', opp = null, retry = false;\nif (result) {\n  fields.push({ id: FIELD.date, value: pacificDate(verdict && verdict.answered_at) });\n  const contactBody = { customFields: fields };\n  if (mark === 'Do Not Call') contactBody.dnd = true;\n  op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, contactBody);\n\n  // Tags — replace, never append (spec §6): a lead is in one block, one noise class, at most.\n  const owner = result === 'Owner Verified';\n  const blockTag = owner && verdict ? s(verdict.pt_block_tag) : '';\n  const want = [];\n  if (owner) { want.push('owner-confirmed', 'screen-' + noise); if (blockTag) want.push(blockTag); }\n  if (mismatch) want.push('screen-mismatch');\n  const managed = ['owner-confirmed', 'screen-busy', 'screen-quiet', 'screen-mismatch'].concat(BLOCK_TAGS);\n  const add = want.filter(t => !tags.includes(t));\n  const remove = managed.filter(t => tags.includes(t) && !want.includes(t));\n  if (add.length) op('add tags', 'POST', GHL + '/contacts/' + contact_id + '/tags', { tags: add });\n  if (remove.length) op('remove tags', 'DELETE', GHL + '/contacts/' + contact_id + '/tags', { tags: remove });\n  if (owner && !blockTag) notes.push('answered outside PT 06-16: no block tag or follower');\n\n  // Stage + block follower on the screener opportunity.\n  const opps = ((found && found.opportunities) || []).filter(o => o.pipelineId === PIPELINE && (o.status || 'open') === 'open');\n  opp = opps[0] || null;\n  stage_id = STAGE[result];\n  if (!opp && found && found.error) { retry = true; notes.push('opportunity search failed: stage and follower not written'); }\n  else if (!opp) notes.push('no open Screener — Plumbers opportunity: stage and follower not written');\n  else {\n    // GHL's opportunity SEARCH lags writes by seconds (live test 2026-09-24), so its stage and\n    // followers can be stale: never skip on them. Both writes are idempotent — always send them.\n    op('move stage -> ' + result, 'PUT', GHL + '/opportunities/' + opp.id, { pipelineId: PIPELINE, pipelineStageId: stage_id });\n    const wantUser = owner && verdict ? (BLOCK_USER[s(verdict.pt_block)] || '') : '';\n    if (owner && blockTag && !wantUser) notes.push('no user id for ' + s(verdict.pt_block) + ': follower skipped');\n    const dropUsers = Object.values(BLOCK_USER).filter(u => u && u !== wantUser);\n    op('remove other block followers', 'DELETE', GHL + '/opportunities/' + opp.id + '/followers', { followers: dropUsers });\n    if (wantUser) op('add block follower', 'POST', GHL + '/opportunities/' + opp.id + '/followers', { followers: [wantUser] });\n  }\n} else if (fields.length) {\n  op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, { customFields: fields });\n}\n// Waiting on a verdict that was NOT on the contact before our read: a Mark run may have read in\n// between and waited too (codex review). Not done — the retry sweep reruns it save-first.\nif (!result && verdictUnsaved) { retry = true; notes.push('verdict was not saved before the read: retry'); }\n\nreturn done(result ? 'apply' : 'wait', reason, {\n  result, stage_id, mismatch, retry, notes, ops,\n  mark: rawMark, ai_outcome: verdict ? s(verdict.call_outcome) : '', ai_owner: aiOwner,\n  opp_id: opp ? opp.id : '', verdict_call_id: verdict ? s(verdict.call_id) : ''\n});\n"
+        "jsCode": "// The shared compare step (spec §4.1): the screener's mark meets the AI verdict, and this node\n// decides the whole write-back as a list of GHL requests (ops). The nodes after it only execute.\n// Called from Capture Call (a new AI verdict) and from Mark + Compare (the screener picked).\n// Ordering: a new verdict is SAVED to the contact (GHL: Save Verdict) BEFORE the contact read this\n// node uses, and GHL saves the screener's mark before firing its webhook. So whichever run reads\n// second sees both values — two overlapping runs can never both 'wait'. If that save FAILED, this\n// run has no such guarantee: a 'wait' then reports retry, and Screener: Write-back Retry reruns it.\nconst PIPELINE = 'CvDwpavqkHSRhg5Bn3L4';   // Screener — Plumbers\nconst STAGE = {\n  'Owner Verified': 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f',\n  'Gatekeeper':     'f83777fa-1dc0-4163-aa84-ef501126d82b',\n  'Not Sure':       '0c160182-e74d-4ace-9d3b-c4404043ef4b',\n  'Disqualified':   '65f9e1b4-8688-456d-845e-ebe0781101b9'\n};\nconst FIELD = {\n  outcome:  'iTZa77JWntQs2QBuo9QU',   // Screener Outcome (the screener's pick; n8n never writes it)\n  date:     'MUkHW8R17PIksrSnpz6g',   // Date Screened\n  noise:    'AbbR6jH9PFMLJCRdCqMp',   // Screen Noise\n  verdict:  'boOwqb5qGOmbWBopWvTv'    // Screen AI Verdict (JSON written by Capture Call)\n};\n// Block label-users for the opportunity follower (spec §6) — the GHL users PT 06-07 … PT 15-16\n// (Hridoy, 2026-09-23). A block with no id here gets its tag but no follower, and is reported.\nconst BLOCK_USER = {\n  'PT 06-07': 'ZU6NEmag5FFcYAYwtu75', 'PT 07-08': 'QKMhxRVQX45dq2bxF5a5',\n  'PT 08-09': 'u24gWdO3FlXhwjwhm6sE', 'PT 09-10': 'hdIv63msJcYjhwfIJ4eg',\n  'PT 10-11': 'T4p1bK3yo6Bl14OK1LP3', 'PT 11-12': 'nTHz8ZbvpMxoWqsyJsLs',\n  'PT 12-13': 'u1v0arwCtQw8kr9FSYIT', 'PT 13-14': '7KI79ZeuhHa1WrmFSaPH',\n  'PT 14-15': 'j5w26gAQTznnaAgqRePi', 'PT 15-16': 'QlDlzTUPYag7RxkJ2B5Q'\n};\nconst MIN_CONFIDENCE = 0.6;   // below this the prompt defines the model as guessing\nconst OWNER_MARKS = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };\nconst DEAD_ENDS = ['Wrong Number', 'Not A Plumber', 'Do Not Call'];\nconst MARKS = ['Owner - Busy', 'Owner - Quiet', 'Gatekeeper', 'Not Sure'].concat(DEAD_ENDS);\nconst BLOCK_TAGS = Object.keys(BLOCK_USER).map(b => 'screened-' + b.toLowerCase().replace(' ', '-'));\nconst GHL = 'https://services.leadconnectorhq.com';\n\nconst input = $('When Called by Screener').first().json;\nconst got = $('GHL: Get Contact').first().json;\nconst found = $('GHL: Find Screener Opp').first().json;\nconst contact = (got && got.contact) || null;\nconst contact_id = String(input.contact_id || '').trim();\nconst s = v => String(v == null ? '' : v).trim();\n// When this run's view of GHL was taken: stamped by Stamp Read the moment the contact read returned\n// (before the opportunity search, which can be slow), so it versions exactly this contact snapshot in\n// the screener log and a run that read earlier can never overwrite one that read later (codex review).\nconst read_ms = (() => { try { return Number($('Stamp Read').first().json.read_ms) || Date.now(); } catch (e) { return Date.now(); } })();\n// The call this run is about (its screener_calls row gets writeback_ok); '' on the mark path.\nconst call_id = (() => { try { return s(JSON.parse(input.verdict_json).call_id); } catch (e) { return ''; } })();\n\nconst done = (action, reason, extra) => ({ json: Object.assign({\n  contact_id, call_id, source: s(input.source), action, reason, result: '', stage_id: '', mismatch: false, retry: false, notes: [], ops: [], read_ms\n}, extra) });\n\n// Guard: only contacts that are being screened. A misfired webhook must never touch Kevin's leads.\nif (!contact_id) return done('skip', 'no contact_id');\n// A failed read may be transient: 'retry' leaves writeback_ok = false for Screener: Write-back Retry.\nif (!contact || !contact.id) return done('skip', 'contact not readable: ' + s(got && got.error && (got.error.description || got.error.message)), { retry: true });\nconst tags = (contact.tags || []).map(t => s(t).toLowerCase());\nif (!tags.includes('screening')) return done('skip', 'contact is not tagged screening');\n\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst parseVerdict = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' && !Array.isArray(v) ? v : null; } catch (e) { return null; } };\n\nconst notes = [];\nconst stored = parseVerdict(cf(FIELD.verdict));\nlet newVerdict = s(input.verdict_json) ? parseVerdict(input.verdict_json) : null;\n// A retry of an OLDER call must never replace the verdict of a newer one (same rule as Plan Save).\nconst older = (a, b) => !!a && !!b && a.call_id !== b.call_id && Date.parse(b.answered_at) > Date.parse(a.answered_at);\nif (older(newVerdict, stored)) { notes.push('call ' + s(newVerdict.call_id) + ' is older than the verdict on file: ignored'); newVerdict = null; }\nconst verdict = newVerdict || stored;\n// GHL: Save Verdict normally stored it already; if that request failed, write it again here.\nconst verdictUnsaved = !!newVerdict && s(cf(FIELD.verdict)) !== s(input.verdict_json);\nconst rawMark = s(cf(FIELD.outcome));\nconst mark = MARKS.includes(rawMark) ? rawMark : '';\nconst force = input.force === true || input.force === 'true';\nif (rawMark && !mark) notes.push('unknown Screener Outcome \"' + rawMark + '\" treated as unmarked');\n\n// The AI backs \"owner\" only with a clean, confident, verifiable verdict (spec §4 cross-check).\nconst aiOwner = !!verdict && !verdict.ai_error && verdict.call_outcome === 'owner' &&\n  verdict.owner_reached === 'yes' && Number(verdict.confidence) >= MIN_CONFIDENCE && verdict.quote_verified === true;\n\n// Screener's mark wins; the AI catches mistakes. Dead ends need no AI: nothing the model says\n// turns a wrong number into a lead, and a do-not-call must stop the dialling now.\nlet result = '', mismatch = false, reason = '';\nif (DEAD_ENDS.includes(mark))            { result = 'Disqualified'; reason = mark; }\nelse if (!mark && !force)                { reason = 'waiting for the screener\\'s mark'; }\nelse if (!mark)                          { result = 'Not Sure'; mismatch = true; reason = 'nothing marked'; }\nelse if (!verdict && !force)             { reason = 'waiting for the AI verdict'; }\nelse if (OWNER_MARKS[mark])              { result = aiOwner ? 'Owner Verified' : 'Not Sure'; mismatch = !aiOwner; reason = aiOwner ? 'screener and AI agree: owner' : 'screener says owner, AI does not confirm'; }\nelse if (mark === 'Gatekeeper')          { result = aiOwner ? 'Not Sure' : 'Gatekeeper'; mismatch = aiOwner; reason = aiOwner ? 'screener says gatekeeper, AI says owner' : 'gatekeeper'; }\nelse                                     { result = 'Not Sure'; mismatch = aiOwner; reason = aiOwner ? 'screener not sure, AI says owner' : 'not sure'; }\n\n// ---- contact fields: written on wait too (the verdict and the noise must land either way) ----\nconst fields = [];\nif (verdictUnsaved) fields.push({ id: FIELD.verdict, value: s(input.verdict_json) });\nconst noise = OWNER_MARKS[mark] || '';\nif (s(cf(FIELD.noise)) !== noise && (mark || result)) fields.push({ id: FIELD.noise, value: noise });\n\nconst ops = [];\nconst op = (label, method, url, body) => ops.push({ label, method, url, body });\nconst pacificDate = iso => { const t = Date.parse(iso); return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(isNaN(t) ? new Date() : new Date(t)); };\n\nlet stage_id = '', opp = null, retry = false;\nif (result) {\n  fields.push({ id: FIELD.date, value: pacificDate(verdict && verdict.answered_at) });\n  const contactBody = { customFields: fields };\n  if (mark === 'Do Not Call') contactBody.dnd = true;\n  op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, contactBody);\n\n  // Tags — replace, never append (spec §6): a lead is in one block, one noise class, at most.\n  const owner = result === 'Owner Verified';\n  const blockTag = owner && verdict ? s(verdict.pt_block_tag) : '';\n  const want = [];\n  if (owner) { want.push('owner-confirmed', 'screen-' + noise); if (blockTag) want.push(blockTag); }\n  if (mismatch) want.push('screen-mismatch');\n  const managed = ['owner-confirmed', 'screen-busy', 'screen-quiet', 'screen-mismatch'].concat(BLOCK_TAGS);\n  const add = want.filter(t => !tags.includes(t));\n  const remove = managed.filter(t => tags.includes(t) && !want.includes(t));\n  if (add.length) op('add tags', 'POST', GHL + '/contacts/' + contact_id + '/tags', { tags: add });\n  if (remove.length) op('remove tags', 'DELETE', GHL + '/contacts/' + contact_id + '/tags', { tags: remove });\n  if (owner && !blockTag) notes.push('answered outside PT 06-16: no block tag or follower');\n\n  // Stage + block follower on the screener opportunity.\n  const opps = ((found && found.opportunities) || []).filter(o => o.pipelineId === PIPELINE && (o.status || 'open') === 'open');\n  opp = opps[0] || null;\n  stage_id = STAGE[result];\n  if (!opp && found && found.error) { retry = true; notes.push('opportunity search failed: stage and follower not written'); }\n  else if (!opp) notes.push('no open Screener — Plumbers opportunity: stage and follower not written');\n  else {\n    // GHL's opportunity SEARCH lags writes by seconds (live test 2026-09-24), so its stage and\n    // followers can be stale: never skip on them. Both writes are idempotent — always send them.\n    op('move stage -> ' + result, 'PUT', GHL + '/opportunities/' + opp.id, { pipelineId: PIPELINE, pipelineStageId: stage_id });\n    const wantUser = owner && verdict ? (BLOCK_USER[s(verdict.pt_block)] || '') : '';\n    if (owner && blockTag && !wantUser) notes.push('no user id for ' + s(verdict.pt_block) + ': follower skipped');\n    const dropUsers = Object.values(BLOCK_USER).filter(u => u && u !== wantUser);\n    op('remove other block followers', 'DELETE', GHL + '/opportunities/' + opp.id + '/followers', { followers: dropUsers });\n    if (wantUser) op('add block follower', 'POST', GHL + '/opportunities/' + opp.id + '/followers', { followers: [wantUser] });\n  }\n} else if (fields.length) {\n  op('update contact fields', 'PUT', GHL + '/contacts/' + contact_id, { customFields: fields });\n}\n// Waiting on a verdict that was NOT on the contact before our read: a Mark run may have read in\n// between and waited too (codex review). Not done — the retry sweep reruns it save-first.\nif (!result && verdictUnsaved) { retry = true; notes.push('verdict was not saved before the read: retry'); }\n\nreturn done(result ? 'apply' : 'wait', reason, {\n  result, stage_id, mismatch, retry, notes, ops,\n  mark: rawMark, ai_outcome: verdict ? s(verdict.call_outcome) : '', ai_owner: aiOwner,\n  opp_id: opp ? opp.id : '', verdict_call_id: verdict ? s(verdict.call_id) : ''\n});\n"
       }
     },
     {
@@ -321,7 +334,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// One screener_log row in Supabase (spec §10.2 item 7a) for the answered call this compare run was\n// about. Upserted on event_key, so every run for the call (AI first, mark later, retries) updates the\n// same row. The decision fields are always sent (null = not decided yet, so a waiting run never counts\n// as a miss); call facts are sent only when known, so a run that lacks them never blanks them.\nconst VERDICT = 'boOwqb5qGOmbWBopWvTv', ATTEMPTS = 'vcqKnq23gN5wIIHqRww4';\nconst NOISE = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };\nconst plan = $('Decide').first().json;\nconst input = $('When Called by Screener').first().json;\nconst contact = (($('GHL: Get Contact').first().json || {}).contact) || {};\nconst found = (() => { try { return $('Find call row').first().json || {}; } catch (e) { return {}; } })();\nconst s = v => String(v == null ? '' : v).trim();\nconst parse = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst num = x => (x === '' || x == null || isNaN(Number(x))) ? undefined : Number(x);\nconst known = x => s(x) || undefined;\nconst bool = (...xs) => xs.find(x => typeof x === 'boolean');\n\nconst cid = s(plan.verdict_call_id) || s(plan.call_id);\nif (plan.action === 'skip') return [{ json: { log: false, why: 'skipped run: ' + s(plan.reason) } }];\nif (!cid) return [{ json: { log: false, why: 'no call yet (marked before the call was captured)' } }];\nconst call = s(found.call_id) === cid ? found : {};   // lookup missed: use the verdict only\nconst v = [parse(input.verdict_json), parse(cf(VERDICT))].find(x => x && s(x.call_id) === cid) || {};\nconst decided = plan.action === 'apply';\nreturn [{ json: { log: true, row: {\n  event_key: 'call:' + cid, event: 'call',\n  event_at: known(call.answered_at) || known(v.answered_at) || new Date().toISOString(),\n  ghl_contact_id: s(plan.contact_id),\n  company: known(contact.companyName),\n  screener_user_id: known(call.ghl_user_id) || known(v.ghl_user_id),\n  attempt_no: num(cf(ATTEMPTS)),\n  duration_sec: num(call.duration_sec),\n  pt_block: known(call.pt_block) || known(v.pt_block),\n  screener_outcome: s(plan.mark) || null,\n  noise: NOISE[s(plan.mark)] || null,\n  ai_call_outcome: known(call.ai_call_outcome) || known(v.call_outcome),\n  ai_owner_reached: known(call.ai_owner_reached) || known(v.owner_reached),\n  ai_confidence: num(call.ai_confidence) !== undefined ? num(call.ai_confidence) : num(v.confidence),\n  ai_quote_verified: bool(call.ai_quote_verified, v.quote_verified),\n  // A dead-end mark (Wrong Number, Not A Plumber, Do Not Call) is never compared with the AI: no match value.\n  match: decided && plan.result !== 'Disqualified' ? !plan.mismatch : null,\n  result_stage: s(plan.result) || null,\n  reason: [plan.reason].concat(plan.notes || []).filter(Boolean).join(' | ') || null,\n  call_id: cid,\n  recording_url: known(call.recording_url),\n  transcript: known(call.transcript),\n  updated_at: new Date().toISOString()\n} } }];\n"
+        "jsCode": "// One screener_log row in Supabase (spec §10.2 item 7a) for the answered call this compare run was\n// about. Upserted on event_key, so every run for the call (AI first, mark later, retries) updates the\n// same row. The decision fields are always sent (null = not decided yet, so a waiting run never counts\n// as a miss); call facts are sent only when known, so a run that lacks them never blanks them.\n// decided_ms versions the decision: the Supabase function screener_log_upsert keeps the decision of the\n// run that read GHL last, whatever order the writes arrive in (codex review, 2026-09-25).\nconst VERDICT = 'boOwqb5qGOmbWBopWvTv', ATTEMPTS = 'vcqKnq23gN5wIIHqRww4';\nconst NOISE = { 'Owner - Busy': 'busy', 'Owner - Quiet': 'quiet' };\nconst plan = $('Decide').first().json;\nconst input = $('When Called by Screener').first().json;\nconst contact = (($('GHL: Get Contact').first().json || {}).contact) || {};\nconst found = (() => { try { return $('Find call row').first().json || {}; } catch (e) { return {}; } })();\nconst s = v => String(v == null ? '' : v).trim();\nconst parse = raw => { try { const v = typeof raw === 'string' ? JSON.parse(raw) : raw; return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };\nconst cf = id => { const f = (contact.customFields || []).find(x => x.id === id); return f ? f.value : undefined; };\nconst num = x => (x === '' || x == null || isNaN(Number(x))) ? undefined : Number(x);\nconst known = x => s(x) || undefined;\nconst bool = (...xs) => xs.find(x => typeof x === 'boolean');\n\nconst cid = s(plan.verdict_call_id) || s(plan.call_id);\nif (plan.action === 'skip') return [{ json: { log: false, why: 'skipped run: ' + s(plan.reason) } }];\nif (!cid) return [{ json: { log: false, why: 'no call yet (marked before the call was captured)' } }];\nconst call = s(found.call_id) === cid ? found : {};   // lookup missed: use the verdict only\nconst v = [parse(input.verdict_json), parse(cf(VERDICT))].find(x => x && s(x.call_id) === cid) || {};\nconst decided = plan.action === 'apply';\nreturn [{ json: { log: true, row: {\n  event_key: 'call:' + cid, event: 'call',\n  event_at: known(call.answered_at) || known(v.answered_at) || new Date().toISOString(),\n  ghl_contact_id: s(plan.contact_id),\n  company: known(contact.companyName),\n  screener_user_id: known(call.ghl_user_id) || known(v.ghl_user_id),\n  attempt_no: num(cf(ATTEMPTS)),\n  duration_sec: num(call.duration_sec),\n  pt_block: known(call.pt_block) || known(v.pt_block),\n  screener_outcome: s(plan.mark) || null,\n  noise: NOISE[s(plan.mark)] || null,\n  ai_call_outcome: known(call.ai_call_outcome) || known(v.call_outcome),\n  ai_owner_reached: known(call.ai_owner_reached) || known(v.owner_reached),\n  ai_confidence: num(call.ai_confidence) !== undefined ? num(call.ai_confidence) : num(v.confidence),\n  ai_quote_verified: bool(call.ai_quote_verified, v.quote_verified),\n  // A dead-end mark (Wrong Number, Not A Plumber, Do Not Call) is never compared with the AI: no match value.\n  match: decided && plan.result !== 'Disqualified' ? !plan.mismatch : null,\n  result_stage: s(plan.result) || null,\n  reason: [plan.reason].concat(plan.notes || []).filter(Boolean).join(' | ') || null,\n  call_id: cid,\n  recording_url: known(call.recording_url),\n  transcript: known(call.transcript),\n  decided_ms: Number(plan.read_ms) || Date.now(),\n  updated_at: new Date().toISOString()\n} } }];\n"
       }
     },
     {
@@ -365,21 +378,12 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/screener_log?on_conflict=event_key",
+        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/rpc/screener_log_upsert",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Prefer",
-              "value": "resolution=merge-duplicates,return=minimal"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "jsonBody": "={{ JSON.stringify({ r: $json.row }) }}",
         "options": {}
       },
       "retryOnFail": true,
@@ -392,11 +396,146 @@
       }
     },
     {
+      "name": "Log write failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3584,
+        204
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Queue Pending Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        108
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The Supabase write failed (after its retries): keep the payload in screener_log_pending so\n// Screener: Log Retry can replay it into Supabase alone, never repeating a GHL write (codex review,\n// 2026-09-25). One pending row per payload version; the versioned upsert makes a late replay harmless.\nconst row = $('Build Log Row').first().json.row;\nconst res = $input.first().json || {};\nconst err = res.error ? (res.error.message || JSON.stringify(res.error)) : 'unknown error';\nreturn [{ json: {\n  pending_key: row.event_key + '@' + row.decided_ms,\n  event_key: row.event_key,\n  row_json: JSON.stringify(row),\n  error: String(err).slice(0, 500),\n  queued_at: new Date().toISOString()\n} }];\n"
+      }
+    },
+    {
+      "name": "Store: screener_log_pending",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4032,
+        108
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "qKv7RxgTDsqb1plo",
+          "cachedResultName": "screener_log_pending"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "pending_key",
+              "condition": "eq",
+              "keyValue": "={{ $json.pending_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "pending_key",
+              "displayName": "pending_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event_key",
+              "displayName": "event_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "row_json",
+              "displayName": "row_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "queued_at",
+              "displayName": "queued_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
       "name": "Return",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3584,
+        4256,
         300
       ],
       "parameters": {
@@ -485,6 +624,17 @@
       "main": [
         [
           {
+            "node": "Stamp Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stamp Read": {
+      "main": [
+        [
+          {
             "node": "GHL: Find Screener Opp",
             "type": "main",
             "index": 0
@@ -565,11 +715,51 @@
         ]
       ]
     },
-    "Supabase: screener_log": {
+    "Queue Pending Log": {
+      "main": [
+        [
+          {
+            "node": "Store: screener_log_pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store: screener_log_pending": {
       "main": [
         [
           {
             "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log write failed?": {
+      "main": [
+        [
+          {
+            "node": "Queue Pending Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: screener_log": {
+      "main": [
+        [
+          {
+            "node": "Log write failed?",
             "type": "main",
             "index": 0
           }

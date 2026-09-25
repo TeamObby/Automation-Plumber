@@ -560,7 +560,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// One screener_log row in Supabase (spec §10.2 item 7a) for an unanswered dial: no-answer, voicemail\n// or bad number. Same event_key as its screener_attempts row, so a replayed event updates it. Only a\n// screening lead is logged; a contact that could not be read is retried by the event itself.\nconst r = $('Log Row').first().json;\nconst got = (() => { try { return $('GHL: Get Contact').first().json; } catch (e) { return null; } })();\nconst contact = (got && got.contact) || null;\nconst s = v => String(v == null ? '' : v).trim();\nconst num = x => (x === '' || x == null || isNaN(Number(x))) ? undefined : Number(x);\nif (!contact || !contact.id) return [{ json: { log: false, why: 'contact not read' } }];\nif (!(contact.tags || []).map(t => s(t).toLowerCase()).includes('screening')) return [{ json: { log: false, why: 'not a screening lead' } }];\nconst at = num(r.at_ms);\nreturn [{ json: { log: true, row: {\n  event_key: s(r.event_key), event: s(r.event),\n  event_at: new Date(at !== undefined ? at : Date.now()).toISOString(),\n  ghl_contact_id: s(r.contact_id),\n  company: s(contact.companyName) || undefined,\n  attempt_no: num(r.attempt_no),\n  result_stage: s(r.result_stage) || null,\n  reason: s(r.reason) || null,\n  updated_at: new Date().toISOString()\n} } }];\n"
+        "jsCode": "// One screener_log row in Supabase (spec §10.2 item 7a) for an unanswered dial: no-answer, voicemail\n// or bad number. Same event_key as its screener_attempts row, so a replayed event updates it. Only a\n// screening lead is logged; a contact that could not be read is retried by the event itself.\nconst r = $('Log Row').first().json;\nconst got = (() => { try { return $('GHL: Get Contact').first().json; } catch (e) { return null; } })();\nconst contact = (got && got.contact) || null;\nconst s = v => String(v == null ? '' : v).trim();\nconst num = x => (x === '' || x == null || isNaN(Number(x))) ? undefined : Number(x);\nif (!contact || !contact.id) return [{ json: { log: false, why: 'contact not read' } }];\nif (!(contact.tags || []).map(t => s(t).toLowerCase()).includes('screening')) return [{ json: { log: false, why: 'not a screening lead' } }];\nconst at = num(r.at_ms);\nreturn [{ json: { log: true, row: {\n  event_key: s(r.event_key), event: s(r.event),\n  event_at: new Date(at !== undefined ? at : Date.now()).toISOString(),\n  ghl_contact_id: s(r.contact_id),\n  company: s(contact.companyName) || undefined,\n  attempt_no: num(r.attempt_no),\n  result_stage: s(r.result_stage) || null,\n  reason: s(r.reason) || null,\n  decided_ms: Date.now(),\n  updated_at: new Date().toISOString()\n} } }];\n"
       }
     },
     {
@@ -604,21 +604,12 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/screener_log?on_conflict=event_key",
+        "url": "https://cifgvpqfodglnhywrofy.supabase.co/rest/v1/rpc/screener_log_upsert",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Prefer",
-              "value": "resolution=merge-duplicates,return=minimal"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.row) }}",
+        "jsonBody": "={{ JSON.stringify({ r: $json.row }) }}",
         "options": {}
       },
       "retryOnFail": true,
@@ -631,11 +622,146 @@
       }
     },
     {
+      "name": "Log write failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4480,
+        204
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Queue Pending Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4704,
+        108
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The Supabase write failed (after its retries): keep the payload in screener_log_pending so\n// Screener: Log Retry can replay it into Supabase alone, never repeating a GHL write (codex review,\n// 2026-09-25). One pending row per payload version; the versioned upsert makes a late replay harmless.\nconst row = $('Build Log Row').first().json.row;\nconst res = $input.first().json || {};\nconst err = res.error ? (res.error.message || JSON.stringify(res.error)) : 'unknown error';\nreturn [{ json: {\n  pending_key: row.event_key + '@' + row.decided_ms,\n  event_key: row.event_key,\n  row_json: JSON.stringify(row),\n  error: String(err).slice(0, 500),\n  queued_at: new Date().toISOString()\n} }];\n"
+      }
+    },
+    {
+      "name": "Store: screener_log_pending",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4928,
+        108
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "qKv7RxgTDsqb1plo",
+          "cachedResultName": "screener_log_pending"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "pending_key",
+              "condition": "eq",
+              "keyValue": "={{ $json.pending_key }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "pending_key",
+              "displayName": "pending_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event_key",
+              "displayName": "event_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "row_json",
+              "displayName": "row_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "queued_at",
+              "displayName": "queued_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
       "name": "Return",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
+        5152,
         300
       ],
       "parameters": {
@@ -837,11 +963,51 @@
         ]
       ]
     },
-    "Supabase: screener_log": {
+    "Queue Pending Log": {
+      "main": [
+        [
+          {
+            "node": "Store: screener_log_pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store: screener_log_pending": {
       "main": [
         [
           {
             "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log write failed?": {
+      "main": [
+        [
+          {
+            "node": "Queue Pending Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: screener_log": {
+      "main": [
+        [
+          {
+            "node": "Log write failed?",
             "type": "main",
             "index": 0
           }

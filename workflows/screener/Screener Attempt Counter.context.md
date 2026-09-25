@@ -6,10 +6,9 @@
   `POST /webhook/screener-no-answer`) and **`Screener: WAVV Disposition`** (`QOYHMP5ZGQcnG3ED`,
   `POST /webhook/screener-disposition`) — both **inactive until the guards exist**.
 - **Data table:** `screener_attempts` `9V6VL0XiKeadY9Lc` — one row per dial event.
-- **⚠️ Sync state (2026-09-25):** this snapshot = the n8n **draft** (pushed with the screener_log write,
-  item 7a; Supabase project `screener-helper`, credential `Supabase [ Waterline screener-helper ]`
-  `oUnRFJd1TMI1LmTd`). The **published** version is still the one without the log until it is
-  re-published (needs OK) — until then no row reaches Supabase.
+- **Sync state (2026-09-25):** snapshot = live. **Re-published** after the codex review: the log write goes
+  through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
+  `screener_log_pending` for `Screener: Log Retry`.
 
 ## Purpose
 The Attempt ladder. A stage is the call that is **due** (spec §2.1): after unanswered dial *n* the
@@ -29,7 +28,8 @@ When Called → **Event** (drops anything uncountable) → **Recent attempts for
 → Filter: not a duplicate → GHL: Get Contact → GHL: Find Screener Opp → **Ladder** → *Skip?* →
 Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered call?* → (Compare Step, force)
 → **Log Row** → Store (upsert on `event_key`) → **Build Log Row** → *Log it?* → **Supabase: screener_log**
-(item 7a: the same `event_key`, only for a readable `screening` lead) → **Return** (Store's output, unchanged).
+(item 7a: the same `event_key`, only for a readable `screening` lead; the versioned function
+`screener_log_upsert`; a failed write is queued for `Screener: Log Retry`) → **Return** (Store's output, unchanged).
 
 ## Rules (all in `Ladder` / `Attempt Dedupe`)
 - **Screen Attempts is SET** to the event's attempt number, never `+1` on the stored value.
@@ -65,6 +65,10 @@ Split Ladder Ops → GHL: Ladder Apply → Ladder Report → *Unmarked answered 
 | Bad Number with an unmarked gatekeeper call pending (`TEST-bn-2`, after the codex fix) | → **Disqualified**, attempt 2 — not the forced compare (123172) |
 | same case after publishing (`TEST-screener-0009`) | → forced compare → **Not Sure**, "previous answered call was never marked \| compare: nothing marked" (123587) |
 | no-answer after an unmarked gatekeeper call (`TEST-screener-0008`), before publishing | ⚠️ **failed**: the counter could not call the Compare Step — *"Workflow is not active and cannot be executed"* (123157). See gotcha 1. Logic proven offline. |
+
+## Screener log live test — 2026-09-25
+No-answer on Dana (exec 123666) → Supabase row `na:…` (attempt 1 → Attempt 2, `match` NULL). Full
+run in the Compare Step context file.
 
 ## TODOs / gotchas
 1. **Sub-workflows must be published.** n8n runs an unpublished sub-workflow only when the *top-level*

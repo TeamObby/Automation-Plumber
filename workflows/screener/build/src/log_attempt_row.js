@@ -17,5 +17,6 @@ return [{ json: { log: true, row: {
   attempt_no: num(r.attempt_no),
   result_stage: s(r.result_stage) || null,
   reason: s(r.reason) || null,
+  decided_ms: Date.now(),
   updated_at: new Date().toISOString()
 } } }];

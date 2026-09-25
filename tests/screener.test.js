@@ -369,7 +369,7 @@ ok(JSON.stringify(conn(compareWf, 'When Called by Screener')) === '[["GHL: Guard
    JSON.stringify(conn(compareWf, 'Plan Save')) === '[["Save verdict first?"]]' &&
    JSON.stringify(conn(compareWf, 'Save verdict first?')) === '[["GHL: Save Verdict"],["GHL: Get Contact"]]' &&
    JSON.stringify(conn(compareWf, 'GHL: Save Verdict')) === '[["GHL: Get Contact"]]' &&
-   JSON.stringify(conn(compareWf, 'GHL: Get Contact')) === '[["GHL: Find Screener Opp"]]', 'Guard Read -> Save Verdict -> fresh Get Contact -> Decide');
+   JSON.stringify(conn(compareWf, 'GHL: Get Contact')) === '[["Stamp Read"]]' && JSON.stringify(conn(compareWf, 'Stamp Read')) === '[["GHL: Find Screener Opp"]]', 'Guard Read -> Save Verdict -> fresh Get Contact -> Stamp Read -> Decide');
 const PLAN_SAVE = codeOf(compareWf, 'Plan Save');
 const planSave = (contact, verdictJson) => run(PLAN_SAVE, { contact }, { 'When Called by Screener': item({ contact_id: 'C1', verdict_json: verdictJson }) });
 const withVerdict = (tags, v) => ({ id: 'C1', tags, customFields: v ? [ { id: F.verdict, value: JSON.stringify(v) } ] : [] });
@@ -759,25 +759,39 @@ ok(glog(pl, gsent, [{}, {}, {}], null, null).ok === false, 'writes done but neve
 gl = glog(pl, gops(pl, { error: { message: '422 duplicate' } }), null);
 ok(gl.ok === false && gl.reason.includes('create Kevin opp: 422'), 'failed create -> not ok, named');
 ok(glog(gplan({ tags: ['screening'] }), null, null).ok === true, 'final skip -> ok');
-const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevin_pipeline','created_new','pt_block','action','ok','reason','at'];
+{ const GLF = codeOf(gradWf, 'Log Graduation');
+  const glf = (prev, closeRes) => new Function('$json', '$input', '$', GLF)({}, {}, n => {
+    if (n === 'Graduation Plan') return { first: () => ({ json: gplan() }) };
+    if (n === 'Previous graduation') return { first: () => ({ json: prev }) };
+    const v = { 'Graduation Ops': gsent, 'GHL: Graduation Apply': [{}, {}, {}], 'Close Gate': [{ close: true, failed: [] }], 'GHL: Close Screener Opp': [closeRes] }[n];
+    return { all: () => v.map(json => ({ json })) };
+  })[0].json;
+  const first = glf({}, { error: { message: '500' } });
+  ok(first.ok === false && first.first_failed_at === first.at, 'first failure: first_failed_at = now');
+  ok(glf({ ok: false, first_failed_at: '2026-09-20T00:00:00.000Z' }, { error: { message: '500' } }).first_failed_at === '2026-09-20T00:00:00.000Z', 'a retry that fails again keeps the FIRST failure time (codex: at is refreshed every retry)');
+  ok(glf({ ok: false, first_failed_at: '2026-09-20T00:00:00.000Z' }, {}).first_failed_at === '', 'a graduation that finally succeeds clears it');
+  ok(JSON.stringify(conn(gradWf, 'When Called (graduate)')) === '[["Previous graduation"]]' && JSON.stringify(conn(gradWf, 'Previous graduation')) === '[["GHL: Get Contact"]]', 'Graduate reads its previous row first'); }
+const GRADCOLS = ['grad_key','contact_id','screener_opp_id','kevin_opp_id','kevin_pipeline','created_new','pt_block','action','ok','reason','at','first_failed_at'];
 ok(JSON.stringify(Object.keys(gl).sort()) === JSON.stringify(GRADCOLS.slice().sort()), 'Log Graduation fields == screener_graduations columns');
 ok(sweepWf.nodes.find(n => n.name === 'Screener: Graduate').parameters.workflowId.value === require('../workflows/screener/build/ids.json').graduate, 'the sweep calls Screener: Graduate');
 
 console.log('=== 12) Screener log in Supabase (item 7a) ===');
 const SQL = fs.readFileSync(path.join(__dirname, '../supabase/screener_log.sql'), 'utf8');
 const SQLCOLS = (SQL.match(/create table if not exists public\.screener_log \(([\s\S]*?)\n\);/) || [, ''])[1]
-  .split('\n').map(l => (l.trim().match(/^([a-z_]+)\s+(text|timestamptz|integer|numeric|boolean)/) || [])[1]).filter(Boolean);
-ok(SQLCOLS.length === 23 && SQLCOLS.includes('event_key') && SQLCOLS.includes('match'), 'SQL file parsed: 23 screener_log columns');
+  .split('\n').map(l => (l.trim().match(/^([a-z_]+)\s+(text|timestamptz|integer|bigint|numeric|boolean)/) || [])[1]).filter(Boolean);
+ok(SQLCOLS.length === 24 && SQLCOLS.includes('event_key') && SQLCOLS.includes('match') && SQLCOLS.includes('decided_ms'), 'SQL file parsed: 24 screener_log columns');
 const EVENTS = (SQL.match(/event in \(([^)]*)\)/) || [, ''])[1].split(',').map(x => x.trim().replace(/'/g, ''));
 const cmpWf = wf('Screener Compare Step.json'), ctrWf = wf('Screener Attempt Counter.json');
 [[cmpWf, 'Report', 'Find call row'], [ctrWf, 'Store: screener_attempts (upsert on event_key)', 'Build Log Row']].forEach(([w, from, next]) => {
   ok(JSON.stringify(conn(w, from)) === JSON.stringify([[next]]), w.name + ': ' + from + ' -> ' + next);
-  ok(JSON.stringify(conn(w, 'Log it?')) === '[["Supabase: screener_log"],["Return"]]' && JSON.stringify(conn(w, 'Supabase: screener_log')) === '[["Return"]]'
-     && !w.connections['Return'], w.name + ': log it -> Supabase -> Return; Return is the last node');
+  ok(JSON.stringify(conn(w, 'Log it?')) === '[["Supabase: screener_log"],["Return"]]' && JSON.stringify(conn(w, 'Supabase: screener_log')) === '[["Log write failed?"]]'
+     && JSON.stringify(conn(w, 'Log write failed?')) === '[["Queue Pending Log"],["Return"]]' && JSON.stringify(conn(w, 'Queue Pending Log')) === '[["Store: screener_log_pending"]]'
+     && JSON.stringify(conn(w, 'Store: screener_log_pending')) === '[["Return"]]' && !w.connections['Return'],
+     w.name + ': log it -> Supabase -> (failed -> queue) -> Return; Return is the last node');
   const up = w.nodes.find(n => n.name === 'Supabase: screener_log');
-  ok(up.onError === 'continueRegularOutput' && up.parameters.nodeCredentialType === 'supabaseApi' && /\/rest\/v1\/screener_log\?on_conflict=event_key$/.test(up.parameters.url)
-     && up.parameters.headerParameters.parameters.some(h => h.name === 'Prefer' && h.value.includes('resolution=merge-duplicates')),
-     w.name + ': upsert on event_key, a Supabase failure never fails the run');
+  ok(up.onError === 'continueRegularOutput' && up.parameters.nodeCredentialType === 'supabaseApi' && /\/rest\/v1\/rpc\/screener_log_upsert$/.test(up.parameters.url)
+     && up.parameters.jsonBody.includes('r: $json.row'), w.name + ': writes only through the versioned screener_log_upsert; a failure never fails the run');
+  ok(w.nodes.find(n => n.name === 'Store: screener_log_pending').parameters.dataTableId.value === 'qKv7RxgTDsqb1plo', w.name + ': a failed write is queued in screener_log_pending');
   const RET = codeOf(w, 'Return');
   const back = new Function('$json', '$', RET)({}, n => { if (n !== from) throw new Error('wrong node ' + n); return { all: () => [{ json: { ok: true, result: 'Owner Verified' }, pairedItem: { item: 0 } }] }; });
   ok(back.length === 1 && back[0].json.ok === true && back[0].json.result === 'Owner Verified', w.name + ': Return hands back the ' + from + ' output unchanged');
@@ -836,6 +850,186 @@ ok(Object.keys(sla.row).every(k => SQLCOLS.includes(k)) && ['no-answer', 'voicem
 ok(lar({}, { contact: { id: 'C1', tags: ['plumber'] } }).log === false, 'not a screening lead: not logged');
 ok(lar({}, { error: { message: '502' } }).log === false, 'contact unreadable: not logged');
 ok(lar({ event: 'bad-number', result_stage: 'Disqualified' }).row.result_stage === 'Disqualified', 'bad number -> Disqualified row');
+
+console.log('=== 13) Screener log: versioning + pending retry (codex review 2026-09-25) ===');
+ok(/screener_log_upsert\(r jsonb\)/.test(SQL) && /when excluded\.decided_ms >= t\.decided_ms then excluded\.match else t\.match/.test(SQL)
+   && /transcript\s+= coalesce\(excluded\.transcript, t\.transcript\)/.test(SQL) && /revoke execute on function public\.screener_log_upsert\(jsonb\) from public, anon, authenticated/.test(SQL),
+   'SQL: decision replaced only by a same-or-later read; facts never blanked; only service_role may call it');
+const DEC = codeOf(cmpWf, 'Decide');
+ok(/\$\('Stamp Read'\)\.first\(\)\.json\.read_ms/.test(DEC) && /ops: \[\], read_ms/.test(DEC), 'Decide versions its decision with the Stamp Read time, on every outcome');
+{ const STR = codeOf(cmpWf, 'Stamp Read');
+  const t0 = Date.now(), st = new Function('$json', '$input', '$', STR)({}, { all: () => [{ json: { contact: { id: 'C1' } } }] }, () => null)[0].json;
+  ok(st.contact.id === 'C1' && st.read_ms >= t0 && st.read_ms <= Date.now(), 'Stamp Read passes the contact through and stamps the moment the read returned');
+  const dSt = run(DEC, {}, { 'When Called by Screener': item({ contact_id: 'C1', verdict_json: '' }), 'GHL: Get Contact': item({ contact: { id: 'C1', tags: [], customFields: [] } }),
+    'GHL: Find Screener Opp': item({ opportunities: [] }), 'Stamp Read': item({ read_ms: 4242 }) });
+  ok(dSt.read_ms === 4242, 'Decide uses the stamp, not its own later clock (codex: a slow opp search must not make an older snapshot look newer)'); }
+slr = lcr({ plan: { read_ms: 1234 } });
+ok(slr.row.decided_ms === 1234, 'call row carries the decision version (Decide read_ms)');
+ok(typeof lar({}).row.decided_ms === 'number', 'dial row carries a version too');
+const QR = codeOf(cmpWf, 'Queue Pending Log');
+const qr = new Function('$json', '$input', '$', QR)({}, { first: () => ({ json: { error: { message: '503 Service Unavailable' } } }) },
+  n => { if (n === 'Build Log Row') return { first: () => ({ json: { row: { event_key: 'call:C1', decided_ms: 77, match: true } } }) }; throw new Error('no ' + n); })[0].json;
+ok(qr.pending_key === 'call:C1@77' && qr.event_key === 'call:C1' && JSON.parse(qr.row_json).match === true && qr.error.includes('503'),
+   'failed write: the exact payload is queued, one pending row per version');
+const lrWf = wf('Screener Log Retry.json');
+ok(JSON.stringify(conn(lrWf, 'Every 15 minutes')) === '[["Get pending log rows"]]' && JSON.stringify(conn(lrWf, 'Supabase: replay screener_log')) === '[["Replayed OK"]]'
+   && JSON.stringify(conn(lrWf, 'Replayed OK')) === '[["Delete replayed row"]]', 'Log Retry: pending -> replay -> delete only what succeeded');
+ok(!lrWf.nodes.some(n => /leadconnectorhq/.test(JSON.stringify(n.parameters))), 'Log Retry never calls GHL');
+ok(/\/rest\/v1\/rpc\/screener_log_upsert$/.test(lrWf.nodes.find(n => n.name === 'Supabase: replay screener_log').parameters.url), 'Log Retry replays through the versioned upsert');
+const LRP = codeOf(lrWf, 'Pick replays');
+const picks = new Function('$json', '$input', '$', LRP)({}, { all: () => [ { id: 1, pending_key: 'k1', row_json: '{"event_key":"call:C1"}' }, { id: 2, pending_key: 'k2', row_json: 'not json' }, {} ].map(json => ({ json })) }, () => null).map(i => i.json);
+ok(picks.length === 1 && picks[0].id === 1 && picks[0].body.r.event_key === 'call:C1', 'unreadable pending rows are left for a human, not replayed');
+const LOK = codeOf(lrWf, 'Replayed OK');
+const oks = new Function('$json', '$input', '$', LOK)({}, { all: () => [ {}, { error: { message: '500' } } ].map(json => ({ json })) },
+  n => ({ all: () => [ { id: 1, pending_key: 'k1' }, { id: 2, pending_key: 'k2' } ].map(json => ({ json })) })).map(i => i.json);
+ok(oks.length === 1 && oks[0].id === 1, 'only a successful replay is removed from the queue');
+
+console.log('=== 14) Daily Sweep (item 7b: 14-day expiry, re-screen, daily summary) ===');
+const dsWf = wf('Screener Daily Sweep.json');
+const SCRP = 'CvDwpavqkHSRhg5Bn3L4', KEVC = '9E6y34DlG1Imr8FV42RV', MANR = 'OOu5TjgalfGZElEIoSbq';
+const STG = { a1: '7ff9193f-1e0a-4c93-9626-a6aab22b666b', ov: 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f', gk: 'f83777fa-1dc0-4163-aa84-ef501126d82b',
+  ns: '0c160182-e74d-4ace-9d3b-c4404043ef4b', ex: 'c1db8172-84bf-45a1-8f0e-5625157574a5', dq: '65f9e1b4-8688-456d-845e-ebe0781101b9' };
+const DSET = { dry_run: false, max_contacts: 50, stale_days: 14, screener_user_id: '', now_ms: Date.parse('2026-09-25T12:00:00Z'), today_pt: '2026-09-25' };
+const SD = codeOf(dsWf, 'Decide');
+const sweep = ({ tags = ['screening'], date = '', opps = [], dnd = false, settings = {}, contact } = {}) => run(SD, {}, {
+  'Settings': item(Object.assign({}, DSET, settings)),
+  'One contact': item({ contact_id: 'C1' }),
+  'GHL: Get Contact': item(contact !== undefined ? contact : { contact: { id: 'C1', companyName: 'Happy Plumbing', dnd, tags,
+    customFields: date ? [ { id: 'MUkHW8R17PIksrSnpz6g', value: date } ] : [] } }),
+  'GHL: All Opps for Contact': item({ opportunities: opps })
+});
+const sopp = (stage, status = 'open', extra = {}) => Object.assign({ id: 'S1', pipelineId: SCRP, pipelineStageId: stage, status, updatedAt: '2026-09-20T00:00:00Z' }, extra);
+const kopp = (status = 'open', pipe = KEVC) => ({ id: 'K1', pipelineId: pipe, pipelineStageId: 'x', status });
+const d14labels = d => d.ops.map(o => o.label);
+let d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11', 'screen-busy'], date: '2026-09-05', opps: [sopp(STG.ov, 'won'), kopp()] });
+ok(d14sw.action === 'expire' && d14sw.ops[0].method === 'DELETE' && JSON.stringify(d14sw.ops[0].body.tags) === '["owner-confirmed","screened-pt-10-11"]'
+   && d14sw.ops.some(o => o.url.endsWith('/opportunities/K1/followers') && o.body.followers.length === 10), 'graduated owner, 20 days, Kevin opp open: drops out of the hour lists (tags + block followers off Kevin opp)');
+ok(!d14sw.ops.some(o => /screening|Attempt 1/.test(o.label)) && /re-screen trap/.test(d14sw.reason), '... but is NOT re-screened: Kevin still has the lead (re-screen trap)');
+ok(sweep({ tags: ['owner-confirmed', 'screened-pt-10-11'], date: '2026-09-15', opps: [sopp(STG.ov, 'won'), kopp()] }).action === 'none', 'owner screened 10 days ago: untouched');
+ok(sweep({ tags: ['owner-confirmed'], date: '2026-09-11', opps: [sopp(STG.ov, 'won'), kopp()] }).action === 'none'
+   && sweep({ tags: ['owner-confirmed'], date: '2026-09-10', opps: [sopp(STG.ov, 'won'), kopp()] }).action === 'expire', '14 days old: kept; 15 days: expired');
+d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11', 'screen-busy'], date: '2026-09-05', opps: [sopp(STG.ov, 'won'), kopp('lost')] });
+ok(d14sw.action === 'expire+rescreen', 'graduated owner whose Kevin opp closed: expired AND re-screened');
+const d14clear = d14sw.ops.find(o => o.label === 'clear screener fields');
+ok(d14clear && d14clear.body.customFields.length === 5 && d14clear.body.customFields.every(f => f.value === '') && d14labels(d14sw).indexOf('clear screener fields') < d14labels(d14sw).indexOf('screener opp -> Attempt 1 (open)'),
+   're-screen clears the five screener fields (mark, verdict, attempts, date, noise) before the stage moves');
+ok(JSON.stringify(d14sw.ops.find(o => o.label === 'remove result tags').body.tags) === '["screen-busy"]' && d14sw.ops.some(o => o.label === 'add screening tag')
+   && d14sw.ops.find(o => o.label === 'screener opp -> Attempt 1 (open)').body.status === 'open' && d14sw.ops.find(o => o.label === 'screener opp -> Attempt 1 (open)').body.pipelineStageId === STG.a1,
+   're-screen: leftover result tags off (hour tags already gone), screening on, won screener opp reopened in Attempt 1');
+ok(d14sw.ops.some(o => o.label === 'remove block followers (screener opp)'), 'a reopened screener opp gets its block followers cleared too');
+d14sw = sweep({ tags: ['screening', 'screen-mismatch'], date: '2026-09-01', opps: [sopp(STG.gk)] });
+ok(d14sw.action === 'rescreen' && !d14sw.ops.some(o => o.label === 'add screening tag') && JSON.stringify(d14sw.ops.find(o => o.label === 'remove result tags').body.tags) === '["screen-mismatch"]', 'Gatekeeper 24 days: re-screened (screening already on)');
+ok(sweep({ tags: ['screening'], date: '2026-09-15', opps: [sopp(STG.ns)] }).action === 'none', 'Not Sure 10 days: untouched');
+ok(sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.ns)] }).action === 'rescreen', 'Not Sure 24 days: re-screened');
+ok(sweep({ opps: [sopp(STG.ex, 'open', { lastStageChangeAt: '2026-09-05T00:00:00Z' })] }).action === 'rescreen'
+   && sweep({ opps: [sopp(STG.ex, 'open', { lastStageChangeAt: '2026-09-20T00:00:00Z' })] }).action === 'none', 'Exhausted: re-screened after 14 days in the stage, not before');
+ok(sweep({ tags: ['screening'], date: '2026-08-01', opps: [sopp(STG.dq)] }).action === 'none', 'Disqualified: never re-screened');
+ok(sweep({ tags: ['screening'], date: '2026-08-01', opps: [sopp(STG.a1)] }).action === 'none', 'Attempt stages: never touched');
+d14sw = sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.gk), kopp('open', MANR)] });
+ok(d14sw.action === 'none' && /re-screen trap/.test(d14sw.reason), 'an open Manual Review opp also blocks the re-screen');
+ok(/DND/.test(sweep({ tags: ['screening'], date: '2026-09-01', dnd: true, opps: [sopp(STG.gk)] }).reason), 'DND contact: never re-screened');
+ok(sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.gk)], settings: { screener_user_id: 'TOPU' } }).ops.find(o => o.label === 'clear screener fields').body.assignedTo === 'TOPU'
+   && /no screener assigned/.test(sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.gk)] }).reason), 're-screen assigns the screener when set, else says so');
+ok(sweep({ contact: { error: { message: '502' } } }).action === 'error', 'unreadable contact: error, nothing written');
+ok(/without a Date Screened/.test(sweep({ tags: ['owner-confirmed'], opps: [kopp()] }).reason), 'owner-confirmed with no Date Screened: left alone and reported');
+d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11'], date: '2026-09-01', opps: [sopp(STG.ov, 'won'), kopp('lost')] });
+ok(d14sw.ops.every(o => /\/contacts\/C1(\/tags)?$/.test(o.url) || /\/opportunities\/(S1|K1)(\/followers)?$/.test(o.url)), 'every request targets this contact or its own opportunities');
+d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11'], date: '2026-09-01', opps: [kopp(), { id: 'D1', pipelineId: 'futfMtQJ6DAxZbRoH9xx', status: 'open' }] });
+ok(!d14sw.ops.some(o => o.url.includes('/opportunities/D1')) && d14sw.ops.some(o => o.url.includes('/opportunities/K1/followers')), 'block followers come off screener and Kevin opps only, never an unrelated pipeline (found live: the demo opp)');
+
+const SPL = codeOf(dsWf, 'Plan Sweep');
+const planOf = (decs, settings = {}) => new Function('$json', '$input', '$', SPL)({}, { all: () => decs.map(json => ({ json })) },
+  n => ({ first: () => ({ json: Object.assign({}, DSET, settings) }) }))[0].json;
+const d14dec = (id, n) => ({ contact_id: id, company: id, action: 'rescreen', reason: '', ops: Array.from({ length: n }, (_, i) => ({ label: 'op' + i, method: 'PUT', url: 'u', body: {} })) });
+let d14pl = planOf([d14dec('A', 2), d14dec('B', 3), { contact_id: 'C', action: 'none', reason: 'x', ops: [] }], { max_contacts: 1 });
+ok(d14pl.planned.length === 1 && d14pl.planned[0].contact_id === 'A' && d14pl.ops.length === 2 && d14pl.ops[0].contact_id === 'A' && JSON.stringify(d14pl.deferred) === '["B"]', 'at most MAX_CONTACTS changed per run; the rest are deferred and reported');
+d14pl = planOf([d14dec('A', 2)], { dry_run: true });
+ok(d14pl.dry_run === true && d14pl.ops.length === 0 && d14pl.planned.length === 1, 'dry run: planned and reported, nothing sent');
+
+const SCA = codeOf(dsWf, 'Candidates');
+const candOf = (contacts, opps) => new Function('$json', '$input', '$', SCA)({}, {}, n => {
+  if (n === 'GHL: owner-confirmed contacts') return { first: () => ({ json: contacts }) };
+  if (n === 'Stale searches') return { all: () => ['Gatekeeper', 'Not Sure', 'Exhausted', 'graduated'].map(label => ({ json: { label } })) };
+  if (n === 'GHL: screener opps') return { all: () => opps.map(json => ({ json })) };
+})[0].json;
+let d14cd = candOf({ contacts: [ { id: 'A' }, { id: 'B' } ] }, [ { opportunities: [ { contactId: 'B' }, { contactId: 'C' } ] }, { error: { message: '500' } }, { opportunities: [] }, { opportunities: [] } ]);
+ok(JSON.stringify(d14cd.contact_ids) === '["A","B","C"]' && JSON.stringify(d14cd.sources.B) === '["owner-confirmed","Gatekeeper"]' && d14cd.search_errors[0].startsWith('Not Sure'), 'candidates: deduped across searches; a failed search is reported');
+d14cd = candOf({ contacts: Array.from({ length: 100 }, (_, i) => ({ id: 'X' + i })) }, [ {}, {}, {}, {} ]);
+ok(d14cd.truncated.includes('owner-confirmed'), 'a full page (100) is reported as truncated');
+
+const SRP = codeOf(dsWf, 'Sweep Report');
+const repOf = (plan, sent, res) => new Function('$json', '$input', '$', SRP)({}, {}, n => {
+  const v = { 'Settings': [DSET], 'Candidates': [{ contact_ids: ['A', 'B'], search_errors: [], truncated: [] }], 'Plan Sweep': plan && [plan], 'Split Sweep Ops': sent, 'GHL: Sweep Apply': res }[n];
+  if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+})[0].json;
+let d14rp = repOf({ dry_run: false, planned: [ { contact_id: 'A', action: 'expire' }, { contact_id: 'B', action: 'rescreen' } ], deferred: [], blocked: [], errors: [] },
+  [ { contact_id: 'A', label: 'x' }, { contact_id: 'B', label: 'y' } ], [ {}, { error: { message: '500' } } ]);
+ok(d14rp.expired.length === 1 && d14rp.rescreened.length === 0 && d14rp.failed.length === 1 && d14rp.failed[0].startsWith('B y: 500'), 'report: a contact with a failed request is listed as failed, not done');
+ok(repOf(null, null, null).candidates === 2 && repOf(null, null, null).expired.length === 0, 'report works when no contact needed anything');
+ok(new Function('$json', '$input', '$', SRP)({}, {}, n => { if (n === 'Settings') return { all: () => [{ json: Object.assign({}, DSET, { dry_run: true }) }] }; throw new Error('unexecuted'); })[0].json.dry_run === true, 'a dry run with no candidates still says dry run (read from Settings)');
+
+const SSB = codeOf(dsWf, 'Build Summary');
+const sumOf = ({ rep = {}, counts = [], d24 = { calls: 3, compared: 2, matched: 1, owners: 1, no_answers: 5, voicemails: 1, bad_numbers: 0 }, wb = [], grads = [], pend = [] } = {}) => {
+  const stages = ['Attempt 1', 'Attempt 2', 'Attempt 3', 'Attempt 4', 'Owner Verified', 'Gatekeeper', 'Not Sure', 'Exhausted', 'Disqualified'];
+  const m = { 'Sweep Report': [Object.assign({ expired: [], rescreened: [], blocked: [], deferred: [], failed: [], errors: [], search_errors: [], truncated: [] }, rep)],
+    'Stage count searches': stages.map(name => ({ name })), 'GHL: stage counts': stages.map((_, i) => ({ meta: { total: counts[i] != null ? counts[i] : 3 } })),
+    'Supabase: last 24h': [d24], 'Failed write-backs': wb, 'Failed graduations': grads, 'Pending log writes': pend };
+  return new Function('$json', '$input', '$', SSB)({}, {}, n => ({ all: () => (m[n] || []).map(json => ({ json })) }))[0].json;
+};
+let d14sm = sumOf();
+ok(/Attempt 1 3/.test(d14sm.text) && /3 answered calls/.test(d14sm.text) && /match 1\/2 \(50%\)/.test(d14sm.text) && /nothing :white_check_mark:/.test(d14sm.text) && d14sm.needs_human === false, 'summary: stage counts, last 24 h with match rate, all d14clear');
+ok(/Attempt 1 is empty/.test(sumOf({ counts: [0] }).text), 'empty Attempt 1 -> "load the next set" (spec: a signal, not a failure)');
+const d14old = new Date(Date.now() - 3 * 86400000).toISOString(), d14fresh = new Date().toISOString();
+d14sm = sumOf({ wb: [ { id: 1, contact_id: 'C9', contact_name: 'Old Plumbing', received_at: d14old }, { id: 2, contact_id: 'C8', received_at: d14fresh } ], grads: [ { id: 3, contact_id: 'C7', reason: 'x', at: d14old } ], pend: [ { id: 4 } ] });
+ok(d14sm.needs_human && /1 GHL write-backs failing for 48 h\+: Old Plumbing/.test(d14sm.text) && /1 graduations failing/.test(d14sm.text) && /1 Supabase log writes pending/.test(d14sm.text),
+   'needs a human: write-backs failing 48 h+ (not d14fresh ones), stuck graduations, pending log writes');
+ok(/dry run/.test(sumOf({ rep: { dry_run: true } }).text) && /Supabase not readable/.test(sumOf({ d24: { error: { message: '401' } } }).text), 'dry runs and an unreadable Supabase are said out loud');
+ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred/.test(sumOf({ rep: { deferred: ['X'] } }).text), 'blocked and deferred leads are counted');
+
+{ // half-failed sweeps (codex review): saved, replayed, or dropped when the lead moved since
+  const planP = (decs, pend) => new Function('$json', '$input', '$', SPL)({}, { all: () => decs.map(json => ({ json })) },
+    n => n === 'Settings' ? { first: () => ({ json: DSET }) } : { all: () => (pend || []).map(json => ({ json })) })[0].json;
+  const P = { contact_id: 'P1', ops_json: JSON.stringify([{ label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'u', body: {} }]), error: 'x: 500', queued_at: '2026-09-24T12:00:00.000Z', first_failed_at: '2026-09-24T12:00:00.000Z' };
+  let pp = planP([{ contact_id: 'P1', company: 'P', action: 'none', reason: '', ops: [], scr_stage_changed_at: '2026-09-20T00:00:00.000Z' }], [P]);
+  ok(pp.planned.length === 1 && pp.planned[0].action === 'retry' && pp.ops.length === 1 && pp.ops[0].contact_id === 'P1', 'half-failed re-screen (Date Screened already cleared, so nothing new is planned): the saved writes are replayed');
+  pp = planP([{ contact_id: 'P1', company: 'P', action: 'none', reason: '', ops: [], scr_stage_changed_at: '2026-09-24T18:00:00.000Z' }], [P]);
+  ok(pp.planned.length === 0 && pp.superseded.length === 1, 'the lead moved after the failure (a newer call/dial): not replayed, reported');
+  pp = planP([{ contact_id: 'P1', company: 'P', action: 'rescreen', reason: '', ops: [{ label: 'fresh', method: 'PUT', url: 'u', body: {} }] }], [P]);
+  ok(pp.ops.length === 1 && pp.ops[0].label === 'fresh', 'if the lead still needs work, the fresh plan wins over the saved writes');
+  const CDP = codeOf(dsWf, 'Candidates');
+  const cdp = new Function('$json', '$input', '$', CDP)({}, {}, n => {
+    if (n === 'GHL: owner-confirmed contacts') return { first: () => ({ json: { contacts: [] } }) };
+    if (n === 'Stale searches' || n === 'GHL: screener opps') return { all: () => [] };
+    if (n === 'Pending sweeps') return { all: () => [{ json: { contact_id: 'P1' } }] };
+  })[0].json;
+  ok(JSON.stringify(cdp.contact_ids) === '["P1"]', 'a pending contact is always re-read, whatever stage it is in now');
+  const repP = (plan, sent, res, pend, settings = {}) => new Function('$json', '$input', '$', SRP)({}, {}, n => {
+    const v = { 'Settings': [Object.assign({}, DSET, settings)], 'Candidates': [{ contact_ids: ['A', 'P1'] }], 'Plan Sweep': [plan], 'Split Sweep Ops': sent, 'GHL: Sweep Apply': res, 'Pending sweeps': pend }[n];
+    if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+  })[0].json;
+  const PL = { planned: [ { contact_id: 'A', action: 'rescreen' }, { contact_id: 'P1', action: 'retry' } ], deferred: [], blocked: [], errors: [], superseded: [] };
+  const SENT = [ { contact_id: 'A', label: 'clear screener fields', method: 'PUT', url: 'ua', body: {} }, { contact_id: 'A', label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'ub', body: {} }, { contact_id: 'P1', label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'uc', body: {} } ];
+  let rpp = repP(PL, SENT, [ {}, { error: { message: '500' } }, {} ], [P]);
+  ok(rpp.pending_save.length === 1 && rpp.pending_save[0].contact_id === 'A' && JSON.parse(rpp.pending_save[0].ops_json).length === 2 && /Attempt 1/.test(rpp.pending_save[0].error),
+     'codex case: fields cleared but the stage move failed -> the contact is saved with ALL its writes for the next run');
+  ok(JSON.stringify(rpp.pending_clear) === '["P1"]' && rpp.retried.length === 1, 'a replayed contact that now succeeded leaves the pending table');
+  rpp = repP(PL, SENT, [ {}, { error: { message: '500' } }, { error: { message: '503' } } ], [P]);
+  ok(rpp.pending_save.find(p => p.contact_id === 'P1').first_failed_at === P.first_failed_at && !rpp.pending_clear.includes('P1'), 'failing again keeps the first failure time');
+  ok(repP(PL, [], [], [P], { dry_run: true }).pending_save.length === 0 && repP(PL, [], [], [P], { dry_run: true }).pending_clear.length === 0, 'a dry run never touches the pending table');
+  const PCH = codeOf(dsWf, 'Pending sweep changes');
+  const ch = new Function('$json', '$input', '$', PCH)({}, { first: () => ({ json: { pending_save: [{ contact_id: 'A' }], pending_clear: ['P1'] } }) }, () => null).map(i => i.json);
+  ok(ch.length === 2 && ch[0].op === 'save' && ch[1].op === 'clear' && ch[1].contact_id === 'P1', 'pending changes: one save item, one clear item');
+  const sm2 = sumOf({ rep: { pending_save: [{ contact_id: 'A', error: 'x: 500' }], superseded: [{ company: 'Moved Co' }], retried: [{}] } });
+  ok(sm2.needs_human && /half changed by the sweep/.test(sm2.text) && /Moved Co/.test(sm2.text) && /1 earlier half-done sweeps finished/.test(sm2.text), 'summary: half-done sweeps, superseded leads, and finished retries are reported');
+  const old2 = new Date(Date.now() - 3 * 86400000).toISOString(), recent2 = new Date().toISOString();
+  ok(/1 graduations failing/.test(sumOf({ grads: [ { id: 1, contact_id: 'G1', reason: 'x', at: recent2, first_failed_at: old2 } ] }).text), 'a graduation failing for 3 days is flagged even though its last retry was just now (codex)');
+}
+ok(JSON.stringify(conn(dsWf, 'Any candidates?')) === '[["One contact"],["Sweep Report"]]' && JSON.stringify(conn(dsWf, 'Write to GHL?')) === '[["Split Sweep Ops"],["Sweep Report"]]'
+   && JSON.stringify(conn(dsWf, 'Sweep Report')) === '[["Pending sweep changes","Stage count searches"]]' && JSON.stringify(conn(dsWf, 'Build Summary')) === '[["Slack: daily summary"]]'
+   && JSON.stringify(conn(dsWf, 'Save or clear?')) === '[["Save pending sweep"],["Clear pending sweep"]]' && JSON.stringify(conn(dsWf, 'GHL: screener opps')) === '[["Pending sweeps"]]',
+   'wiring: no candidates / dry run both still reach the report and the Slack summary');
+ok(['Supabase: last 24h', 'Failed write-backs', 'Failed graduations', 'Pending log writes'].every(n => dsWf.nodes.find(x => x.name === n).executeOnce === true), 'the summary reads run once, not once per stage');
+ok(/create or replace view public\.screener_last_24h/.test(SQL), 'SQL: screener_last_24h view defined');
 
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

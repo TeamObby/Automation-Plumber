@@ -4,7 +4,7 @@ const IDS = require('./ids.json');
 const GHL_AUTH = `authentication: 'predefinedCredentialType', nodeCredentialType: 'httpMultipleHeadersAuth'`;
 const GHL_CRED = `credentials: { httpMultipleHeadersAuth: { id: 'DtotRKnzjDewbSsv', name: 'GHL [ Waterline Growth subaccount ] Multiple Headers Auth account' } }`;
 const GRAD = `{ __rl: true, mode: 'id', value: '1iX0aTvMYawwyH4H', cachedResultName: 'screener_graduations' }`;
-const COLS = [['grad_key','string'],['contact_id','string'],['screener_opp_id','string'],['kevin_opp_id','string'],['kevin_pipeline','string'],['created_new','boolean'],['pt_block','string'],['action','string'],['ok','boolean'],['reason','string'],['at','string']];
+const COLS = [['grad_key','string'],['contact_id','string'],['screener_opp_id','string'],['kevin_opp_id','string'],['kevin_pipeline','string'],['created_new','boolean'],['pt_block','string'],['action','string'],['ok','boolean'],['reason','string'],['at','string'],['first_failed_at','string']];
 const schema = JSON.stringify(COLS.map(([id,type])=>({id,displayName:id,required:false,defaultMatch:false,display:true,type,readOnly:false,removed:false})));
 const cond = list => `{ options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [ ${list} ], combinator: 'and' }`;
 
@@ -15,6 +15,13 @@ const whenCalled = trigger({
   config: { name: 'When Called (graduate)', position: [0, 300],
     parameters: { inputSource: 'workflowInputs', workflowInputs: { values: [ { name: 'contact_id', type: 'string' }, { name: 'screener_opp_id', type: 'string' } ] } } },
   output: [{ contact_id: 'C1', screener_opp_id: 'O1' }]
+});
+
+const prevRow = node({
+  type: 'n8n-nodes-base.dataTable', version: 1.1,
+  config: { name: 'Previous graduation', position: [112, 500], alwaysOutputData: true, onError: 'continueRegularOutput', parameters: { resource: 'row', operation: 'get', dataTableId: ${GRAD}, matchType: 'allConditions',
+    filters: { conditions: [ { keyName: 'grad_key', condition: 'eq', keyValue: expr("{{ $('When Called (graduate)').first().json.contact_id + ':' + $('When Called (graduate)').first().json.screener_opp_id }}") } ] }, returnAll: false, limit: 1 } },
+  output: [{ id: 1, grad_key: 'C1:O1', ok: false, first_failed_at: '2026-09-24T00:00:00.000Z' }]
 });
 
 const getContact = node({
@@ -99,7 +106,7 @@ const store = node({
 const note = sticky('## Screener: Graduate  (spec §8 · §10.2 item 6)\\nOne Owner Verified lead into Kevin\\u2019s machine: create his opportunity by the Import Contact To New rule (email -> Client Acquisition / New, else Cold Call / Day 1 Call A) or reuse an open one, copy the PT block follower, remove screening + wavv tags, clear the screener as owner. Close Gate closes the screener opportunity only if every one of those writes succeeded; any failure leaves it in Owner Verified for the next sweep. Called only by Screener: Graduate Sweep.', [plan, create, apply, gate, closeOpp], { color: 5 });
 
 export default workflow('screener-graduate', 'Screener: Graduate')
-  .add(whenCalled).to(getContact).to(allOpps).to(plan)
+  .add(whenCalled).to(prevRow).to(getContact).to(allOpps).to(plan)
   .to(isGrad.onTrue(needCreate.onTrue(create.to(ops)).onFalse(ops)).onFalse(logRow))
   .add(ops).to(haveKevin.onTrue(apply.to(gate).to(allOk.onTrue(closeOpp.to(logRow)).onFalse(logRow))).onFalse(logRow))
   .add(logRow).to(store)
