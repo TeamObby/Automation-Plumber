@@ -1,6 +1,8 @@
 // What the sweep did (or would do, on a dry run). Reached from every path, including "no candidates".
 // Also decides the screener_sweep_pending changes: a contact with any failed write is saved with all its
-// writes (replayed next run); a pending contact that is now done, or superseded, is cleared.
+// writes (replayed next run); a pending contact that is now done, superseded, or stopped with nothing left to
+// replay is cleared. A stopped contact whose expiry writes are replayed is cleared only once they succeed (done);
+// deferred by the cap, it stays saved (6th codex review).
 const pick = n => { try { return $(n).all().map(i => i.json); } catch (e) { return null; } };
 const set = (pick('Settings') || [{}])[0] || {};
 const cand = (pick('Candidates') || [{}])[0] || {};
@@ -21,7 +23,7 @@ const pending_save = set.dry_run === true ? [] : [...failedContacts].map(cid => 
     error: x.o.label + ': ' + (x.r ? msg(x.r) : 'no response'), queued_at: now, first_failed_at: (prev && prev.first_failed_at) || now };
 });
 const pending_clear = set.dry_run === true ? [] : [...pending.keys()].filter(cid =>
-  (done.some(d => d.contact_id === cid) || (plan.superseded || []).some(d => d.contact_id === cid) || (plan.stopped || []).some(d => d.contact_id === cid)) && !failedContacts.has(cid));
+  (done.some(d => d.contact_id === cid) || (plan.superseded || []).some(d => d.contact_id === cid) || (plan.stopped || []).some(d => d.contact_id === cid && !d.replayed)) && !failedContacts.has(cid));
 return [{ json: {
   dry_run: set.dry_run === true,
   candidates: (cand.contact_ids || []).length,

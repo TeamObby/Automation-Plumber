@@ -51,6 +51,10 @@ leaving the lead on Kevin's hour board. Decide now tags every write `kind: 'expi
 the kind in `ops_json`, and a blocked replay drops only the `rescreen` writes and still replays the `expire` ones
 (reason "… | expiry writes replayed"). A saved row without kinds counts as re-screen only by the writes a re-screen
 alone makes (clear fields, result tags, `screening`, Attempt 1).
+**Deferred stopped replays (6th codex review, 2026-09-25).** A stopped contact whose expiry writes are still replayed
+is marked `replayed: true`; Sweep Report clears its pending row only through the normal "done" path, i.e. after those
+writes succeeded. If the 50-contact cap defers it (nothing sent), the row stays for the next run; if they fail, it is
+saved again with just the expiry writes. Only a stopped contact with nothing left to replay is cleared at once.
 
 ## What a re-screen writes
 Clear Screener Outcome, Screen AI Verdict, Screen Attempts, Date Screened, Screen Noise (+ `assignedTo` = the
@@ -77,6 +81,8 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
 - Write kinds: offline (§14: the codex repro — expiry with a failed screener-opp follower removal is replayed with an
   open Kevin opp; a mixed plan keeps its expiry writes; an old row without kinds; saved rows keep kinds;
   mutation-checked). Deployed 2026-09-25 and re-pulled.
+- Deferred stopped replays: offline (§14: the codex repro — deferred, nothing sent, row kept; replayed + succeeded →
+  cleared; replayed + failed → saved with only the expiry writes; mutation-checked). Deployed 2026-09-25, re-pulled.
 
 ## TODOs
 - `SCREENER_USER_ID` optional (Topu has normal access). While empty, the summary still warns "no screener

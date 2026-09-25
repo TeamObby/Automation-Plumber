@@ -25,8 +25,10 @@ const all = $input.all().map(i => i.json).map(d => {
   try { ops = JSON.parse(p.ops_json) || []; } catch (e) { ops = []; }
   const guard = d.open_kevin ? 'open opportunity in Kevin pipeline (re-screen trap)' : d.dnd ? 'contact is DND' : '';
   if (guard && ops.some(isRescreen)) {
-    stopped.push({ contact_id: d.contact_id, company: d.company, why: guard });
     const keep = ops.filter(o => !isRescreen(o));
+    // replayed: its expiry writes still have to run, so its pending row may only be cleared once they succeed
+    // (Sweep Report clears it through "done"; if the cap defers it, the row stays) — 6th codex review.
+    stopped.push({ contact_id: d.contact_id, company: d.company, why: guard, replayed: keep.length > 0 });
     const reason = [d.reason, 'not re-screened: ' + guard + ' (earlier half-done re-screen stopped)'].filter(Boolean).join(' | ');
     return keep.length ? Object.assign({}, d, { action: 'retry', reason: reason + ' | expiry writes replayed', ops: keep })
       : Object.assign({}, d, { reason });

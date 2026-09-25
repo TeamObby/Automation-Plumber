@@ -11,7 +11,7 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
 **Mohimenul's n8n items 1–7 are built** (capture + AI verdict, hour block, compare + write-back,
 attempt ladder, graduate, the Supabase screener log, the daily stale sweep + Slack summary) and tested live on
-the test contact, Graduate end to end included; five Codex review rounds on them are fixed. The **three GHL guards
+the test contact, Graduate end to end included; six Codex review rounds on them are fixed. The **three GHL guards
 are live** (2026-09-25); the n8n entry workflows stay **inactive** until the go-live switches. After
 Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
 due to start calling. The critical path is: go-live switches (GHL intake swap, publish `Screener Outcome Changed`,
@@ -147,7 +147,8 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    are saved and finished next run; the log version is stamped at the contact read; stuck graduations use
    `first_failed_at`. Compare Step re-published with the stamp fix. 4th review: a replayed half-done re-screen
    re-checks the guards (open Kevin opp / DND → stopped, reported for a human; expire-only replays still run). 5th review: each
-   sweep write carries its kind, so a blocked replay drops only the re-screen writes and still finishes the expiry. `SCREENER_USER_ID` optional (Topu has normal access).
+   sweep write carries its kind, so a blocked replay drops only the re-screen writes and still finishes the expiry. 6th: such a
+   replay keeps its pending row until the expiry writes actually succeeded (a cap-deferred one is no longer lost). `SCREENER_USER_ID` optional (Topu has normal access).
 5. **Item 8 — accuracy report** on the first real calls. The report can be built now on the `screener_accuracy`
    view and tested with test rows; the real numbers need Topu's calls (after go-live).
 

@@ -1004,7 +1004,7 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
   // codex review: a replay must pass the same re-screen guards as a fresh decision
   const NODATE = { contact_id: 'P1', company: 'P', action: 'none', reason: '', ops: [], scr_stage_changed_at: '2026-09-20T00:00:00.000Z' };
   pp = planP([Object.assign({}, NODATE, { dnd: true })], [P]);
-  ok(pp.ops.length === 0 && pp.stopped.length === 1 && /DND/.test(pp.stopped[0].why) && pp.blocked.length === 1, 'contact now DND: the saved re-screen is NOT replayed; counted as blocked and stopped for a human');
+  ok(pp.ops.length === 0 && pp.stopped.length === 1 && pp.stopped[0].replayed === false && /DND/.test(pp.stopped[0].why) && pp.blocked.length === 1, 'contact now DND: the saved re-screen is NOT replayed; counted as blocked and stopped for a human');
   pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [P]);
   ok(pp.ops.length === 0 && pp.stopped.length === 1 && /re-screen trap/.test(pp.stopped[0].why) && /not re-screened/.test(pp.blocked[0].reason), 'lead now has an open Kevin opp: no screening tag, no Attempt 1 (re-screen trap), reason kept');
   const PEXP = Object.assign({}, P, { ops_json: JSON.stringify([{ label: 'remove hour-block tags', method: 'DELETE', url: 'u', body: {} }, { label: 'remove block followers (Kevin opp)', method: 'DELETE', url: 'k', body: {} }]) });
@@ -1019,7 +1019,7 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
     { kind: 'rescreen', label: 'clear screener fields', method: 'PUT', url: 'c', body: {} }, { kind: 'rescreen', label: 'add screening tag', method: 'POST', url: 'g', body: {} },
     { kind: 'rescreen', label: 'screener opp -> Attempt 1 (open)', method: 'PUT', url: 'a', body: {} }]) });
   pp = planP([Object.assign({}, NODATE, { dnd: true })], [PMIX]);
-  ok(pp.stopped.length === 1 && JSON.stringify(pp.ops.map(o => o.url)) === '["t","s"]' && pp.blocked.length === 1 && /expiry writes replayed/.test(pp.blocked[0].reason),
+  ok(pp.stopped.length === 1 && pp.stopped[0].replayed === true && JSON.stringify(pp.ops.map(o => o.url)) === '["t","s"]' && pp.blocked.length === 1 && /expiry writes replayed/.test(pp.blocked[0].reason),
      'expire+rescreen plan now blocked (DND): the re-screen writes are dropped, the expiry writes still replayed, lead listed for a human');
   const POLD = Object.assign({}, P, { ops_json: JSON.stringify([{ label: 'remove hour-block tags', method: 'DELETE', url: 't', body: {} }, { label: 'remove block followers (screener opp)', method: 'DELETE', url: 's', body: {} }]) });
   pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [POLD]);
@@ -1051,6 +1051,15 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
   ok(rpp.pending_save.find(p => p.contact_id === 'P1').first_failed_at === P.first_failed_at && !rpp.pending_clear.includes('P1'), 'failing again keeps the first failure time');
   const rstop = repP(Object.assign({}, PL, { planned: [], stopped: [ { contact_id: 'P1', company: 'P', why: 'contact is DND' } ] }), [], [], [P]);
   ok(rstop.pending_clear.includes('P1') && rstop.stopped.length === 1, 'a stopped replay leaves the pending table (reported once, not looped daily)');
+  // 6th codex review: a stopped contact whose expiry writes are still to run keeps its pending row until they succeed
+  const rdef = repP(Object.assign({}, PL, { planned: [], deferred: ['P1'], stopped: [ { contact_id: 'P1', company: 'P', why: 'contact is DND', replayed: true } ] }), [], [], [P]);
+  ok(!rdef.pending_clear.includes('P1'), 'codex repro: stopped + expiry writes kept, but deferred by the cap (nothing sent) -> the pending row stays');
+  const rdone = repP(Object.assign({}, PL, { planned: [ { contact_id: 'P1', action: 'retry' } ], stopped: [ { contact_id: 'P1', company: 'P', why: 'contact is DND', replayed: true } ] }),
+    [ { contact_id: 'P1', kind: 'expire', label: 'remove block followers (screener opp)', method: 'DELETE', url: 's', body: {} } ], [ {} ], [P]);
+  ok(rdone.pending_clear.includes('P1'), 'stopped + expiry writes replayed and they succeeded -> cleared');
+  const rfail = repP(Object.assign({}, PL, { planned: [ { contact_id: 'P1', action: 'retry' } ], stopped: [ { contact_id: 'P1', company: 'P', why: 'contact is DND', replayed: true } ] }),
+    [ { contact_id: 'P1', kind: 'expire', label: 'remove block followers (screener opp)', method: 'DELETE', url: 's', body: {} } ], [ { error: { message: '500' } } ], [P]);
+  ok(!rfail.pending_clear.includes('P1') && JSON.parse(rfail.pending_save[0].ops_json).every(o => o.kind === 'expire'), 'stopped + expiry writes failed again -> saved again with only the expiry writes');
   const RK = repP(PL, [ Object.assign({ kind: 'rescreen' }, SENT[0]), Object.assign({ kind: 'rescreen' }, SENT[1]), SENT[2] ], [ {}, { error: { message: '500' } }, {} ], [P]);
   ok(JSON.parse(RK.pending_save[0].ops_json).every(o => o.kind === 'rescreen'), 'saved writes keep their kind for the next replay');
   ok(repP(PL, [], [], [P], { dry_run: true }).pending_save.length === 0 && repP(PL, [], [], [P], { dry_run: true }).pending_clear.length === 0, 'a dry run never touches the pending table');
