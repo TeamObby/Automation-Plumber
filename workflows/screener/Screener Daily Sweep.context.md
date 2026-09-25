@@ -48,7 +48,7 @@ followers off) still run: expiry applies whatever the guards say.
 
 ## What a re-screen writes
 Clear Screener Outcome, Screen AI Verdict, Screen Attempts, Date Screened, Screen Noise (+ `assignedTo` = the
-screener when `SCREENER_USER_ID` is set — **needed: the screener sees Only Assigned Data**) → remove leftover result
+screener when `SCREENER_USER_ID` is set — optional since 2026-09-25: Topu has normal access, not Only Assigned Data) → remove leftover result
 tags → add `screening` → screener opportunity open in **Attempt 1** → block followers off it.
 
 ## Tested
@@ -70,5 +70,6 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
   not run live because a real run (DRY_RUN off) would also sweep any real stale leads.
 
 ## TODOs
-- `SCREENER_USER_ID` = Topu's GHL user once Hridoy creates it.
+- `SCREENER_USER_ID` optional (Topu has normal access). While empty, the summary still warns "no screener
+  assigned" for re-screened leads — drop that warning if nobody wants the assignment.
 - Pagination: each search reads 100; a full page is reported in Slack as truncated.
