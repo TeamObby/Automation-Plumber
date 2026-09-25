@@ -15,7 +15,7 @@ There is no application to build. The system runs in **n8n** (`https://n8n.meeto
 - `docs/ghl-automations.md` — the only record of the GHL side (which GHL workflow fires which n8n webhook).
 - `docs/screener-system-plan.md` — build spec for the screener system (work split Hridoy = GHL/WAVV, Mohimenul = n8n/AI).
 - `metrics/metrics-sheet-setup.gs` — Apps Script that builds the "Plumber Campaign Metrics" sheet.
-- `supabase/*.sql` — Supabase table definitions (run once in the project's SQL editor); the screener's
+- `supabase/*.sql` — Supabase table definitions (`screener_log.sql`, `core_tables.sql`; design in `docs/supabase-design.md`); the screener's
   project URL + n8n credential are in `workflows/screener/build/supabase.json` (`build.sh` warns while empty).
 
 ## Commands

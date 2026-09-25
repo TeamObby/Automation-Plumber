@@ -153,11 +153,19 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    view and tested with test rows; the real numbers need Topu's calls (after go-live).
 
 ### Mohimenul — then the new work from the meeting
-6. **Design the Supabase tables and columns** (Mohimenul decides; Kevin named only the tables: shops with
-   Supabase id ↔ GHL id + tier + set, raw data, transcripts incl. screener calls, call logs).
-7. **Screener → Supabase:** ✅ the Compare Step and the Attempt Counter already write `screener_log` (item 7a).
-   Left: Graduate marks the shop, and screener transcripts go to the transcripts table — both once those
-   tables exist (step 6).
+6. ✅ **Supabase core tables decided and live** (2026-09-25, delegated by Mohimenul; two planners argued it out):
+   `shops`, `shop_raw`, `call_log`, view `transcripts`, and `screener_log` now allows `graduated`. Design, rules and
+   the resolved disagreements: [`supabase-design.md`](supabase-design.md); SQL: `supabase/core_tables.sql`.
+   All empty. Next, in order:
+   a. **Graduate writes the `graduated` event** (key `grad:<contact>:<screener_opp>:<close_ms>`, only when `ok`):
+      add `logNodes`/`logChain` from `build/log_supabase.js` to `gen_graduate.js`, test, deploy, re-publish.
+   b. **GHL backfill → `shops`** (existing `plumber` contacts, match on E.164 phone, `source_batch='ghl-backfill'`),
+      a manual n8n workflow; GHL gets a `Shop ID` field (Hridoy creates it).
+   c. **List import → `shops` + `shop_raw`** once Sample Test 2 / the CSV lands (upsert on `google_place_id`).
+   d. **`call_log` backfill** from the Metrics sheet (CSV), then a Supabase leaf node beside each `Sheet: Log Call`
+      in the 4 Kevin handlers (Kevin's live workflows: confirm first; update `tests/metrics-logging.test.js`).
+   Needs Kevin: Free plan = 500 MB and no backups; project sits in the Waterline side account.
+7. **Screener transcripts → Supabase:** ✅ already there (`screener_log.transcript`, shown in view `transcripts`).
 8. **Check the duplicate automations Kevin's Claude reported** — ✅ the GHL connector is set up here
    (`leadconnector` in `.mcp.json`); the check itself is not done.
 9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /

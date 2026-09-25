@@ -7,7 +7,7 @@
 
 create table if not exists public.screener_log (
   event_key         text primary key,        -- 'call:<call_id>', or the ladder key 'wavv:<id>' / 'na:<contact>:<ms>'
-  event             text not null check (event in ('call', 'no-answer', 'voicemail', 'bad-number')),
+  event             text not null check (event in ('call', 'no-answer', 'voicemail', 'bad-number', 'graduated')),  -- graduated: core_tables.sql
   event_at          timestamptz not null,    -- when the call was answered / the dial happened
   ghl_contact_id    text not null,
   company           text,
