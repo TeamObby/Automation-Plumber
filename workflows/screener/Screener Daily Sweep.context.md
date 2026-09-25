@@ -7,7 +7,7 @@
   (the n8n instance timezone, confirmed from the trigger output), before the screeners' 08:00 PT shift.
 - **Slack:** `#daily-screener-summary`, posted by **Slack [ Obby bot account ]** `QcTNBiXBrnH5rFkC`
   (`build/slack.json`). The node continues on error, so a Slack problem never fails the sweep. First post
-  (123876) got `not_in_channel` — the bot must be invited to the channel.
+  (123876) got `not_in_channel`; after the bot was invited, the summary posted (123877).
 
 ## Decisions (Mohimenul, 2026-09-25)
 - **Stale graduated owner** (Date Screened > 14 days, still in Kevin's pipeline): **drop it from the hour lists** —
@@ -44,6 +44,5 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
   limited to screener + Kevin opportunities (test added), deployed with the Slack settings.
 
 ## TODOs
-- Invite the Obby bot to `#daily-screener-summary`, then re-run once to see the first post.
 - `SCREENER_USER_ID` = Topu's GHL user once Hridoy creates it.
 - Pagination: each search reads 100; a full page is reported in Slack as truncated.
