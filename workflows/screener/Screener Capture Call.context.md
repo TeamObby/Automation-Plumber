@@ -2,8 +2,8 @@
 
 - **n8n ID:** `jQaCWO08lddHg9fN` · **URL:** https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN · **File:** `Screener Capture Call.json`
 - **Folder:** `workflows/screener/`
-- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until Hridoy's four GHL guard branches exist**
-  (spec §1): until then a screener call would still reach Kevin's automations.
+- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
+  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
 - **Trigger:** Webhook POST `/webhook/screener-call` — to be fired by the screener branch of GHL's
   `Call Recorded Trigger` with **the same payload it already builds** (spec §1 table).
 

@@ -1,7 +1,7 @@
 # Screener: Graduate  [spec §8 · §10.2 item 6]
 
 - **n8n ID:** `M2LD6njhVMO9Ol7w` · **URL:** https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w · **File:** `Screener Graduate.json`
-- **Folder:** `workflows/screener/` · built by `build/gen_graduate.js` (+ `src/graduate_decide.js`, `graduate_ops.js`, `graduate_gate.js`, `graduate_log.js`)
+- **Folder:** `workflows/screener/` · built by `build/gen_graduate.js` (+ `src/graduate_decide.js`, `graduate_ops.js`, `graduate_gate.js`, `graduate_log.js`); 17 nodes
 - **Status:** sub-workflow — **publish before go-live** (not published yet). Called only by
   **`Screener: Graduate Sweep`** (`jZAgBUQvffv1NCMC`).
 - **Data table:** `screener_graduations` `1iX0aTvMYawwyH4H` — one row per lead, upserted on every attempt (key `contact_id:screener_opp_id`).
@@ -12,7 +12,7 @@ automations react to what it creates (timezone followers, name routing, the Clie
 workflow) — by design: that is the hand-off.
 
 ## Flow
-When Called → GHL: Get Contact → GHL: All Opps for Contact → **Graduation Plan** → *Graduate?* →
+When Called → **Previous graduation** (its `screener_graduations` row, for `first_failed_at`) → GHL: Get Contact → GHL: All Opps for Contact → **Graduation Plan** → *Graduate?* →
 *New Kevin opp needed?* → (GHL: Create Kevin Opp) → **Graduation Ops** → *Kevin opp exists?* →
 GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Screener Opp) → **Log Graduation** → Store.
 

@@ -21,7 +21,7 @@ const pending_save = set.dry_run === true ? [] : [...failedContacts].map(cid => 
     error: x.o.label + ': ' + (x.r ? msg(x.r) : 'no response'), queued_at: now, first_failed_at: (prev && prev.first_failed_at) || now };
 });
 const pending_clear = set.dry_run === true ? [] : [...pending.keys()].filter(cid =>
-  (done.some(d => d.contact_id === cid) || (plan.superseded || []).some(d => d.contact_id === cid)) && !failedContacts.has(cid));
+  (done.some(d => d.contact_id === cid) || (plan.superseded || []).some(d => d.contact_id === cid) || (plan.stopped || []).some(d => d.contact_id === cid)) && !failedContacts.has(cid));
 return [{ json: {
   dry_run: set.dry_run === true,
   candidates: (cand.contact_ids || []).length,
@@ -30,6 +30,6 @@ return [{ json: {
   expired: done.filter(d => /expire/.test(d.action)),
   rescreened: done.filter(d => /rescreen/.test(d.action)),
   retried: done.filter(d => d.action === 'retry'),
-  blocked: plan.blocked, errors: plan.errors, deferred: plan.deferred, superseded: plan.superseded || [], failed,
+  blocked: plan.blocked, errors: plan.errors, deferred: plan.deferred, superseded: plan.superseded || [], stopped: plan.stopped || [], failed,
   pending_save, pending_clear
 } }];

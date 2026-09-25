@@ -9,12 +9,13 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 ## 1. Where it stands in one paragraph
 
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
-**Mohimenul's n8n items 1–6 are built** (capture + AI verdict, hour block, compare + write-back,
-attempt ladder, graduate) and tested live on the test contact, Graduate end to end included. The **three GHL guards
+**Mohimenul's n8n items 1–7 are built** (capture + AI verdict, hour block, compare + write-back,
+attempt ladder, graduate, the Supabase screener log, the daily stale sweep + Slack summary) and tested live on
+the test contact, Graduate end to end included; four Codex review rounds on them are fixed. The **three GHL guards
 are live** (2026-09-25); the n8n entry workflows stay **inactive** until the go-live switches. After
 Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
-due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, activate
-the entry workflows, publish `Screener Outcome Changed`) → one real test call.
+due to start calling. The critical path is: go-live switches (GHL intake swap, publish `Screener Outcome Changed`,
+publish `Graduate`, activate the entry workflows) → one real test call. Only item 8 (accuracy on real calls) is left on Mohimenul's screener list.
 
 ---
 
@@ -96,7 +97,16 @@ blocks duplicate phone numbers.
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
 `/webhook/screener-disposition`
 
-**Screener log sheet** (2026-09-23, built and empty): "WaterLine — Screener Log"
+**Supabase** (the screener log, item 7a): project **`screener-helper`** `cifgvpqfodglnhywrofy` · org **Waterline**
+`nzuqwkcyipyergddujfw` (separate Supabase account; the MCP is signed in there) · table `screener_log`, write path
+function `screener_log_upsert` (versioned on `decided_ms`), views `screener_accuracy` + `screener_last_24h` —
+definitions in [`supabase/screener_log.sql`](../supabase/screener_log.sql) · n8n credential
+`Supabase [ Waterline screener-helper ]` `oUnRFJd1TMI1LmTd`.
+**n8n data tables:** `screener_calls` `3WK4mrEYwvDeDUVO` · `screener_attempts` `9V6VL0XiKeadY9Lc` ·
+`screener_graduations` `1iX0aTvMYawwyH4H` · `screener_log_pending` `qKv7RxgTDsqb1plo` · `screener_sweep_pending` `J61RThPMfxykZt1N`.
+**Slack:** daily summary → `#daily-screener-summary`, posted by `Slack [ Obby bot account ]` `QcTNBiXBrnH5rFkC`.
+
+**Screener log sheet — superseded by Supabase (not written)** (2026-09-23, built and empty): "WaterLine — Screener Log"
 `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` · tab `screen_log` gid `892532160` · `accuracy` gid
 `604528574` · bound script "Screener Log Setup"
 `1Z3LfH496my3HBQfctuQf1eBuOJayXfk_X9vmlGELSWn6bgI-P3sny2fB` · source
@@ -106,7 +116,7 @@ contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workb
 
 ---
 
-## 3. What is left — plain priority order (updated 2026-09-24, after Kevin's meeting)
+## 3. What is left — plain priority order (updated 2026-09-25)
 
 Kevin's order: **the list first, then the screener**; underneath both, **Supabase becomes the source of
 truth**; rule no. 1 is **simplicity**. No hard dates — work top to bottom. Meeting notes with
@@ -135,20 +145,29 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    closed go back to Attempt 1 (never with an open Kevin opp); Slack summary with stage counts, last 24 h, sweep
    results and what needs a human. Slack: `#daily-screener-summary` (Obby bot, first post 2026-09-25). 3rd codex review fixed: half-failed re-screens
    are saved and finished next run; the log version is stamped at the contact read; stuck graduations use
-   `first_failed_at`. Compare Step re-published with the stamp fix. **Open:** `SCREENER_USER_ID` (Topu) for re-screens.
-5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
+   `first_failed_at`. Compare Step re-published with the stamp fix. 4th review: a replayed half-done re-screen
+   re-checks the guards (open Kevin opp / DND → stopped, reported for a human; expire-only replays still run). `SCREENER_USER_ID` optional (Topu has normal access).
+5. **Item 8 — accuracy report** on the first real calls. The report can be built now on the `screener_accuracy`
+   view and tested with test rows; the real numbers need Topu's calls (after go-live).
 
 ### Mohimenul — then the new work from the meeting
 6. **Design the Supabase tables and columns** (Mohimenul decides; Kevin named only the tables: shops with
    Supabase id ↔ GHL id + tier + set, raw data, transcripts incl. screener calls, call logs).
-7. **Screener → Supabase:** one write from the Compare Step and one from the Attempt Counter; Graduate marks
-   the shop too.
-8. **Connect the team Claude accounts to GoHighLevel**, then check the duplicate automations Kevin's Claude
-   reported (the GHL connector must be authorised; it only attaches at session start).
+7. **Screener → Supabase:** ✅ the Compare Step and the Attempt Counter already write `screener_log` (item 7a).
+   Left: Graduate marks the shop, and screener transcripts go to the transcripts table — both once those
+   tables exist (step 6).
+8. **Check the duplicate automations Kevin's Claude reported** — ✅ the GHL connector is set up here
+   (`leadconnector` in `.mcp.json`); the check itself is not done.
 9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
    MCP connector so Kevin's Claude can read the code.
-10. **Cleanup:** delete the test rows (`screener_calls` `TEST-screener-0001…0011`, and the test-rig rows in
-    `screener_attempts` / `screener_graduations`); rotate the exposed Instantly key.
+10. **Cleanup:** delete the n8n test rows — `screener_calls` `TEST-screener-0001…0011`, the test-rig rows on
+    Dana (`2Z5mwZe5RT4NQdNW85vj`) in `screener_attempts` (2026-09-24/25) and `screener_graduations` (MCP can't
+    delete rows; n8n UI); the Supabase test rows are already deleted. Delete the test posts in
+    `#daily-screener-summary`. Rotate the exposed Instantly key. Tell the Obby product owner about the Supabase
+    RLS warning (AGENTS.md security backlog).
+11. **Git:** PRs #4–#6 (`screener-item-6`) are merged and `screener-item-4` is in `main`. `screener-item-6` now carries
+    only the pre-compact docs pass, the 4th Codex fix and a merge of Hridoy's guard commits: open a PR to `main`
+    (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here).
 
 ### Hridoy (GHL side, and the list)
 - **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
@@ -165,9 +184,12 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 - Email-1 timing for screened leads is parked; Graduate sends leads to Kevin exactly as import does today.
 
 ### Go-live switches (the guards exist)
+First a read-only pre-flight (Mohimenul): published versions = latest drafts, credentials set, webhook paths = the
+guards' targets, Dana clean. Then, with an explicit OK and together with Hridoy:
 GHL: publish `Import Contact To Screener` + unpublish `Import Contact To New`, publish `Screener Outcome Changed`.
 n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
 `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
+`SCREENER_USER_ID` in the Daily Sweep is optional now (Topu has normal access): empty leaves re-screened leads unassigned.
 
 ### People
 - **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.
@@ -190,7 +212,8 @@ n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`,
 - **Freshness is enforced by the n8n sweep, not a filter** — contact filters on a custom field offer
   only *Is / Is not / Is empty / Is not empty*.
 - **Stages mean the call *due*** (same convention as `Day 1 Call A`), so Attempt 1 = never dialled.
-- **Mohimenul's workflows stay inactive until the guards exist.**
+- **Mohimenul's entry workflows stay inactive until go-live** (guards live since 2026-09-25; switch on together
+  with the GHL intake swap).
 
 ---
 

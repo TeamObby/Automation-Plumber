@@ -2,7 +2,7 @@
 
 - **n8n ID:** `3pwiQXC8etTcKf5Z` · **URL:** https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z · **File:** `Screener Compare Step.json`
 - **Folder:** `workflows/screener/` · built from `build/src/decide.js` (+ `split_ops.js`, `report.js`, `log_call_row.js`) by `build/gen_compare.js` (+ `build/log_supabase.js`)
-- **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
+- **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24, last re-published 2026-09-25 (Stamp Read) — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
 - **Sync state (2026-09-25):** snapshot = live. Re-published with **Stamp Read** (3rd codex review); smoke test
@@ -137,7 +137,7 @@ Capture's late `ok` would overwrite it with `true`, and the retry sweep would ne
 ## TODOs / gotchas
 - **`BLOCK_USER`** holds the ten block label-users `PT 06-07` … `PT 15-16` (Hridoy, 2026-09-23;
   deployed 2026-09-24). A block missing from the map still gets its tag; the follower is skipped and noted.
-- The spec's acceptance (20 role-played **WAVV** calls) still needs the guards; the n8n side is proven
+- The spec's acceptance (20 role-played **WAVV** calls) still needs go-live (guards live 2026-09-25, entry workflows still inactive); the n8n side is proven
   on the test rig above. Offline: `tests/screener.test.js` §7–§9.
 - **Recovery:** GHL never re-sends a webhook, so recovery is **`Screener: Write-back Retry`**
   (`IvxTYaChixQOiNzt`): every 15 min it re-runs this step for rows with `writeback_ok = false`.

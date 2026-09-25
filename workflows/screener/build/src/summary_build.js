@@ -34,6 +34,7 @@ if (rs.some(d => /no screener assigned/.test(d.reason || ''))) L.push(':warning:
 
 const human = [];
 if ((rep.pending_save || []).length) human.push(rep.pending_save.length + ' leads half changed by the sweep (writes failed): retried tomorrow — ' + list(rep.pending_save, p => p.contact_id + ' (' + p.error + ')'));
+if ((rep.stopped || []).length) human.push(rep.stopped.length + ' half-done re-screens stopped (lead now has an open Kevin opportunity or is DND) — check by hand: ' + list(rep.stopped, d => (d.company || d.contact_id) + ' (' + d.why + ')'));
 if ((rep.superseded || []).length) human.push(rep.superseded.length + ' leads moved after a half-failed sweep, not replayed — check by hand: ' + list(rep.superseded, d => d.company || d.contact_id));
 if ((rep.errors || []).length) human.push(rep.errors.length + ' contacts not readable: ' + list(rep.errors, d => d.contact_id));
 if ((rep.search_errors || []).length) human.push('searches failed: ' + rep.search_errors.join('; '));

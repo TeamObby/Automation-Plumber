@@ -50,11 +50,14 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **Screener** (`workflows/screener/`) is separate on purpose. It writes GHL only for contacts tagged
   `screening` (stage, tags, followers in its own pipeline); `Screener: Graduate` is the one piece that
   creates opportunities in Kevin's pipelines. Its own state lives in n8n data tables (`screener_calls`,
-  `screener_attempts`, `screener_graduations`); after the 2026-09-24 meeting, Supabase becomes the source
-  of truth: the screener already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`).
-  Keep the entry workflows inactive until the GHL guards exist: `Capture Call`, `Mark + Compare`,
-  `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep`. Sub-workflows published
-  2026-09-24: Classify Transcript, Compare Step, Attempt Counter; `Graduate` still to publish.
+  `screener_attempts`, `screener_graduations`, plus the retry queues `screener_log_pending` and
+  `screener_sweep_pending`); after the 2026-09-24 meeting, Supabase becomes the source of truth: the screener
+  already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`, written only through
+  the versioned function `screener_log_upsert`), and `Screener: Daily Sweep` (item 7b) posts a daily summary
+  to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25); keep the entry workflows inactive until go-live:
+  `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`,
+  `Log Retry`, `Daily Sweep`. Published sub-workflows: Classify Transcript, Compare Step, Attempt Counter
+  (last re-published 2026-09-25); `Graduate` still to publish.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her;
   `ungraduate` undoes a Graduate test (deletes the Kevin opportunity Graduate logged for her).
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
@@ -82,6 +85,20 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
     apostrophes out of generator-level comments; inside `jsCode` strings they are fine.
   - Large tool results are saved to disk under the session's `tool-results/` folder; read them
     with `jq` instead of paging.
+  - The n8n instance runs on **America/Los_Angeles** time (schedule triggers fire in Pacific).
+  - Supabase from n8n: an HTTP Request node with `nodeCredentialType: 'supabaseApi'` works against
+    PostgREST (`/rest/v1/<table>`, `/rest/v1/rpc/<fn>`); a `return=minimal` / void reply comes back as `{}`.
+  - A data-table `deleteRows` returns **no items** even when it deleted the row — check the table, not the output.
+  - GHL `POST /contacts/search` with `{"filters":[{"field":"tags","operator":"contains","value":["<tag>"]}]}`
+    finds contacts by tag (used by the Daily Sweep).
+  - Slack `not_in_channel` = the bot must be invited to the channel; `channel_not_found` = wrong/no channel.
+  - Schedule-trigger workflows can be run by hand with `execute_workflow` (manual, no input); a sub-workflow's
+    own run appears in `search_executions` for its workflow id (mode `integrated`).
+- **Other MCPs in this project** (`.mcp.json`, git-ignored; approved in `.claude/settings.local.json`):
+  `leadconnector` = GoHighLevel (read/update contacts, tags, opportunities — handy to stage or verify a test on
+  Dana; `get-contact` output is large, read it from the saved file) and `supabase` (signed in to the **Waterline**
+  Supabase account: `list_tables`, `execute_sql`, `apply_migration`, `get_advisors`). MCP servers attach only at
+  session start.
 - **Don't run `update_workflow` and `execute_workflow` in parallel.** The execution can race the
   update and run the old version.
 - Test a webhook workflow with `execute_workflow` in `manual` mode and a `webhook` input whose

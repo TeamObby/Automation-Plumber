@@ -116,14 +116,14 @@ a second Google Voice number and split them.
 | **Topu's GHL user** | A real person — needs his address. **Normal access** (decision 2026-09-25). The ten block users are done (above) | Hridoy, once Topu's email is known |
 | ~~Smart Lists~~ | **Not needed** — decision 2026-09-25 (top of this file) | — |
 | **GHL workflow: `Screener Outcome` changed → webhook** | Started: empty draft `29535603-03a9-470c-8d98-0cde44df6c04`. The *Contact changed* trigger exists, but its **Add filters** panel would not open under automation, and saving the trigger with **no** field filter would fire on *every* contact change in the account and flood the webhook. Left unconfigured on purpose | Hridoy: pick `Screener Outcome` in Add filters → add Webhook action POST `https://n8n.meetobby.com/webhook/screener-outcome` sending `contact_id` → publish **only** when Mohimenul's item 4 is live |
-| **The four guard edits** (§1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
+| **The four guard edits** (§1) — ✅ done 2026-09-25 as **three** guards (`Move Leads Into Cadence` needs none, §1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
 | **WAVV: 2nd/3rd seat, screener numbers** | Costs money; `Seats Used: 1/1` | Kevin |
 | **Team dispositions decision** (§2.5) | Needs the seats before it can be tested | Kevin + Hridoy |
 
 ~~**Smart List recipe**~~ — superseded 2026-09-25: no Smart Lists (see the decisions at the top). If one is ever
 needed: in the Filters dialog **"Add Filter" starts an OR group; "Add nested filter" adds an AND condition**.
 
-### Mohimenul's part — items 1–6 built (2026-09-24)
+### Mohimenul's part — items 1–7 built (2026-09-25)
 
 | §10.2 item | Built as | Proof |
 |---|---|---|
@@ -152,7 +152,7 @@ n8n refuses an unpublished sub-workflow called from anything but a manual run; `
 (`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
 POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
 
-**Next on this side (after Kevin's 2026-09-24 meeting):** items 7 and 8, then Supabase — it becomes the source of truth, and screener events, transcripts and graduations write there; the screener log goes to **Supabase `screener_log` only** (decided 2026-09-25; built offline, waiting for the Supabase project — [`supabase/screener_log.sql`](../supabase/screener_log.sql)); the `screen_log` Sheet is not written. Task list: [`screener-handoff.md`](screener-handoff.md) §3.
+**Next on this side:** items 1–7 are done (7a = the Supabase `screener_log`, 7b = `Screener: Daily Sweep`); left is item 8 (accuracy on the first real calls, via the `screener_accuracy` view) and the rest of Supabase (shops, raw data, transcripts, call logs — Mohimenul designs the columns). Task list: [`screener-handoff.md`](screener-handoff.md) §3.
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard
@@ -247,8 +247,8 @@ Original notes, still valid:
 2. For the **inbound** side, mock the payload: copy the `customData` list from the live
    `Call Recorded Trigger` in [`ghl-automations.md`](ghl-automations.md) and POST it to your
    webhook by hand. Hridoy wires the real GHL triggers when the guards go in.
-3. Build the six workflows in §9. Keep them **inactive** until the guards exist — until then a
-   screener call would still reach Kevin's automations.
+3. Build the six workflows in §9. Keep them **inactive** until go-live — the guards are live since 2026-09-25, but the entry
+   workflows switch on together with the GHL intake swap (hand-off §3).
 4. The compare step (§4.1) is shared by two paths — build it once as a sub-workflow.
 
 ---
@@ -715,7 +715,7 @@ Attempt stage forever.
 | 2 | `Screener: Mark + Compare` | event 2 | the shared compare step → stage, tags, follower, `Date Screened` |
 | 3 | `Screener: Attempt Counter` | events 3 and 4 (via `Screener: No Answer` / `WAVV Disposition`) | `Screen Attempts` set → next Attempt stage or **Exhausted**; `Bad Number` → **Disqualified** |
 | 4 | `Screener: Graduate` | `Screener: Graduate Sweep`, every 10 min, leads in Owner Verified ≥ 10 min | §8 |
-| 5 | `Screener: Stale Sweep` | daily cron | `Date Screened` > 14 days **and no open Kevin opportunity** → strip `owner-confirmed` + block tag + block follower → back to **Attempt 1** with `screening` re-added |
+| 5 | `Screener: Daily Sweep` (built 2026-09-25) | daily 05:00 PT | `Date Screened` > 14 days → strip `owner-confirmed` + block tag + block follower (**even with an open Kevin opportunity** — decided 2026-09-25, so the lead leaves his hour lists); Gatekeeper / Not Sure / Exhausted / graduated owners → back to **Attempt 1** with `screening` re-added **only with no open Kevin opportunity** (re-screen trap); then the Slack summary |
 | 6 | screener log → **Supabase `screener_log`** (since 2026-09-25; was the `screen_log` Sheet) | on 1, 2, 3 | ~~appends to the **"WaterLine — Screener Log"** sheet `1jw-5hnW2VJEoTpC37brncQBxLUIIx2ANjyauXD4raf8` (tab `screen_log`, **built and empty** — columns and data contract in [`AGENTS.md`](../AGENTS.md)). Write it from the Compare Step's `Report` node and from the attempt ladder, appendOrUpdate on `call_id`; the ladder rows have none and plain-append. A separate workbook from Kevin's metrics on purpose — its `accuracy` tab is the per-screener match rate item 8 asks for~~ — now an upsert on `event_key` from the Compare Step and the Attempt Counter; the `screener_accuracy` view gives item 8's match rate |
 
 Workflows 1 and 2 share one compare step — build it once as a sub-workflow and call it from both,
@@ -736,7 +736,7 @@ the other to start.
 
 | Order | Task | Done when |
 |---|---|---|
-| 1 | **The four guard branches** (§1) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
+| 1 | **The guard branches** (§1; three, live 2026-09-25 — no-answer tested call-free, call + disposition still need one real call) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
 | 2 | Pipeline + 9 stages, pinned to the top | stage IDs handed to Mohimenul (§10.3) |
 | 3 | the `Screener Outcome` **dropdown** (exact option spellings), the other 4 fields, all tags | field IDs + option strings handed over |
 | 4 | 2 screener users (Only Assigned Data, **not** admin), 8 block users | screener can log in and see only their own list |
@@ -756,7 +756,7 @@ Then Hridoy moves to the **list/ICP work**, which is Kevin's actual first priori
 | 4 | `Screener: Classify + Mark` — cross-check, fields, tags, follower, stage move | 20 role-played calls land in the right stage |
 | 5 | `Screener: No Answer` — attempt counter and ladder | four no-answers walk a contact to Attempt 4 |
 | 6 | `Screener: Graduate` (§8) | a graduated lead appears correctly in Kevin's pipeline |
-| 7 | `Screener: Stale Sweep` + `screen_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself, **and** a marked call shows up as a row in Supabase `screener_log` with `match` set |
+| 7 | `Screener: Daily Sweep` + Supabase `screener_log` + daily summary | a 15-day-old lead drops out of Kevin's list by itself, **and** a marked call shows up as a row in Supabase `screener_log` with `match` set |
 | 8 | Accuracy report on the first 50 real calls | per-screener mismatch rate known |
 
 **Mohimenul is not blocked by Hridoy.** Items 1–3 are built against a **mock payload** — copy the

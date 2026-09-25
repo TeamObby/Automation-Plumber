@@ -4,7 +4,7 @@
 - **Folder:** `workflows/screener/` · built by `build/gen_counter.js` (+ `src/attempt_event.js`, `attempt_dedupe.js`, `ladder.js`, `ladder_report.js`, `attempt_log_row.js`, `log_attempt_row.js`) + `build/log_supabase.js`
 - **Status:** sub-workflow (no trigger of its own). Called by **`Screener: No Answer`** (`aZyzUwwNdDWvaCAk`,
   `POST /webhook/screener-no-answer`) and **`Screener: WAVV Disposition`** (`QOYHMP5ZGQcnG3ED`,
-  `POST /webhook/screener-disposition`) — both **inactive until the guards exist**.
+  `POST /webhook/screener-disposition`) — both **inactive until go-live** (GHL guards live 2026-09-25).
 - **Data table:** `screener_attempts` `9V6VL0XiKeadY9Lc` — one row per dial event.
 - **Sync state (2026-09-25):** snapshot = live. **Re-published** after the codex review: the log write goes
   through the versioned Supabase function `screener_log_upsert`, and a failed write is queued in
