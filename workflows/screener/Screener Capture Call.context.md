@@ -2,8 +2,9 @@
 
 - **n8n ID:** `jQaCWO08lddHg9fN` · **URL:** https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN · **File:** `Screener Capture Call.json`
 - **Folder:** `workflows/screener/`
-- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
-  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
+- **Status:** **Still off** ❌ — the three GHL guards are live (2026-09-25) and the rest of the n8n side is on; this one is
+  switched on at go-live by Mohimenul (n8n UI), or by Claude once `publish_workflow` is allowed. Switches:
+  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3. Until it is on, a recorded screener call is lost.
 - **Trigger:** Webhook POST `/webhook/screener-call` — to be fired by the screener branch of GHL's
   `Call Recorded Trigger` with **the same payload it already builds** (spec §1 table).
 
@@ -70,7 +71,7 @@ Timestamps are ISO strings (same convention as the account's other data tables).
 - **Dedupe is check-then-write.** Two webhooks for one call arriving within ~1s could both pass
   the check; the upsert still leaves one row, the cost is one extra AI call (the compare is idempotent).
 - A call whose contact is unreadable keeps `writeback_ok = false` and is retried on every replay
-  (no AI cost). Test row `TEST-screener-0004` is exactly this case (exec 122472).
+  (no AI cost). Test row `TEST-screener-0004` is exactly this case (exec 122472; the row was deleted 2026-09-25).
 - The `owner_name` field is weak: on the test call gpt-4o-mini returned the business name
   ("Ramirez") as the owner's first name. The eval does not score `owner_name` yet.
 - `Filter: answered call with id` drops unanswered calls on purpose — the Attempt ladder is fed by

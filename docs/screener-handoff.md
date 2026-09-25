@@ -12,10 +12,11 @@ The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, 
 **Mohimenul's n8n items 1–7 are built** (capture + AI verdict, hour block, compare + write-back,
 attempt ladder, graduate, the Supabase screener log, the daily stale sweep + Slack summary) and tested live on
 the test contact, Graduate end to end included; six Codex review rounds on them are fixed. The **three GHL guards
-are live** (2026-09-25); the n8n entry workflows stay **inactive** until the go-live switches. After
-Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
-due to start calling. The critical path is: go-live switches (GHL intake swap, publish `Screener Outcome Changed`,
-publish `Graduate`, activate the entry workflows) → one real test call. Only item 8 (accuracy on real calls) is left on Mohimenul's screener list.
+are live** (2026-09-25), and the n8n side is mostly on: `Graduate` published and five workflows active; **`Capture Call`,
+`Mark + Compare`, `Daily Sweep` are still off** (Mohimenul switches them on, or allows `publish_workflow` for Claude).
+After Kevin's 2026-09-24 meeting, **Supabase** is the source of truth (core tables live since 2026-09-25, empty) and
+**Topu** (the screener) is due to start calling. The critical path is: those three switches + Hridoy's GHL intake
+swap and `Screener Outcome Changed` → one real test call. Mohimenul's screener list: only item 8 (accuracy on real calls).
 
 ---
 
@@ -79,19 +80,19 @@ blocks duplicate phone numbers.
 | GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live **v11, guarded** 2026-09-25 → `screener-disposition` |
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live **v37, guarded** 2026-09-25 → `screener-no-answer` (tested on Dana) |
 | GHL | Move Leads Into Cadence | `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | live but inert (posts to a `webhook-test` URL) — **no guard**; one would break Graduate |
-| n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
+| n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | item 1, `/webhook/screener-call` — **still off** (go-live) |
 | n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow, published |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
 | n8n | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | item 4, sub-workflow, published — `BLOCK_USER` filled |
-| n8n | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | item 4, inactive |
-| n8n | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | retries failed GHL writes, inactive |
+| n8n | Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | item 4, `/webhook/screener-outcome` — **still off** (go-live) |
+| n8n | Screener: Write-back Retry | `IvxTYaChixQOiNzt` | retries failed GHL writes, every 15 min — **active** 2026-09-25 |
 | n8n | Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | item 5, sub-workflow, published |
-| n8n | Screener: No Answer | `aZyzUwwNdDWvaCAk` | item 5, `/webhook/screener-no-answer`, inactive |
-| n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition`, inactive |
+| n8n | Screener: No Answer | `aZyzUwwNdDWvaCAk` | item 5, `/webhook/screener-no-answer` — **active** 2026-09-25 |
+| n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition` — **active** 2026-09-25 |
 | n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **published 2026-09-25** |
-| n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
-| n8n | Screener: Log Retry | `y2oXfZtH4y1mhWQG` | item 7a, every 15 min, replays failed Supabase log writes — inactive |
-| n8n | Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | item 7b, 05:00 PT stale sweep + Slack summary — inactive |
+| n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min — **active** 2026-09-25 |
+| n8n | Screener: Log Retry | `y2oXfZtH4y1mhWQG` | item 7a, every 15 min, replays failed Supabase log writes — **active** 2026-09-25 |
+| n8n | Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | item 7b, 05:00 PT stale sweep + Slack summary — **still off** (go-live) |
 | n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset / ungraduate **Dana Happy** only |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
@@ -100,7 +101,9 @@ Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/s
 **Supabase** (the screener log, item 7a): project **`screener-helper`** `cifgvpqfodglnhywrofy` · org **Waterline**
 `nzuqwkcyipyergddujfw` (separate Supabase account; the MCP is signed in there) · table `screener_log`, write path
 function `screener_log_upsert` (versioned on `decided_ms`), views `screener_accuracy` + `screener_last_24h` —
-definitions in [`supabase/screener_log.sql`](../supabase/screener_log.sql) · n8n credential
+definitions in [`supabase/screener_log.sql`](../supabase/screener_log.sql) · **core tables** (2026-09-25, empty) `shops`,
+`shop_raw`, `call_log`, view `transcripts` — [`supabase/core_tables.sql`](../supabase/core_tables.sql), design in
+[`supabase-design.md`](supabase-design.md) · n8n credential
 `Supabase [ Waterline screener-helper ]` `oUnRFJd1TMI1LmTd`.
 **n8n data tables:** `screener_calls` `3WK4mrEYwvDeDUVO` · `screener_attempts` `9V6VL0XiKeadY9Lc` ·
 `screener_graduations` `1iX0aTvMYawwyH4H` · `screener_log_pending` `qKv7RxgTDsqb1plo` · `screener_sweep_pending` `J61RThPMfxykZt1N`.
@@ -127,10 +130,10 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 ### Mohimenul — finish the screener items first (spec §10.2)
 1. ✅ Items 1–5 built and tested on the test contact; ✅ Classify, Compare Step, Attempt Counter published;
    ✅ Dana Happy reset.
-2. ✅ **Item 6 Graduate** built (`Screener: Graduate` + `Graduate Sweep`, inactive), Codex fixes in (the close
+2. ✅ **Item 6 Graduate** built (`Screener: Graduate` + `Graduate Sweep`), Codex fixes in (the close
    is gated on every write succeeding; Manual Review is not a handoff), and ✅ **tested live end to end** on
    Dana (sweep 123631 → Graduate 123632); the Kevin opportunity it made was deleted with the rig's
-   `ungraduate` and Dana is back in Attempt 1. Open: publish `Screener: Graduate` before go-live.
+   `ungraduate` and Dana is back in Attempt 1. ✅ Published and Graduate Sweep active (2026-09-25).
 3. **Item 7a — the screener log → Supabase only** (decided 2026-09-25). ✅ Built and tested offline:
    table [`supabase/screener_log.sql`](../supabase/screener_log.sql) (+ `screener_accuracy` view), writes from
    the Compare Step and the Attempt Counter. ✅ Supabase project **`screener-helper`**
@@ -138,9 +141,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    sub-workflows re-published and tested on Dana 2026-09-25 (a no-answer row; a call row that waited with
    `match` empty, then updated to Owner Verified / match true when marked). Codex fixes (2026-09-25): the
    write is versioned (`screener_log_upsert`) and failed writes queue for `Screener: Log Retry`
-   (inactive); both sub-workflows re-published and re-tested live on Dana (a late stale write no longer
+   (active since 2026-09-25); both sub-workflows re-published and re-tested live on Dana (a late stale write no longer
    erases a decision).
-4. ✅ **Item 7b — `Screener: Daily Sweep`** (inactive, 05:00 PT) built and tested live on Dana: 14-day expiry
+4. ✅ **Item 7b — `Screener: Daily Sweep`** (still off until go-live, 05:00 PT) built and tested live on Dana: 14-day expiry
    drops stale owners from Kevin's hour lists; Gatekeeper / Not Sure / Exhausted / graduated owners whose Kevin opp
    closed go back to Attempt 1 (never with an open Kevin opp); Slack summary with stage counts, last 24 h, sweep
    results and what needs a human. Slack: `#daily-screener-summary` (Obby bot, first post 2026-09-25). 3rd codex review fixed: half-failed re-screens
@@ -172,12 +175,13 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    MCP connector so Kevin's Claude can read the code.
 10. **Cleanup:** delete the n8n test rows — `screener_calls` `TEST-screener-0001…0011`, the test-rig rows on
     Dana (`2Z5mwZe5RT4NQdNW85vj`) in `screener_attempts` (2026-09-24/25) and `screener_graduations` (MCP can't
-    delete rows; n8n UI); the Supabase test rows are already deleted. Delete the test posts in
+    delete rows; n8n UI; `TEST-screener-0004` already deleted 2026-09-25); the Supabase test rows are already deleted. Delete the test posts in
     `#daily-screener-summary`. Rotate the exposed Instantly key. Tell the Obby product owner about the Supabase
     RLS warning (AGENTS.md security backlog).
-11. **Git:** PRs #4–#6 (`screener-item-6`) are merged and `screener-item-4` is in `main`. `screener-item-6` now carries
-    only the pre-compact docs pass, the 4th Codex fix and a merge of Hridoy's guard commits: open a PR to `main`
-    (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here).
+11. **Git:** PRs #4–#7 (`screener-item-6`) are merged (#7 on 2026-09-25). The branch has more since (5th/6th Codex fixes,
+    Graduate owner fix, go-live, Supabase core tables, docs): open a new PR to `main`
+    (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here). Hridoy commits
+    straight to `main`: merge `origin/main` before trusting local docs.
 
 ### Hridoy (GHL side, and the list)
 - **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
@@ -194,11 +198,11 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 - Email-1 timing for screened leads is parked; Graduate sends leads to Kevin exactly as import does today.
 
 ### Go-live switches (the guards exist)
-First a read-only pre-flight (Mohimenul): published versions = latest drafts, credentials set, webhook paths = the
-guards' targets, Dana clean. Then, with an explicit OK and together with Hridoy:
-GHL: publish `Import Contact To Screener` + unpublish `Import Contact To New`, publish `Screener Outcome Changed`.
-n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
-`Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
+✅ Read-only pre-flight done (below). ✅ n8n: `Screener: Graduate` published; `No Answer`, `WAVV Disposition`,
+`Write-back Retry`, `Graduate Sweep`, `Log Retry` active (2026-09-25).
+**Left:** n8n — switch on `Capture Call`, `Mark + Compare`, `Daily Sweep` (Mohimenul in the n8n UI, or Claude once
+`mcp__claude_ai_n8n__publish_workflow` is in `permissions.allow`) · GHL (Hridoy) — publish `Import Contact To Screener`
++ unpublish `Import Contact To New` together, publish `Screener Outcome Changed` · then one real WAVV test call on Dana.
 `SCREENER_USER_ID` in the Daily Sweep is optional now (Topu has normal access): empty leaves re-screened leads unassigned.
 
 **n8n go-live, 2026-09-25 (with Mohimenul's OK):** ✅ published `Graduate` (`aa2394a7`) and activated `No Answer`,

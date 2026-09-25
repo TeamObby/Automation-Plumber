@@ -98,8 +98,8 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **Other MCPs in this project** (`.mcp.json`, git-ignored; approved in `.claude/settings.local.json`):
   `leadconnector` = GoHighLevel (read/update contacts, tags, opportunities — handy to stage or verify a test on
   Dana; `get-contact` output is large, read it from the saved file) and `supabase` (signed in to the **Waterline**
-  Supabase account: `list_tables`, `execute_sql`, `apply_migration`, `get_advisors`). MCP servers attach only at
-  session start.
+  Supabase account: `list_tables`, `execute_sql`, `apply_migration`, `get_advisors`) and `slack` (read channels / history /
+  search, e.g. `#daily-screener-summary`). MCP servers attach only at session start.
 - **Don't run `update_workflow` and `execute_workflow` in parallel.** The execution can race the
   update and run the old version.
 - Test a webhook workflow with `execute_workflow` in `manual` mode and a `webhook` input whose

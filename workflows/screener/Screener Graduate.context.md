@@ -45,7 +45,7 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
 - **`first_failed_at`** (codex review, 2026-09-25): `at` is refreshed by every retry, so a graduation failing every
   10 minutes never looked a day old. **Previous graduation** reads the row first; Log Graduation keeps the first
   failure time until the graduation succeeds (then it is cleared). The daily summary flags `ok = false` rows whose
-  `first_failed_at` is older than a day. Pushed as a draft (Graduate is not published yet).
+  `first_failed_at` is older than a day. (Graduate was published on 2026-09-25.)
 
 ## Tested
 - Offline: `tests/screener.test.js` §11 (routing, reuse incl. Manual Review excluded, guards, Close Gate,

@@ -20,8 +20,9 @@ that captures intent/why/gotchas the code alone can't.
 - The **n8n MCP is the live link** — it's configured at the Claude connector level, NOT
   in any single chat, so it stays connected across sessions. Nothing about the "link"
   is stored in this repo; this repo stores **which workflows to point it at**.
-- Also in this project (`.mcp.json`, git-ignored): the **GoHighLevel** MCP (`leadconnector`) and the **Supabase**
-  MCP (signed in to the Waterline account — project `screener-helper`). They attach at session start.
+- Also in this project (`.mcp.json`, git-ignored): the **GoHighLevel** MCP (`leadconnector`), the **Supabase**
+  MCP (signed in to the Waterline account — project `screener-helper`) and a **Slack** MCP (`slack`, read-only use:
+  channels, history, search). They attach at session start.
 - To re-orient in a fresh chat: read this file → open the relevant `context.md` → use the
   **workflow ID** with the MCP (`get_workflow_details`, `update_workflow`, …).
 - **Editing live workflows is real.** Validate first; confirm destructive/outward-facing
@@ -180,6 +181,13 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
   screener-helper ]` `oUnRFJd1TMI1LmTd`), tested on Dana (execs 123666–123674; after the codex fixes 123685–123693). `screener_accuracy` counts
   answered calls only; `screener_last_24h` feeds the daily Slack summary (`Screener: Daily Sweep` → `#daily-screener-summary`,
   Obby bot `QcTNBiXBrnH5rFkC`).
+
+## Supabase core tables (decided 2026-09-25, live and empty)
+`shops` (id = Kevin's Shop ID ↔ `ghl_contact_id`, `tier`, `call_set`, `data` jsonb), `shop_raw` (raw data per shop ×
+source × tool), `call_log` (a typed copy of the Metrics sheet's `call_log` tab) and view `transcripts`; `screener_log`
+now also allows the `graduated` event. Migration `create_core_tables`, SQL [`supabase/core_tables.sql`](supabase/core_tables.sql),
+rules and rationale [`docs/supabase-design.md`](docs/supabase-design.md). Supabase keeps facts, GHL keeps state — no
+two-way sync; logs join `shops` on `ghl_contact_id` with no FK. Needs Kevin: Free plan (500 MB, no backups), side account.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated

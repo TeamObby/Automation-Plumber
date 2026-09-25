@@ -3,7 +3,7 @@
 - **n8n ID:** `0GtpCj9xFK4xGZrX` · **URL:** https://n8n.meetobby.com/workflow/0GtpCj9xFK4xGZrX · **File:** `Screener Daily Sweep.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_dailysweep.js` (+ `src/daily_settings.js`, `stale_searches.js`,
   `stale_candidates.js`, `stale_decide.js`, `stale_plan.js`, `stale_report.js`, `summary_stage_urls.js`, `summary_build.js`)
-- **Status:** created 2026-09-25, **inactive** — activate at go-live. Runs every day at **05:00 America/Los_Angeles**
+- **Status:** created 2026-09-25, **still off** ❌ — switched on at go-live by Mohimenul (n8n UI), or by Claude once `publish_workflow` is allowed. Runs every day at **05:00 America/Los_Angeles**
   (the n8n instance timezone, confirmed from the trigger output), before the screeners' 08:00 PT shift.
 - **Slack:** `#daily-screener-summary`, posted by **Slack [ Obby bot account ]** `QcTNBiXBrnH5rFkC`
   (`build/slack.json`). The node continues on error, so a Slack problem never fails the sweep. First post
