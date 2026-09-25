@@ -996,6 +996,17 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
   ok(pp.planned.length === 0 && pp.superseded.length === 1, 'the lead moved after the failure (a newer call/dial): not replayed, reported');
   pp = planP([{ contact_id: 'P1', company: 'P', action: 'rescreen', reason: '', ops: [{ label: 'fresh', method: 'PUT', url: 'u', body: {} }] }], [P]);
   ok(pp.ops.length === 1 && pp.ops[0].label === 'fresh', 'if the lead still needs work, the fresh plan wins over the saved writes');
+  // codex review: a replay must pass the same re-screen guards as a fresh decision
+  const NODATE = { contact_id: 'P1', company: 'P', action: 'none', reason: '', ops: [], scr_stage_changed_at: '2026-09-20T00:00:00.000Z' };
+  pp = planP([Object.assign({}, NODATE, { dnd: true })], [P]);
+  ok(pp.ops.length === 0 && pp.stopped.length === 1 && /DND/.test(pp.stopped[0].why) && pp.blocked.length === 1, 'contact now DND: the saved re-screen is NOT replayed; counted as blocked and stopped for a human');
+  pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [P]);
+  ok(pp.ops.length === 0 && pp.stopped.length === 1 && /re-screen trap/.test(pp.stopped[0].why) && /not re-screened/.test(pp.blocked[0].reason), 'lead now has an open Kevin opp: no screening tag, no Attempt 1 (re-screen trap), reason kept');
+  const PEXP = Object.assign({}, P, { ops_json: JSON.stringify([{ label: 'remove hour-block tags', method: 'DELETE', url: 'u', body: {} }, { label: 'remove block followers (Kevin opp)', method: 'DELETE', url: 'k', body: {} }]) });
+  pp = planP([Object.assign({}, NODATE, { open_kevin: true })], [PEXP]);
+  ok(pp.ops.length === 2 && pp.stopped.length === 0, 'expire-only saved writes are still replayed with an open Kevin opp (expiry applies either way)');
+  const DSD = sweep({ tags: ['screening'], opps: [sopp(STG.gk), kopp('open', MANR)], dnd: true });
+  ok(DSD.open_kevin === true && DSD.dnd === true, 'Decide reports the current guards for every contact');
   const CDP = codeOf(dsWf, 'Candidates');
   const cdp = new Function('$json', '$input', '$', CDP)({}, {}, n => {
     if (n === 'GHL: owner-confirmed contacts') return { first: () => ({ json: { contacts: [] } }) };
@@ -1015,11 +1026,14 @@ ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred
   ok(JSON.stringify(rpp.pending_clear) === '["P1"]' && rpp.retried.length === 1, 'a replayed contact that now succeeded leaves the pending table');
   rpp = repP(PL, SENT, [ {}, { error: { message: '500' } }, { error: { message: '503' } } ], [P]);
   ok(rpp.pending_save.find(p => p.contact_id === 'P1').first_failed_at === P.first_failed_at && !rpp.pending_clear.includes('P1'), 'failing again keeps the first failure time');
+  const rstop = repP(Object.assign({}, PL, { planned: [], stopped: [ { contact_id: 'P1', company: 'P', why: 'contact is DND' } ] }), [], [], [P]);
+  ok(rstop.pending_clear.includes('P1') && rstop.stopped.length === 1, 'a stopped replay leaves the pending table (reported once, not looped daily)');
   ok(repP(PL, [], [], [P], { dry_run: true }).pending_save.length === 0 && repP(PL, [], [], [P], { dry_run: true }).pending_clear.length === 0, 'a dry run never touches the pending table');
   const PCH = codeOf(dsWf, 'Pending sweep changes');
   const ch = new Function('$json', '$input', '$', PCH)({}, { first: () => ({ json: { pending_save: [{ contact_id: 'A' }], pending_clear: ['P1'] } }) }, () => null).map(i => i.json);
   ok(ch.length === 2 && ch[0].op === 'save' && ch[1].op === 'clear' && ch[1].contact_id === 'P1', 'pending changes: one save item, one clear item');
   const sm2 = sumOf({ rep: { pending_save: [{ contact_id: 'A', error: 'x: 500' }], superseded: [{ company: 'Moved Co' }], retried: [{}] } });
+  ok(/1 half-done re-screens stopped/.test(sumOf({ rep: { stopped: [ { company: 'Now DND Co', why: 'contact is DND' } ] } }).text), 'summary lists stopped re-screens under Needs a human');
   ok(sm2.needs_human && /half changed by the sweep/.test(sm2.text) && /Moved Co/.test(sm2.text) && /1 earlier half-done sweeps finished/.test(sm2.text), 'summary: half-done sweeps, superseded leads, and finished retries are reported');
   const old2 = new Date(Date.now() - 3 * 86400000).toISOString(), recent2 = new Date().toISOString();
   ok(/1 graduations failing/.test(sumOf({ grads: [ { id: 1, contact_id: 'G1', reason: 'x', at: recent2, first_failed_at: old2 } ] }).text), 'a graduation failing for 3 days is flagged even though its last retry was just now (codex)');

@@ -3,11 +3,15 @@
 // A contact in screener_sweep_pending had an earlier sweep half fail (codex review): if nothing new is
 // planned for it, its saved writes are replayed (they are all safe to repeat) — unless its screener
 // opportunity moved after the failure, i.e. a newer call or dial happened: then replaying would undo
-// that, so the saved writes are dropped and the lead is reported for a human.
+// that, so the saved writes are dropped and the lead is reported for a human. The re-screen guards are
+// checked again (codex review): saved re-screen writes are never replayed onto a lead that now has an open
+// Kevin opportunity or is DND — it is counted as blocked, listed for a human, and its saved writes dropped.
+// Expire-only writes (tags and followers off) are still replayed: expiry applies either way.
+const RESCREEN_OP = /clear screener fields|remove result tags|add screening tag|Attempt 1|\(screener opp\)/;
 const set = $('Settings').first().json;
 const pending = new Map((() => { try { return $('Pending sweeps').all().map(i => i.json); } catch (e) { return []; } })()
   .filter(r => r && r.contact_id).map(r => [r.contact_id, r]));
-const superseded = [];
+const superseded = [], stopped = [];
 const all = $input.all().map(i => i.json).map(d => {
   const p = pending.get(d.contact_id);
   if (!p || (d.ops || []).length || d.action === 'error') return d;
@@ -17,6 +21,11 @@ const all = $input.all().map(i => i.json).map(d => {
   }
   let ops = [];
   try { ops = JSON.parse(p.ops_json) || []; } catch (e) { ops = []; }
+  const guard = d.open_kevin ? 'open opportunity in Kevin pipeline (re-screen trap)' : d.dnd ? 'contact is DND' : '';
+  if (guard && ops.some(o => RESCREEN_OP.test(o.label || ''))) {
+    stopped.push({ contact_id: d.contact_id, company: d.company, why: guard });
+    return Object.assign({}, d, { reason: [d.reason, 'not re-screened: ' + guard + ' (earlier half-done re-screen stopped)'].filter(Boolean).join(' | ') });
+  }
   return Object.assign({}, d, { action: 'retry', reason: 'finishing an earlier sweep that half failed (' + String(p.error || '').slice(0, 80) + ')', ops });
 });
 const acting = all.filter(d => (d.ops || []).length);
@@ -29,5 +38,6 @@ return [{ json: {
   blocked: all.filter(d => /not re-screened/.test(d.reason || '')).map(brief),
   errors: all.filter(d => d.action === 'error').map(brief),
   superseded,
+  stopped,
   ops: set.dry_run === true ? [] : now.flatMap(d => d.ops.map(o => Object.assign({ contact_id: d.contact_id }, o)))
 } }];

@@ -38,6 +38,14 @@ unless the screener opportunity moved **after** `queued_at` (a newer call or dia
 and the lead is reported ("moved after a half-failed sweep — check by hand"). **Sweep Report** decides the table
 changes; a side branch saves / clears them. A dry run never touches the table.
 
+**Replay guards (4th codex review, 2026-09-25).** A replay re-checks the current re-screen guards (Decide now
+outputs `open_kevin` and `dnd`): if the saved writes contain any re-screen write (clear fields, result tags,
+`screening`, Attempt 1, screener-opp followers) and the lead **now** has an open Kevin opportunity or is **DND**,
+nothing is replayed. The lead counts as blocked (reason kept: "not re-screened: … (earlier half-done re-screen
+stopped)"), is listed under *Needs a human* ("half-done re-screens stopped — check by hand"), and its pending row is
+cleared (the saved writes are dropped, so the summary says it once). Expire-only replays (hour tags and block
+followers off) still run: expiry applies whatever the guards say.
+
 ## What a re-screen writes
 Clear Screener Outcome, Screen AI Verdict, Screen Attempts, Date Screened, Screen Noise (+ `assignedTo` = the
 screener when `SCREENER_USER_ID` is set — **needed: the screener sees Only Assigned Data**) → remove leftover result
@@ -57,6 +65,9 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
   "move to Attempt 1" queued after it → the sweep (123884) found her by the Gatekeeper search **and** the pending
   table, replayed exactly that write (Dana back in Attempt 1, checked by a direct GET) and cleared the row; the next
   run (123885) had no pending row. The summary said "1 earlier half-done sweeps finished".
+- Replay guards: offline only (§14: DND stopped, open Kevin opp stopped with the reason kept, expire-only replay
+  still allowed, stopped clears the pending row, summary line; mutation-checked). Deployed 2026-09-25 and re-pulled;
+  not run live because a real run (DRY_RUN off) would also sweep any real stale leads.
 
 ## TODOs
 - `SCREENER_USER_ID` = Topu's GHL user once Hridoy creates it.

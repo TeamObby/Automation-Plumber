@@ -79,4 +79,6 @@ if (rescreen) {
 
 const action = rescreen ? (expire ? 'expire+rescreen' : 'rescreen') : (expire ? 'expire' : 'none');
 const reason = [why, blocked && 'not re-screened: ' + blocked].concat(notes).filter(Boolean).join(' | ');
-return out(action, reason, { company, age_days: age, ops, scr_stage_changed_at: scr ? s(scr.lastStageChangeAt) : '' });
+// The current re-screen guards, so Plan Sweep can re-check them before replaying an earlier half-done sweep.
+return out(action, reason, { company, age_days: age, ops, scr_stage_changed_at: scr ? s(scr.lastStageChangeAt) : '',
+  open_kevin: openKevin.length > 0, dnd: contact.dnd === true });
