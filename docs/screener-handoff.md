@@ -34,7 +34,10 @@ the entry workflows, publish `Screener Outcome Changed`) → one real test call.
 | Exhausted | `c1db8172-84bf-45a1-8f0e-5625157574a5` |
 | Disqualified | `65f9e1b4-8688-456d-845e-ebe0781101b9` |
 
-**Custom fields** (contact, folder `Screener`)
+**Custom fields** (contact). Since 2026-09-25 the **`Screener` folder holds only `Screener Outcome`** — the one
+field Topu touches; the four n8n-written fields live in **`Call Context (do not edit)`** (IDs/keys unchanged).
+On a call Topu types **"screener"** in the contact page's *Search fields and folders* box → the dropdown is
+at the top (verified on Dana). GHL cannot move a folder or pin a field higher — tried, it lands below 30+ fields.
 
 | Field | ID | Key | Type |
 |---|---|---|---|
@@ -69,7 +72,8 @@ blocks duplicate phone numbers.
 
 | Where | Name | ID | State |
 |---|---|---|---|
-| GHL | `Screener Outcome Changed` | `29535603-03a9-470c-8d98-0cde44df6c04` | **Draft** — publish when n8n item 4 is live |
+| GHL | `Screener Outcome Changed` | `29535603-03a9-470c-8d98-0cde44df6c04` | **Draft, fully configured** (Contact Changed on `Screener Outcome` → `/webhook/screener-outcome` with `contact_id`) — publish at go-live |
+| GHL | `Import Contact To Screener` | `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Draft** (2026-09-25): Contact Created + tag `plumber` → add tag `screening` → Create opportunity **Screener — Plumbers / Attempt 1**. At go-live: publish this **and unpublish `Import Contact To New`** `475c6d9a-b7a2-43dd-ade0-de610a2f5021` in the same minute |
 | GHL | Call Recorded Trigger | `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | live **v7, guarded** 2026-09-25 → `screener-call` |
 | GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live **v11, guarded** 2026-09-25 → `screener-disposition` |
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live **v37, guarded** 2026-09-25 → `screener-no-answer` (tested on Dana) |
@@ -151,11 +155,18 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 - ✅ **The three guards are live** (2026-09-25, v37 / v11 / v7, verified through the API; Call No Answer
   tested call-free on Dana). Left: one real Google Voice call on Dana to exercise the call-recorded and
   disposition guards.
-- Publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists · **Topu's screener user**
-  (Only Assigned Data) · Topu's WAVV seat and numbers (Kevin pays).
+- ✅ `Screener Outcome Changed` configured, ✅ `Import Contact To Screener` built — both drafts until go-live.
+- ✅ Field layout for Topu (see §2). **No Smart Lists** — decided 2026-09-25: Kevin dials from his opportunity
+  stages filtered by the hour-block follower (WAVV dials only the filtered cards — confirmed by Hridoy), and
+  Topu dials from the **Screener — Plumbers** Attempt stages, which contain only `screening` leads.
+  (Five empty lists "Kevin — Owner PT 06-07 … 10-11" were created before this was decided; unused, safe to delete.)
+- **Topu's GHL user — normal access** (not *Only Assigned Data*: with one screener it would only hide his
+  leads, since nothing assigns contacts to him) · Topu's WAVV seat and numbers (Kevin pays).
+- Email-1 timing for screened leads is parked; Graduate sends leads to Kevin exactly as import does today.
 
-### Go-live switches (once the guards exist)
-Publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
+### Go-live switches (the guards exist)
+GHL: publish `Import Contact To Screener` + unpublish `Import Contact To New`, publish `Screener Outcome Changed`.
+n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
 `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
 
 ### People

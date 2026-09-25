@@ -18,6 +18,28 @@ Companions: [`ghl-automations.md`](ghl-automations.md) · [`AGENTS.md`](../AGENT
 
 ---
 
+## ⚠️ Decisions of 2026-09-25 — these override anything below that disagrees
+
+1. **One screener (Topu), normal GHL access** — not *Only Assigned Data*. Nothing assigns contacts to
+   him, so that role would only hide his leads. The A/B split (§5) and the per-screener owner are dropped.
+2. **No Smart Lists.** Topu dials from the **Screener — Plumbers** Attempt 1–4 stages (every lead there
+   was created with `screening`). Kevin dials from his own opportunity stages filtered by the hour-block
+   **follower** — WAVV dials only the filtered cards (confirmed by Hridoy). §7's contact Smart Lists and the
+   Smart List recipe below are superseded. Five empty "Kevin — Owner PT 06-07 … 10-11" lists exist from
+   before this decision; unused, safe to delete.
+3. **Field layout:** the `Screener` folder holds only **`Screener Outcome`**; `Date Screened`,
+   `Screen Attempts`, `Screen Noise`, `Screen AI Verdict` moved to **`Call Context (do not edit)`** (IDs and
+   keys unchanged). On a call Topu types **"screener"** in the contact page's *Search fields and folders*
+   box → the dropdown is at the top. GHL cannot move a folder or pin a field higher (tried).
+4. **Intake:** every new `plumber` contact goes to the screener first — draft **`Import Contact To Screener`**
+   `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` (add `screening` → Screener — Plumbers / Attempt 1). At go-live
+   publish it and unpublish `Import Contact To New` together.
+5. **Hand-off to Kevin is unchanged from today's import:** Graduate sends email leads to Client
+   Acquisition / New and no-email leads to Day 1 Call A, with the hour-block follower. Email-1 timing is parked.
+6. **Guards:** three, live since 2026-09-25 (§1). `Screener Outcome Changed` is configured, draft until go-live.
+
+---
+
 ## Build status — 2026-09-22
 
 > **For Mohimenul:** everything in **✅ Built** exists in the live GHL account right now, with the
@@ -91,23 +113,15 @@ a second Google Voice number and split them.
 
 | Item | Why it stopped | Who unblocks it |
 |---|---|---|
-| **2 screener users** | These are real people — they need working addresses and the **Only Assigned Data** role. The ten block users are done (above) | Hridoy, once the screeners are hired |
-| **Smart Lists** | The filter UI needs the users to exist (screener queues), and the tag-value picker is awkward to drive reliably. Recipe below — about 30 seconds each by hand | Hridoy |
+| **Topu's GHL user** | A real person — needs his address. **Normal access** (decision 2026-09-25). The ten block users are done (above) | Hridoy, once Topu's email is known |
+| ~~Smart Lists~~ | **Not needed** — decision 2026-09-25 (top of this file) | — |
 | **GHL workflow: `Screener Outcome` changed → webhook** | Started: empty draft `29535603-03a9-470c-8d98-0cde44df6c04`. The *Contact changed* trigger exists, but its **Add filters** panel would not open under automation, and saving the trigger with **no** field filter would fire on *every* contact change in the account and flood the webhook. Left unconfigured on purpose | Hridoy: pick `Screener Outcome` in Add filters → add Webhook action POST `https://n8n.meetobby.com/webhook/screener-outcome` sending `contact_id` → publish **only** when Mohimenul's item 4 is live |
 | **The four guard edits** (§1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
 | **WAVV: 2nd/3rd seat, screener numbers** | Costs money; `Seats Used: 1/1` | Kevin |
 | **Team dispositions decision** (§2.5) | Needs the seats before it can be tested | Kevin + Hridoy |
 
-**Smart List recipe** (Contacts → Filters → set → Save as Smart List):
-
-- *Kevin, per block:* `Tag` is `owner-confirmed` **AND** `Tag` is `screened-pt-10-11` → save as
-  "Kevin — Owner @ PT 10-11", then clone for each block.
-- *Gold:* the same plus `Tag` is `screen-busy`.
-- *Each screener:* `Opportunity pipeline` is `Screener — Plumbers` **AND** `Opportunity stage` is
-  `Attempt 1/2/3/4` **AND** `Owner` is that screener.
-- ⚠️ UI quirk: the box next to the field name is the **operator** ("Is"); the value picker is the
-  separate "Please select" box to its right. Typing the tag into the wrong one leaves
-  "Value cannot be empty".
+~~**Smart List recipe**~~ — superseded 2026-09-25: no Smart Lists (see the decisions at the top). If one is ever
+needed: in the Filters dialog **"Add Filter" starts an OR group; "Add nested filter" adds an AND condition**.
 
 ### Mohimenul's part — items 1–6 built (2026-09-24)
 
@@ -636,7 +650,7 @@ once and Kevin's list quietly fills with people who answer at another hour. Also
 
 - **Opportunity board:** Advanced filters → `Follower = PT 10-11`. That is the whole query —
   everything on his board is already owner-verified.
-- **Contact Smart List** (what WAVV dials): `tag = owner-confirmed` **AND** `tag = screened-pt-10-11`.
+- ~~Contact Smart List~~ — not needed: WAVV dials only the follower-filtered cards on the board (2026-09-25).
 - **Gold:** add `tag = screen-busy`. Kevin takes those himself; quiet ones go to future closers (~43:26).
 
 **Freshness is enforced by n8n, not by a filter.** The contact filter's operators for a custom
