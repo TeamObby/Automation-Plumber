@@ -1,0 +1,6 @@
+{
+  "_comment": "Slack target for the screener daily summary (Screener: Daily Sweep, item 7b). Fill in, then build.sh + deploy.",
+  "credential_id": "",
+  "credential_name": "",
+  "channel": ""
+}

@@ -86,6 +86,7 @@ blocks duplicate phone numbers.
 | n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **publish before go-live** |
 | n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
 | n8n | Screener: Log Retry | `y2oXfZtH4y1mhWQG` | item 7a, every 15 min, replays failed Supabase log writes — inactive |
+| n8n | Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | item 7b, 05:00 PT stale sweep + Slack summary — inactive |
 | n8n | Screener: Test Rig | `UvApCCNACHD0uwTu` | manual: read / mark / reset / ungraduate **Dana Happy** only |
 
 Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/screener-no-answer` ·
@@ -125,8 +126,10 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    write is versioned (`screener_log_upsert`) and failed writes queue for `Screener: Log Retry`
    (inactive); both sub-workflows re-published and re-tested live on Dana (a late stale write no longer
    erases a decision).
-4. **Item 7b — stale sweep + daily summary** (14-day expiry; clear `Screener Outcome` and `Screen AI Verdict`
-   on re-screen; list failed write-backs older than 48 h, and graduations still `ok = false` after a day).
+4. ✅ **Item 7b — `Screener: Daily Sweep`** (inactive, 05:00 PT) built and tested live on Dana: 14-day expiry
+   drops stale owners from Kevin's hour lists; Gatekeeper / Not Sure / Exhausted / graduated owners whose Kevin opp
+   closed go back to Attempt 1 (never with an open Kevin opp); Slack summary with stage counts, last 24 h, sweep
+   results and what needs a human. **Open:** the Slack channel, and `SCREENER_USER_ID` (Topu) for re-screens.
 5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
 
 ### Mohimenul — then the new work from the meeting
@@ -149,7 +152,7 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 
 ### Go-live switches (once the guards exist)
 Publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
-`Write-back Retry`, `Graduate Sweep`, `Log Retry` → one real test call with Hridoy on the test contact.
+`Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
 
 ### People
 - **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.

@@ -866,5 +866,113 @@ const oks = new Function('$json', '$input', '$', LOK)({}, { all: () => [ {}, { e
   n => ({ all: () => [ { id: 1, pending_key: 'k1' }, { id: 2, pending_key: 'k2' } ].map(json => ({ json })) })).map(i => i.json);
 ok(oks.length === 1 && oks[0].id === 1, 'only a successful replay is removed from the queue');
 
+console.log('=== 14) Daily Sweep (item 7b: 14-day expiry, re-screen, daily summary) ===');
+const dsWf = wf('Screener Daily Sweep.json');
+const SCRP = 'CvDwpavqkHSRhg5Bn3L4', KEVC = '9E6y34DlG1Imr8FV42RV', MANR = 'OOu5TjgalfGZElEIoSbq';
+const STG = { a1: '7ff9193f-1e0a-4c93-9626-a6aab22b666b', ov: 'c8e33d9d-fd1b-46f6-87a6-7cc47841642f', gk: 'f83777fa-1dc0-4163-aa84-ef501126d82b',
+  ns: '0c160182-e74d-4ace-9d3b-c4404043ef4b', ex: 'c1db8172-84bf-45a1-8f0e-5625157574a5', dq: '65f9e1b4-8688-456d-845e-ebe0781101b9' };
+const DSET = { dry_run: false, max_contacts: 50, stale_days: 14, screener_user_id: '', now_ms: Date.parse('2026-09-25T12:00:00Z'), today_pt: '2026-09-25' };
+const SD = codeOf(dsWf, 'Decide');
+const sweep = ({ tags = ['screening'], date = '', opps = [], dnd = false, settings = {}, contact } = {}) => run(SD, {}, {
+  'Settings': item(Object.assign({}, DSET, settings)),
+  'One contact': item({ contact_id: 'C1' }),
+  'GHL: Get Contact': item(contact !== undefined ? contact : { contact: { id: 'C1', companyName: 'Happy Plumbing', dnd, tags,
+    customFields: date ? [ { id: 'MUkHW8R17PIksrSnpz6g', value: date } ] : [] } }),
+  'GHL: All Opps for Contact': item({ opportunities: opps })
+});
+const sopp = (stage, status = 'open', extra = {}) => Object.assign({ id: 'S1', pipelineId: SCRP, pipelineStageId: stage, status, updatedAt: '2026-09-20T00:00:00Z' }, extra);
+const kopp = (status = 'open', pipe = KEVC) => ({ id: 'K1', pipelineId: pipe, pipelineStageId: 'x', status });
+const d14labels = d => d.ops.map(o => o.label);
+let d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11', 'screen-busy'], date: '2026-09-05', opps: [sopp(STG.ov, 'won'), kopp()] });
+ok(d14sw.action === 'expire' && d14sw.ops[0].method === 'DELETE' && JSON.stringify(d14sw.ops[0].body.tags) === '["owner-confirmed","screened-pt-10-11"]'
+   && d14sw.ops.some(o => o.url.endsWith('/opportunities/K1/followers') && o.body.followers.length === 10), 'graduated owner, 20 days, Kevin opp open: drops out of the hour lists (tags + block followers off Kevin opp)');
+ok(!d14sw.ops.some(o => /screening|Attempt 1/.test(o.label)) && /re-screen trap/.test(d14sw.reason), '... but is NOT re-screened: Kevin still has the lead (re-screen trap)');
+ok(sweep({ tags: ['owner-confirmed', 'screened-pt-10-11'], date: '2026-09-15', opps: [sopp(STG.ov, 'won'), kopp()] }).action === 'none', 'owner screened 10 days ago: untouched');
+ok(sweep({ tags: ['owner-confirmed'], date: '2026-09-11', opps: [sopp(STG.ov, 'won'), kopp()] }).action === 'none'
+   && sweep({ tags: ['owner-confirmed'], date: '2026-09-10', opps: [sopp(STG.ov, 'won'), kopp()] }).action === 'expire', '14 days old: kept; 15 days: expired');
+d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11', 'screen-busy'], date: '2026-09-05', opps: [sopp(STG.ov, 'won'), kopp('lost')] });
+ok(d14sw.action === 'expire+rescreen', 'graduated owner whose Kevin opp closed: expired AND re-screened');
+const d14clear = d14sw.ops.find(o => o.label === 'clear screener fields');
+ok(d14clear && d14clear.body.customFields.length === 5 && d14clear.body.customFields.every(f => f.value === '') && d14labels(d14sw).indexOf('clear screener fields') < d14labels(d14sw).indexOf('screener opp -> Attempt 1 (open)'),
+   're-screen clears the five screener fields (mark, verdict, attempts, date, noise) before the stage moves');
+ok(JSON.stringify(d14sw.ops.find(o => o.label === 'remove result tags').body.tags) === '["screen-busy"]' && d14sw.ops.some(o => o.label === 'add screening tag')
+   && d14sw.ops.find(o => o.label === 'screener opp -> Attempt 1 (open)').body.status === 'open' && d14sw.ops.find(o => o.label === 'screener opp -> Attempt 1 (open)').body.pipelineStageId === STG.a1,
+   're-screen: leftover result tags off (hour tags already gone), screening on, won screener opp reopened in Attempt 1');
+ok(d14sw.ops.some(o => o.label === 'remove block followers (screener opp)'), 'a reopened screener opp gets its block followers cleared too');
+d14sw = sweep({ tags: ['screening', 'screen-mismatch'], date: '2026-09-01', opps: [sopp(STG.gk)] });
+ok(d14sw.action === 'rescreen' && !d14sw.ops.some(o => o.label === 'add screening tag') && JSON.stringify(d14sw.ops.find(o => o.label === 'remove result tags').body.tags) === '["screen-mismatch"]', 'Gatekeeper 24 days: re-screened (screening already on)');
+ok(sweep({ tags: ['screening'], date: '2026-09-15', opps: [sopp(STG.ns)] }).action === 'none', 'Not Sure 10 days: untouched');
+ok(sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.ns)] }).action === 'rescreen', 'Not Sure 24 days: re-screened');
+ok(sweep({ opps: [sopp(STG.ex, 'open', { lastStageChangeAt: '2026-09-05T00:00:00Z' })] }).action === 'rescreen'
+   && sweep({ opps: [sopp(STG.ex, 'open', { lastStageChangeAt: '2026-09-20T00:00:00Z' })] }).action === 'none', 'Exhausted: re-screened after 14 days in the stage, not before');
+ok(sweep({ tags: ['screening'], date: '2026-08-01', opps: [sopp(STG.dq)] }).action === 'none', 'Disqualified: never re-screened');
+ok(sweep({ tags: ['screening'], date: '2026-08-01', opps: [sopp(STG.a1)] }).action === 'none', 'Attempt stages: never touched');
+d14sw = sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.gk), kopp('open', MANR)] });
+ok(d14sw.action === 'none' && /re-screen trap/.test(d14sw.reason), 'an open Manual Review opp also blocks the re-screen');
+ok(/DND/.test(sweep({ tags: ['screening'], date: '2026-09-01', dnd: true, opps: [sopp(STG.gk)] }).reason), 'DND contact: never re-screened');
+ok(sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.gk)], settings: { screener_user_id: 'TOPU' } }).ops.find(o => o.label === 'clear screener fields').body.assignedTo === 'TOPU'
+   && /no screener assigned/.test(sweep({ tags: ['screening'], date: '2026-09-01', opps: [sopp(STG.gk)] }).reason), 're-screen assigns the screener when set, else says so');
+ok(sweep({ contact: { error: { message: '502' } } }).action === 'error', 'unreadable contact: error, nothing written');
+ok(/without a Date Screened/.test(sweep({ tags: ['owner-confirmed'], opps: [kopp()] }).reason), 'owner-confirmed with no Date Screened: left alone and reported');
+d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11'], date: '2026-09-01', opps: [sopp(STG.ov, 'won'), kopp('lost')] });
+ok(d14sw.ops.every(o => /\/contacts\/C1(\/tags)?$/.test(o.url) || /\/opportunities\/(S1|K1)(\/followers)?$/.test(o.url)), 'every request targets this contact or its own opportunities');
+d14sw = sweep({ tags: ['owner-confirmed', 'screened-pt-10-11'], date: '2026-09-01', opps: [kopp(), { id: 'D1', pipelineId: 'futfMtQJ6DAxZbRoH9xx', status: 'open' }] });
+ok(!d14sw.ops.some(o => o.url.includes('/opportunities/D1')) && d14sw.ops.some(o => o.url.includes('/opportunities/K1/followers')), 'block followers come off screener and Kevin opps only, never an unrelated pipeline (found live: the demo opp)');
+
+const SPL = codeOf(dsWf, 'Plan Sweep');
+const planOf = (decs, settings = {}) => new Function('$json', '$input', '$', SPL)({}, { all: () => decs.map(json => ({ json })) },
+  n => ({ first: () => ({ json: Object.assign({}, DSET, settings) }) }))[0].json;
+const d14dec = (id, n) => ({ contact_id: id, company: id, action: 'rescreen', reason: '', ops: Array.from({ length: n }, (_, i) => ({ label: 'op' + i, method: 'PUT', url: 'u', body: {} })) });
+let d14pl = planOf([d14dec('A', 2), d14dec('B', 3), { contact_id: 'C', action: 'none', reason: 'x', ops: [] }], { max_contacts: 1 });
+ok(d14pl.planned.length === 1 && d14pl.planned[0].contact_id === 'A' && d14pl.ops.length === 2 && d14pl.ops[0].contact_id === 'A' && JSON.stringify(d14pl.deferred) === '["B"]', 'at most MAX_CONTACTS changed per run; the rest are deferred and reported');
+d14pl = planOf([d14dec('A', 2)], { dry_run: true });
+ok(d14pl.dry_run === true && d14pl.ops.length === 0 && d14pl.planned.length === 1, 'dry run: planned and reported, nothing sent');
+
+const SCA = codeOf(dsWf, 'Candidates');
+const candOf = (contacts, opps) => new Function('$json', '$input', '$', SCA)({}, {}, n => {
+  if (n === 'GHL: owner-confirmed contacts') return { first: () => ({ json: contacts }) };
+  if (n === 'Stale searches') return { all: () => ['Gatekeeper', 'Not Sure', 'Exhausted', 'graduated'].map(label => ({ json: { label } })) };
+  if (n === 'GHL: screener opps') return { all: () => opps.map(json => ({ json })) };
+})[0].json;
+let d14cd = candOf({ contacts: [ { id: 'A' }, { id: 'B' } ] }, [ { opportunities: [ { contactId: 'B' }, { contactId: 'C' } ] }, { error: { message: '500' } }, { opportunities: [] }, { opportunities: [] } ]);
+ok(JSON.stringify(d14cd.contact_ids) === '["A","B","C"]' && JSON.stringify(d14cd.sources.B) === '["owner-confirmed","Gatekeeper"]' && d14cd.search_errors[0].startsWith('Not Sure'), 'candidates: deduped across searches; a failed search is reported');
+d14cd = candOf({ contacts: Array.from({ length: 100 }, (_, i) => ({ id: 'X' + i })) }, [ {}, {}, {}, {} ]);
+ok(d14cd.truncated.includes('owner-confirmed'), 'a full page (100) is reported as truncated');
+
+const SRP = codeOf(dsWf, 'Sweep Report');
+const repOf = (plan, sent, res) => new Function('$json', '$input', '$', SRP)({}, {}, n => {
+  const v = { 'Settings': [DSET], 'Candidates': [{ contact_ids: ['A', 'B'], search_errors: [], truncated: [] }], 'Plan Sweep': plan && [plan], 'Split Sweep Ops': sent, 'GHL: Sweep Apply': res }[n];
+  if (!v) throw new Error('unexecuted'); return { all: () => v.map(json => ({ json })) };
+})[0].json;
+let d14rp = repOf({ dry_run: false, planned: [ { contact_id: 'A', action: 'expire' }, { contact_id: 'B', action: 'rescreen' } ], deferred: [], blocked: [], errors: [] },
+  [ { contact_id: 'A', label: 'x' }, { contact_id: 'B', label: 'y' } ], [ {}, { error: { message: '500' } } ]);
+ok(d14rp.expired.length === 1 && d14rp.rescreened.length === 0 && d14rp.failed.length === 1 && d14rp.failed[0].startsWith('B y: 500'), 'report: a contact with a failed request is listed as failed, not done');
+ok(repOf(null, null, null).candidates === 2 && repOf(null, null, null).expired.length === 0, 'report works when no contact needed anything');
+ok(new Function('$json', '$input', '$', SRP)({}, {}, n => { if (n === 'Settings') return { all: () => [{ json: Object.assign({}, DSET, { dry_run: true }) }] }; throw new Error('unexecuted'); })[0].json.dry_run === true, 'a dry run with no candidates still says dry run (read from Settings)');
+
+const SSB = codeOf(dsWf, 'Build Summary');
+const sumOf = ({ rep = {}, counts = [], d24 = { calls: 3, compared: 2, matched: 1, owners: 1, no_answers: 5, voicemails: 1, bad_numbers: 0 }, wb = [], grads = [], pend = [] } = {}) => {
+  const stages = ['Attempt 1', 'Attempt 2', 'Attempt 3', 'Attempt 4', 'Owner Verified', 'Gatekeeper', 'Not Sure', 'Exhausted', 'Disqualified'];
+  const m = { 'Sweep Report': [Object.assign({ expired: [], rescreened: [], blocked: [], deferred: [], failed: [], errors: [], search_errors: [], truncated: [] }, rep)],
+    'Stage count searches': stages.map(name => ({ name })), 'GHL: stage counts': stages.map((_, i) => ({ meta: { total: counts[i] != null ? counts[i] : 3 } })),
+    'Supabase: last 24h': [d24], 'Failed write-backs': wb, 'Failed graduations': grads, 'Pending log writes': pend };
+  return new Function('$json', '$input', '$', SSB)({}, {}, n => ({ all: () => (m[n] || []).map(json => ({ json })) }))[0].json;
+};
+let d14sm = sumOf();
+ok(/Attempt 1 3/.test(d14sm.text) && /3 answered calls/.test(d14sm.text) && /match 1\/2 \(50%\)/.test(d14sm.text) && /nothing :white_check_mark:/.test(d14sm.text) && d14sm.needs_human === false, 'summary: stage counts, last 24 h with match rate, all d14clear');
+ok(/Attempt 1 is empty/.test(sumOf({ counts: [0] }).text), 'empty Attempt 1 -> "load the next set" (spec: a signal, not a failure)');
+const d14old = new Date(Date.now() - 3 * 86400000).toISOString(), d14fresh = new Date().toISOString();
+d14sm = sumOf({ wb: [ { id: 1, contact_id: 'C9', contact_name: 'Old Plumbing', received_at: d14old }, { id: 2, contact_id: 'C8', received_at: d14fresh } ], grads: [ { id: 3, contact_id: 'C7', reason: 'x', at: d14old } ], pend: [ { id: 4 } ] });
+ok(d14sm.needs_human && /1 GHL write-backs failing for 48 h\+: Old Plumbing/.test(d14sm.text) && /1 graduations failing/.test(d14sm.text) && /1 Supabase log writes pending/.test(d14sm.text),
+   'needs a human: write-backs failing 48 h+ (not d14fresh ones), stuck graduations, pending log writes');
+ok(/dry run/.test(sumOf({ rep: { dry_run: true } }).text) && /Supabase not readable/.test(sumOf({ d24: { error: { message: '401' } } }).text), 'dry runs and an unreadable Supabase are said out loud');
+ok(/not re-screened/.test(sumOf({ rep: { blocked: [ {} ] } }).text) && /deferred/.test(sumOf({ rep: { deferred: ['X'] } }).text), 'blocked and deferred leads are counted');
+
+ok(JSON.stringify(conn(dsWf, 'Any candidates?')) === '[["One contact"],["Sweep Report"]]' && JSON.stringify(conn(dsWf, 'Write to GHL?')) === '[["Split Sweep Ops"],["Sweep Report"]]'
+   && JSON.stringify(conn(dsWf, 'Sweep Report')) === '[["Stage count searches"]]' && JSON.stringify(conn(dsWf, 'Build Summary')) === '[["Slack: daily summary"]]',
+   'wiring: no candidates / dry run both still reach the report and the Slack summary');
+ok(['Supabase: last 24h', 'Failed write-backs', 'Failed graduations', 'Pending log writes'].every(n => dsWf.nodes.find(x => x.name === n).executeOnce === true), 'the summary reads run once, not once per stage');
+ok(/create or replace view public\.screener_last_24h/.test(SQL), 'SQL: screener_last_24h view defined');
+
 console.log(`\n===== RESULT: ${PASS} passed, ${FAIL} failed =====`);
 process.exit(FAIL ? 1 : 0);

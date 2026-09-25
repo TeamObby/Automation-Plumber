@@ -91,3 +91,16 @@ language sql security invoker set search_path = '' as $$
 $$;
 revoke execute on function public.screener_log_upsert(jsonb) from public, anon, authenticated;
 grant execute on function public.screener_log_upsert(jsonb) to service_role;
+
+-- Item 7b: the last 24 hours for the daily Slack summary (Screener: Daily Sweep). One row.
+-- Migration screener_last_24h (2026-09-25).
+create or replace view public.screener_last_24h with (security_invoker = true) as
+select count(*) filter (where event = 'call')                                   as calls,
+       count(*) filter (where event = 'call' and match is not null)            as compared,
+       count(*) filter (where event = 'call' and match)                        as matched,
+       count(*) filter (where event = 'call' and result_stage = 'Owner Verified') as owners,
+       count(*) filter (where event = 'no-answer')                              as no_answers,
+       count(*) filter (where event = 'voicemail')                              as voicemails,
+       count(*) filter (where event = 'bad-number')                             as bad_numbers
+from public.screener_log
+where event_at >= now() - interval '24 hours';
