@@ -191,6 +191,19 @@ n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`,
 `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
 `SCREENER_USER_ID` in the Daily Sweep is optional now (Topu has normal access): empty leaves re-screened leads unassigned.
 
+**Pre-flight done 2026-09-25 (read-only):** all 13 screener workflows in n8n = the repo snapshots (nodes and wiring);
+Classify / Compare Step / Attempt Counter published at their latest draft; every workflow has a successful earlier
+run (credentials proven); the guards post to the production `/webhook/screener-call|-disposition|-no-answer` paths,
+`Screener Outcome Changed` to `/webhook/screener-outcome` — all four exist; Supabase has `screener_log_upsert` and
+both views, 0 rows; retry queues empty; Dana clean (Attempt 1, `screening` only, no fields, no followers).
+Before the switches: **delete `TEST-screener-0004`** from `screener_calls` (writeback_ok = false, now past 48 h: the
+daily summary would report it as a failing write-back every day), and decide on Graduate's **`assignedTo: null`**
+write (below). Check on the real test call: Kevin's Call Recorded payload has no `ghl_user_id` / `contact_name`
+keys, so `screener_log.screener_user_id` may stay empty (harmless; the name falls back to the contact's).
+**Open decision — Graduate clears the contact owner** (`clear screener as owner`, `graduate_ops.js`): built for the
+old plan where the screener owned the lead. With normal access nothing assigns Topu, so this write now wipes
+whatever owner the lead had (e.g. from GHL's `Assign User Automatically`, not inspected). Recommended: remove it.
+
 ### People
 - **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.
 - **Tosif** — third helper if needed.
