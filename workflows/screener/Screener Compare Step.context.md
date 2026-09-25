@@ -5,8 +5,8 @@
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24 — re-publish after every `update_workflow`.
 - **Called by:** `Screener: Capture Call` (`source: call`, with the new AI verdict) and
   `Screener: Mark + Compare` (`source: mark`). Inputs: `contact_id`, `verdict_json`, `source`, `force`.
-- **⚠️ Sync state (2026-09-25, 3rd codex review):** snapshot = the n8n **draft** with **Stamp Read** (below); the
-  published version still stamps `read_ms` inside Decide until it is re-published (needs OK).
+- **Sync state (2026-09-25):** snapshot = live. Re-published with **Stamp Read** (3rd codex review); smoke test
+  123887: Stamp Read's time reached Decide's `read_ms` unchanged, Report → Return intact.
 
 ## Purpose
 The one place where the screener's mark (`Screener Outcome`) meets the AI verdict
