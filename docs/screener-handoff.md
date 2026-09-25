@@ -10,8 +10,8 @@ GHL side of the existing campaign: [`ghl-automations.md`](ghl-automations.md). R
 
 The **GHL container is built** (pipeline, stages, fields, tags, 10 block users, test rig) and
 **Mohimenul's n8n items 1–6 are built** (capture + AI verdict, hour block, compare + write-back,
-attempt ladder, graduate) and tested live on the test contact, Graduate end to end included. The **guards
-are not in yet**, so no screener call may be made and the entry workflows stay **inactive**. After
+attempt ladder, graduate) and tested live on the test contact, Graduate end to end included. The **three GHL guards
+are live** (2026-09-25); the n8n entry workflows stay **inactive** until the go-live switches. After
 Kevin's 2026-09-24 meeting, **Supabase** becomes the source of truth and **Topu** (the screener) is
 due to start calling. The critical path is: guards → go-live switches (publish `Graduate`, activate
 the entry workflows, publish `Screener Outcome Changed`) → one real test call.
@@ -70,11 +70,10 @@ blocks duplicate phone numbers.
 | Where | Name | ID | State |
 |---|---|---|---|
 | GHL | `Screener Outcome Changed` | `29535603-03a9-470c-8d98-0cde44df6c04` | **Draft** — publish when n8n item 4 is live |
-| GHL | Call Recorded Trigger | `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | live, **needs guard** |
-| GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live, **needs guard (after the Wait; GHL has no branches — A/B are in n8n)** |
-| GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live, **needs guard (mid-workflow)** |
+| GHL | Call Recorded Trigger | `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | live **v7, guarded** 2026-09-25 → `screener-call` |
+| GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live **v11, guarded** 2026-09-25 → `screener-disposition` |
+| GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live **v37, guarded** 2026-09-25 → `screener-no-answer` (tested on Dana) |
 | GHL | Move Leads Into Cadence | `571b33ab-2e83-4b72-8688-7a24f8c67b3b` | live but inert (posts to a `webhook-test` URL) — **no guard**; one would break Graduate |
-| GHL | ZZ Guard Test - DELETE ME | `fed7700e-7581-4fac-adb6-ec2e5c25b703` | **draft** copy of Call No Answer with the finished guard — the template; delete after the live edits |
 | n8n | Screener: Capture Call | `jQaCWO08lddHg9fN` | inactive by design |
 | n8n | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | sub-workflow, published |
 | n8n | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | test harness |
@@ -149,9 +148,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 
 ### Hridoy (GHL side, and the list)
 - **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
-- **The three guards** (§1 of the plan, re-verified live 2026-09-25) — nothing screener-side goes live before them.
-  ⚠️ Build each If/Else with **Kevin as the first branch** (`Tags does not include screening`): GHL moves the
-  existing steps into the first branch.
+- ✅ **The three guards are live** (2026-09-25, v37 / v11 / v7, verified through the API; Call No Answer
+  tested call-free on Dana). Left: one real Google Voice call on Dana to exercise the call-recorded and
+  disposition guards.
 - Publish `Screener Outcome Changed` · change `Import Contact To New` · Smart Lists · **Topu's screener user**
   (Only Assigned Data) · Topu's WAVV seat and numbers (Kevin pays).
 

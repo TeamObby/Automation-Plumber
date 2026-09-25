@@ -300,6 +300,16 @@ carries: tag **`screening`** + **Owner = a screener user**.
 
 ### The GHL guards — three, not four (re-verified live 2026-09-25)
 
+> ✅ **LIVE since 2026-09-25 ~20:00 PT** (built by Claude, verified through the API): Call No Answer
+> **v37**, Capture Wavv Disposition **v11**, Call Recorded Trigger **v7** — each is now
+> `[… housekeeping …] → Screener lead? → Kevin (Tags does not include screening): the original steps,
+> unchanged | Screener: the screener webhook`. The Call Recorded screener webhook's 19 custom-data
+> entries are byte-identical to Kevin's. **Tested call-free on Dana** (`wavv-no-answer` added via the
+> GHL MCP): execution log = Remove Tag → Screener → `Screener: No Answer` (failed — the n8n webhook is
+> inactive, as expected) → end; `wavv-no-answer` removed, **no `last_call_missed`**, Missed-Call
+> Dispatcher untouched (last run 16 Sep). Not yet exercised: the two call-driven guards — they need
+> one real Google Voice call on Dana (answered + a disposition). The template draft was deleted.
+
 Read from the live workflows through the builder's own API on 2026-09-25. Two rows of the original
 four-guard table were wrong and are corrected here.
 
