@@ -54,10 +54,11 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   `screener_sweep_pending`); after the 2026-09-24 meeting, Supabase becomes the source of truth: the screener
   already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`, written only through
   the versioned function `screener_log_upsert`), and `Screener: Daily Sweep` (item 7b) posts a daily summary
-  to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25); keep the entry workflows inactive until go-live:
-  `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`,
-  `Log Retry`, `Daily Sweep`. Published sub-workflows: Classify Transcript, Compare Step, Attempt Counter
-  (last re-published 2026-09-25); `Graduate` still to publish.
+  to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25). Go-live on the n8n side
+  (2026-09-25): active `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`, `Log Retry`; still off
+  (the user switches them on in the n8n UI) `Capture Call`, `Mark + Compare`, `Daily Sweep`. Published sub-workflows:
+  Classify Transcript, Compare Step, Attempt Counter, Graduate (all 2026-09-25). Claude Code's permission guard may
+  refuse `publish_workflow` as a production deploy even after the user's OK: then stop and hand it to the user.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her;
   `ungraduate` undoes a Graduate test (deletes the Kevin opportunity Graduate logged for her).
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.

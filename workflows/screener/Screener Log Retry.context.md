@@ -2,7 +2,7 @@
 
 - **n8n ID:** `y2oXfZtH4y1mhWQG` · **URL:** https://n8n.meetobby.com/workflow/y2oXfZtH4y1mhWQG · **File:** `Screener Log Retry.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_logretry.js` (+ `src/log_retry_pick.js`; shared `build/log_supabase.js`)
-- **Status:** created 2026-09-25, **inactive** — activate with the other screener sweeps at go-live.
+- **Status:** created 2026-09-25, **active ✅ since 2026-09-25** (published at go-live, n8n side).
 - **Data table:** `screener_log_pending` `qKv7RxgTDsqb1plo` (`pending_key`, `event_key`, `row_json`, `error`, `queued_at`).
 
 ## Purpose

@@ -2,8 +2,7 @@
 
 - **n8n ID:** `IvxTYaChixQOiNzt` · **URL:** https://n8n.meetobby.com/workflow/IvxTYaChixQOiNzt · **File:** `Screener Write-back Retry.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_retry.js` (+ `src/pick_retries.js`)
-- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
-  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
+- **Status:** **Active ✅ since 2026-09-25** (built 2026-09-23; published at go-live, n8n side).
 - **Trigger:** Schedule, every 15 minutes.
 
 ## Purpose

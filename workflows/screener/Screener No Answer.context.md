@@ -2,8 +2,8 @@
 
 - **n8n ID:** `aZyzUwwNdDWvaCAk` · **URL:** https://n8n.meetobby.com/workflow/aZyzUwwNdDWvaCAk · **File:** `Screener No Answer.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_eventhooks.js`
-- **Status:** Inactive ❌ — **keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
-  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
+- **Status:** **Active ✅ since 2026-09-25** (published by Claude at go-live, n8n side; the GHL guards route only
+  `screening` leads here).
 - **Trigger:** Webhook `POST /webhook/screener-no-answer`.
 
 ## Contract (for Hridoy)

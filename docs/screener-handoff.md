@@ -88,7 +88,7 @@ blocks duplicate phone numbers.
 | n8n | Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | item 5, sub-workflow, published |
 | n8n | Screener: No Answer | `aZyzUwwNdDWvaCAk` | item 5, `/webhook/screener-no-answer`, inactive |
 | n8n | Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | item 5, `/webhook/screener-disposition`, inactive |
-| n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **publish before go-live** |
+| n8n | Screener: Graduate | `M2LD6njhVMO9Ol7w` | item 6, sub-workflow — **published 2026-09-25** |
 | n8n | Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | item 6, every 10 min, inactive |
 | n8n | Screener: Log Retry | `y2oXfZtH4y1mhWQG` | item 7a, every 15 min, replays failed Supabase log writes — inactive |
 | n8n | Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | item 7b, 05:00 PT stale sweep + Slack summary — inactive |
@@ -192,6 +192,11 @@ GHL: publish `Import Contact To Screener` + unpublish `Import Contact To New`, p
 n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
 `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
 `SCREENER_USER_ID` in the Daily Sweep is optional now (Topu has normal access): empty leaves re-screened leads unassigned.
+
+**n8n go-live, 2026-09-25 (with Mohimenul's OK):** ✅ published `Graduate` (`aa2394a7`) and activated `No Answer`,
+`WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`, `Log Retry` (Graduate Sweep's first scheduled run 124236 ok).
+**Still off — Mohimenul switches them on in the n8n UI** (Claude Code's permission guard refused these three
+publishes): `Capture Call`, `Mark + Compare`, `Daily Sweep`. Until Capture Call is on, a recorded screener call is lost.
 
 **Pre-flight done 2026-09-25 (read-only):** all 13 screener workflows in n8n = the repo snapshots (nodes and wiring);
 Classify / Compare Step / Attempt Counter published at their latest draft; every workflow has a successful earlier

@@ -2,7 +2,7 @@
 
 - **n8n ID:** `M2LD6njhVMO9Ol7w` · **URL:** https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w · **File:** `Screener Graduate.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_graduate.js` (+ `src/graduate_decide.js`, `graduate_ops.js`, `graduate_gate.js`, `graduate_log.js`); 17 nodes
-- **Status:** sub-workflow — **publish before go-live** (not published yet). Called only by
+- **Status:** sub-workflow — **published ✅ 2026-09-25** (version `aa2394a7`; re-publish after every `update_workflow`). Called only by
   **`Screener: Graduate Sweep`** (`jZAgBUQvffv1NCMC`).
 - **Data table:** `screener_graduations` `1iX0aTvMYawwyH4H` — one row per lead, upserted on every attempt (key `contact_id:screener_opp_id`).
 
