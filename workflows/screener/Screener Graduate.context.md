@@ -29,7 +29,10 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
   it is a task for a human, not a sales or call queue, so a lead whose only open opportunity is there
   still gets a real one (Codex review, 2026-09-24).
 - **Writes:** PT block follower on Kevin's opportunity → remove `screening` + any `wavv-*` tags (keeps
-  `owner-confirmed` and the block tag for Kevin's lists) → clear the screener as the contact's owner.
+  `owner-confirmed` and the block tag for Kevin's lists). The tag removal always goes out (with `screening` even
+  when it is already gone; GHL answers 200 for an absent tag), because Close Gate and the log run only after at
+  least one write. **The contact owner is not touched** (decided 2026-09-25): Topu has normal access and nothing
+  assigns leads to him, so the old "clear the screener as owner" write would only have wiped a real owner.
 - **The close is gated.** `GHL: Graduation Apply` continues on error, so on its own it would still send
   the close after a failed write, and a closed opportunity is never swept again (Codex review,
   2026-09-24). So the close is its own node: **Close Gate** lets it run only if every write came back
@@ -53,8 +56,8 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
   (`rvKNBwtZPXQY1ICQLPJf`), PT 10-11 follower on it, `screening` + `wavv-none` removed (the other two
   kept), owner PUT accepted, Close Gate `close: true`, screener opp `won`, row `ok: true`. Checked in GHL
   directly, not only in the log. Kevin's automations added nothing (Dana has no TZ).
-- Create response shape confirmed: `{ opportunity: { id } }`. `assignedTo: null` was accepted, but Dana
-  had no owner before, so clearing a real owner is still unproven until a screener user owns a lead.
+- Create response shape confirmed: `{ opportunity: { id } }`. (The owner-clearing write tested
+  here was removed on 2026-09-25, see Writes.)
 - Undone with the Test Rig `ungraduate` (123635): the Kevin opp is deleted (404) and Dana is back to
   open / Attempt 1 / `screening`.
 

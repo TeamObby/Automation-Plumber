@@ -197,13 +197,13 @@ Classify / Compare Step / Attempt Counter published at their latest draft; every
 run (credentials proven); the guards post to the production `/webhook/screener-call|-disposition|-no-answer` paths,
 `Screener Outcome Changed` to `/webhook/screener-outcome` — all four exist; Supabase has `screener_log_upsert` and
 both views, 0 rows; retry queues empty; Dana clean (Attempt 1, `screening` only, no fields, no followers).
-Before the switches: **delete `TEST-screener-0004`** from `screener_calls` (writeback_ok = false, now past 48 h: the
-daily summary would report it as a failing write-back every day), and decide on Graduate's **`assignedTo: null`**
-write (below). Check on the real test call: Kevin's Call Recorded payload has no `ghl_user_id` / `contact_name`
+Both pre-flight fixes are done: `TEST-screener-0004` deleted (by Mohimenul in the n8n UI), and Graduate no longer
+clears the contact owner (below). Check on the real test call: Kevin's Call Recorded payload has no `ghl_user_id` / `contact_name`
 keys, so `screener_log.screener_user_id` may stay empty (harmless; the name falls back to the contact's).
-**Open decision — Graduate clears the contact owner** (`clear screener as owner`, `graduate_ops.js`): built for the
-old plan where the screener owned the lead. With normal access nothing assigns Topu, so this write now wipes
-whatever owner the lead had (e.g. from GHL's `Assign User Automatically`, not inspected). Recommended: remove it.
+**Decided 2026-09-25 — Graduate leaves the contact owner alone.** The `clear screener as owner` write was built for
+the old plan where the screener owned the lead; with normal access it would only wipe whatever owner the lead had
+(e.g. from GHL's `Assign User Automatically`). Removed; the `screening` tag removal now always goes out instead, so a
+graduation always has at least one write (Close Gate and the log run only after one).
 
 ### People
 - **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.

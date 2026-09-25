@@ -718,7 +718,12 @@ const gops = (plan, created) => new Function('$json', '$input', '$', GO)({}, {},
 let go = gops(gplan(), { opportunity: { id: 'K1' } });
 ok(go.every(o => o.kevin_opp_id === 'K1') && go[0].url.endsWith('/opportunities/K1/followers') && go[0].body.followers[0] === 'T4p1bK3yo6Bl14OK1LP3', 'follower goes on the NEW Kevin opportunity');
 ok(!go.some(o => o.url.endsWith('/opportunities/O1')), 'Graduation Ops never closes the screener opportunity (Close Gate does, after every write succeeded)');
-ok(go.some(o => o.label === 'clear screener as owner' && o.body.assignedTo === null), 'the screener stops owning the contact');
+ok(!go.some(o => o.body && 'assignedTo' in o.body), 'the contact owner is left alone (decision 2026-09-25: one screener, normal access)');
+ok(JSON.stringify(go.find(o => o.label === 'remove screening + wavv tags').body.tags) === '["screening","wavv-none"]', 'screening and wavv tags come off');
+{ // a retry after the tags already came off, with no hour block: still one write, so Close Gate and the log run
+  const bare = gops(gplan({ tags: ['owner-confirmed'] }), { opportunity: { id: 'K1' } });
+  ok(bare.length === 1 && bare[0].method === 'DELETE' && JSON.stringify(bare[0].body.tags) === '["screening"]', 'no block and no tags left: the screening removal still goes out (never zero writes)');
+}
 go = gops(gplan({ opps: { opportunities: [ so(), { id: 'K9', pipelineId: 'O7LMZpDOFM2SYO65twC5', status: 'open' } ] } }));
 ok(go[0].kevin_opp_id === 'K9', 'reused opportunity: follower on the existing one');
 go = gops(gplan(), { error: { message: '422 duplicate' } });

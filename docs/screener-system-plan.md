@@ -665,7 +665,7 @@ opportunity board stays correct too.
 
 On **Owner Verified** only:
 
-1. remove tag `screening`, clear the screener as Owner;
+1. remove tag `screening` (the Owner is left alone — decision 2026-09-25, one screener with normal access);
 2. set `owner-confirmed`, block tag, block follower, `Date Screened`;
 3. create the opportunity in **Kevin's** pipeline by today's rule from `Import Contact To New`:
    no email → Cold Call Pipeline `Day 1 Call A` (`060f44a8-…`); has email → Client Acquisition
