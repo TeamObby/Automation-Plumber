@@ -6,7 +6,7 @@
 - **Status:** manual only — **never activate**. Run with `execute_workflow` (manual, webhook input).
 
 ## Purpose
-Exercise the real GHL write-back without a WAVV call (which needs the guards). It plays the
+Exercise the real GHL write-back without a WAVV call (which needs go-live). It plays the
 screener — sets `Screener Outcome`, which n8n never writes in production — and reads/resets the
 state. **Hard-wired to one record:** test contact **Dana Happy** `2Z5mwZe5RT4NQdNW85vj` and its
 screener opportunity `FAstcBVvrgbpds2gQIV3`; the ids are constants, not inputs. The one exception is

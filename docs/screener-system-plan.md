@@ -116,7 +116,7 @@ a second Google Voice number and split them.
 | **Topu's GHL user** | A real person — needs his address. **Normal access** (decision 2026-09-25). The ten block users are done (above) | Hridoy, once Topu's email is known |
 | ~~Smart Lists~~ | **Not needed** — decision 2026-09-25 (top of this file) | — |
 | **GHL workflow: `Screener Outcome` changed → webhook** | Started: empty draft `29535603-03a9-470c-8d98-0cde44df6c04`. The *Contact changed* trigger exists, but its **Add filters** panel would not open under automation, and saving the trigger with **no** field filter would fire on *every* contact change in the account and flood the webhook. Left unconfigured on purpose | Hridoy: pick `Screener Outcome` in Add filters → add Webhook action POST `https://n8n.meetobby.com/webhook/screener-outcome` sending `contact_id` → publish **only** when Mohimenul's item 4 is live |
-| **The four guard edits** (§1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
+| **The four guard edits** (§1) — ✅ done 2026-09-25 as **three** guards (`Move Leads Into Cadence` needs none, §1) | Deliberately **not** done unattended. These edit workflows that run Kevin's live campaign; a wrong branch sends a real cold email to a lead he has never spoken to. Do them together, one at a time, each verified on a `screening`-tagged test contact | Hridoy + Claude |
 | **WAVV: 2nd/3rd seat, screener numbers** | Costs money; `Seats Used: 1/1` | Kevin |
 | **Team dispositions decision** (§2.5) | Needs the seats before it can be tested | Kevin + Hridoy |
 
@@ -247,8 +247,8 @@ Original notes, still valid:
 2. For the **inbound** side, mock the payload: copy the `customData` list from the live
    `Call Recorded Trigger` in [`ghl-automations.md`](ghl-automations.md) and POST it to your
    webhook by hand. Hridoy wires the real GHL triggers when the guards go in.
-3. Build the six workflows in §9. Keep them **inactive** until the guards exist — until then a
-   screener call would still reach Kevin's automations.
+3. Build the six workflows in §9. Keep them **inactive** until go-live — the guards are live since 2026-09-25, but the entry
+   workflows switch on together with the GHL intake swap (hand-off §3).
 4. The compare step (§4.1) is shared by two paths — build it once as a sub-workflow.
 
 ---
@@ -736,7 +736,7 @@ the other to start.
 
 | Order | Task | Done when |
 |---|---|---|
-| 1 | **The four guard branches** (§1) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
+| 1 | **The guard branches** (§1; three, live 2026-09-25 — no-answer tested call-free, call + disposition still need one real call) + `screening` tag | a tagged test contact survives a real WAVV call, a disposition and a no-answer with **no** opp move, **no** email, **no** `last_call_missed`, and `wavv-*` tags still cleaned |
 | 2 | Pipeline + 9 stages, pinned to the top | stage IDs handed to Mohimenul (§10.3) |
 | 3 | the `Screener Outcome` **dropdown** (exact option spellings), the other 4 fields, all tags | field IDs + option strings handed over |
 | 4 | 2 screener users (Only Assigned Data, **not** admin), 8 block users | screener can log in and see only their own list |

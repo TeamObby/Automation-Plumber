@@ -54,7 +54,7 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   `screener_sweep_pending`); after the 2026-09-24 meeting, Supabase becomes the source of truth: the screener
   already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`, written only through
   the versioned function `screener_log_upsert`), and `Screener: Daily Sweep` (item 7b) posts a daily summary
-  to Slack `#daily-screener-summary`. Keep the entry workflows inactive until the GHL guards exist:
+  to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25); keep the entry workflows inactive until go-live:
   `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`,
   `Log Retry`, `Daily Sweep`. Published sub-workflows: Classify Transcript, Compare Step, Attempt Counter
   (last re-published 2026-09-25); `Graduate` still to publish.

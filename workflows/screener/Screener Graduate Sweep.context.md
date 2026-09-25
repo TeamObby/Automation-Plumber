@@ -2,7 +2,8 @@
 
 - **n8n ID:** `jZAgBUQvffv1NCMC` · **URL:** https://n8n.meetobby.com/workflow/jZAgBUQvffv1NCMC · **File:** `Screener Graduate Sweep.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_graduate.js` (+ `src/graduate_pick.js`)
-- **Status:** Inactive ❌ — **keep inactive until the four GHL guard branches exist.**
+- **Status:** Inactive ❌ — **keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
+  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
 - **Trigger:** Schedule, every 10 minutes.
 
 ## Purpose

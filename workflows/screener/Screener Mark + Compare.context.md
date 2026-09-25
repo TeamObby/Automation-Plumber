@@ -2,7 +2,8 @@
 
 - **n8n ID:** `zVCzfADKZqPWV6hk` · **URL:** https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk · **File:** `Screener Mark + Compare.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_mark.js`
-- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until the four GHL guard branches exist.**
+- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
+  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
 - **Trigger:** Webhook POST **`/webhook/screener-outcome`**, fired by a GHL workflow Hridoy builds:
   *Contact Changed → `Screener Outcome` has changed → webhook* (same pattern as `Manual Review Items Changed`).
 

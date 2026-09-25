@@ -147,7 +147,8 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
    are saved and finished next run; the log version is stamped at the contact read; stuck graduations use
    `first_failed_at`. Compare Step re-published with the stamp fix. 4th review: a replayed half-done re-screen
    re-checks the guards (open Kevin opp / DND → stopped, reported for a human; expire-only replays still run). `SCREENER_USER_ID` optional (Topu has normal access).
-5. **Item 8 — accuracy report** on the first real calls (needs Topu's calls).
+5. **Item 8 — accuracy report** on the first real calls. The report can be built now on the `screener_accuracy`
+   view and tested with test rows; the real numbers need Topu's calls (after go-live).
 
 ### Mohimenul — then the new work from the meeting
 6. **Design the Supabase tables and columns** (Mohimenul decides; Kevin named only the tables: shops with
@@ -164,9 +165,9 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
     delete rows; n8n UI); the Supabase test rows are already deleted. Delete the test posts in
     `#daily-screener-summary`. Rotate the exposed Instantly key. Tell the Obby product owner about the Supabase
     RLS warning (AGENTS.md security backlog).
-11. **Git:** all screener work since item 6 is on branch **`screener-item-6`** (pushed; items 6, 7a, 7b and three
-    Codex review rounds). Open a PR to `main` — first check that the earlier `screener-item-4` merge really reached
-    `main` (on 2026-09-24 `origin/main` did not show it, so `screener-item-6` was branched from `screener-item-4`).
+11. **Git:** PRs #4–#6 (`screener-item-6`) are merged and `screener-item-4` is in `main`. `screener-item-6` now carries
+    only the pre-compact docs pass, the 4th Codex fix and a merge of Hridoy's guard commits: open a PR to `main`
+    (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here).
 
 ### Hridoy (GHL side, and the list)
 - **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
@@ -183,6 +184,8 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 - Email-1 timing for screened leads is parked; Graduate sends leads to Kevin exactly as import does today.
 
 ### Go-live switches (the guards exist)
+First a read-only pre-flight (Mohimenul): published versions = latest drafts, credentials set, webhook paths = the
+guards' targets, Dana clean. Then, with an explicit OK and together with Hridoy:
 GHL: publish `Import Contact To Screener` + unpublish `Import Contact To New`, publish `Screener Outcome Changed`.
 n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`,
 `Write-back Retry`, `Graduate Sweep`, `Log Retry`, `Daily Sweep` → one real test call with Hridoy on the test contact.
@@ -209,7 +212,8 @@ n8n: publish `Screener: Graduate` → activate `Capture Call`, `Mark + Compare`,
 - **Freshness is enforced by the n8n sweep, not a filter** — contact filters on a custom field offer
   only *Is / Is not / Is empty / Is not empty*.
 - **Stages mean the call *due*** (same convention as `Day 1 Call A`), so Attempt 1 = never dialled.
-- **Mohimenul's workflows stay inactive until the guards exist.**
+- **Mohimenul's entry workflows stay inactive until go-live** (guards live since 2026-09-25; switch on together
+  with the GHL intake swap).
 
 ---
 
