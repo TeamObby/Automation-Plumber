@@ -5,8 +5,9 @@
   `stale_candidates.js`, `stale_decide.js`, `stale_plan.js`, `stale_report.js`, `summary_stage_urls.js`, `summary_build.js`)
 - **Status:** created 2026-09-25, **inactive** — activate at go-live. Runs every day at **05:00 America/Los_Angeles**
   (the n8n instance timezone, confirmed from the trigger output), before the screeners' 08:00 PT shift.
-- **Slack:** channel + credential in `build/slack.json` — **not set yet** (the node continues on error, so a
-  missing channel never fails the sweep).
+- **Slack:** `#daily-screener-summary`, posted by **Slack [ Obby bot account ]** `QcTNBiXBrnH5rFkC`
+  (`build/slack.json`). The node continues on error, so a Slack problem never fails the sweep. First post
+  (123876) got `not_in_channel` — the bot must be invited to the channel.
 
 ## Decisions (Mohimenul, 2026-09-25)
 - **Stale graduated owner** (Date Screened > 14 days, still in Kevin's pipeline): **drop it from the hour lists** —
@@ -40,9 +41,9 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
   searches, **expire + re-screen**, 7 requests, 0 failed; a direct GET showed her back to clean (fields empty,
   `screening` on, screener opp open in Attempt 1).
 - Found live: the follower removal also ran on Dana's open **demo** opportunity (harmless, nothing there); now
-  limited to screener + Kevin opportunities (test added) — **deployed together with the Slack settings**.
+  limited to screener + Kevin opportunities (test added), deployed with the Slack settings.
 
 ## TODOs
-- Slack channel + credential (`build/slack.json`), then deploy.
+- Invite the Obby bot to `#daily-screener-summary`, then re-run once to see the first post.
 - `SCREENER_USER_ID` = Topu's GHL user once Hridoy creates it.
 - Pagination: each search reads 100; a full page is reported in Slack as truncated.

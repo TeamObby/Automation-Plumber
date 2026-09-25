@@ -1,6 +1,6 @@
 {
   "_comment": "Slack target for the screener daily summary (Screener: Daily Sweep, item 7b). Fill in, then build.sh + deploy.",
-  "credential_id": "",
-  "credential_name": "",
-  "channel": ""
+  "credential_id": "QcTNBiXBrnH5rFkC",
+  "credential_name": "Slack [ Obby bot account ]",
+  "channel": "#daily-screener-summary"
 }

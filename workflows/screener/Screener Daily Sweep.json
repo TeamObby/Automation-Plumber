@@ -503,7 +503,7 @@
         "channelId": {
           "__rl": true,
           "mode": "name",
-          "value": "#SET-ME"
+          "value": "#daily-screener-summary"
         },
         "messageType": "text",
         "text": "={{ $json.text }}",
@@ -513,7 +513,13 @@
         }
       },
       "retryOnFail": true,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "slackApi": {
+          "id": "QcTNBiXBrnH5rFkC",
+          "name": "Slack [ Obby bot account ]"
+        }
+      }
     },
     {
       "name": "Sticky Note",
