@@ -5,6 +5,31 @@ The specs were written before anyone could see what was already running. Your bu
 places we reach the same result a safer way, because following the spec word for word would have broken something
 already live, or two specs asked for opposite things.
 
+## Done so far (2026-09-26)
+
+- **Your database is installed** in Supabase (project `screener-helper`): your tables `shops`, `shop_phones`,
+  `raw_pages`, `sets`, `source_records`, `needs_check` and `job_ads`, plus `score_history` and the views below. My
+  earlier tables were all empty; they're in an archive, not deleted. Everything is locked so only the service key can
+  read or write it.
+- **The California list is loaded.** All your check queries (Task 4, step 5) match:
+  - 18,413 shops: 17,567 new, 487 held, 359 disqualified;
+  - 0 duplicate licence numbers; your duplicate-phone query shows exactly 7 numbers shared by 15 shops;
+  - the 1,071 shops with no licence number keep their `OLD-` ID from your shop list;
+  - 18,998 phone numbers (2,528 main numbers from Google, 16,393 licence-only, 77 others);
+  - your v2.2 score saved as each shop's first score-history entry;
+  - the 300 random-control shops marked.
+- **Only 2,528 shops have a dialable number today.** The rest have only the licence phone, so batch 1 depends on
+  Tausif's Google lookups.
+- **Task 5 is mostly live.** Every call is saved with its recording and transcript, the AI checks each call, and your
+  productivity numbers (`screener_hourly`, `screener_daily`) are ready. The call log now has your extra columns (first
+  name, best time, how he answered, voicemail greeting, number dialled, shop ID, background). They fill in once Hridoy
+  adds the matching GHL fields. Still to build: the 20-minute idle alert and the end-of-shift summary (I need Topu's
+  shift hours).
+- **One call log.** The automation writes every screener call once, into `screener_log`. Your reports read it
+  through `calls`, a view: a saved way of looking at the same rows under your column names (`called_at`, `caller`,
+  `outcome`, `shop_id`…). Nothing is stored twice. `screener_hourly`, `screener_daily` and `shop_call_state` work on
+  top of it.
+
 ## What stays exactly as you asked
 
 - **Supabase is the source of truth for every shop:** who it is, all its phone numbers, every call, and where it
@@ -15,8 +40,9 @@ already live, or two specs asked for opposite things.
   - The 1,071 shops with no licence number keep the `OLD-` ID your shop list already uses.
 - **Old leads are never called twice**, and anyone who said stop or not interested never goes back to Topu.
 - **Nothing gets deleted.** My earlier, empty tables are moved to an archive, not deleted.
-- **One repo, `waterline-pipeline`,** with you as owner. Every change is a pull request your Claude can review. Nothing
-  runs from someone's laptop: the code runs in GitHub Actions.
+- **One repo, `waterline-pipeline`,** with you as owner, set up when Tausif's merge program starts (the database SQL is
+  in our Automation-Plumber repo for now). Every change is a pull request your Claude can review. Nothing runs from
+  someone's laptop: the code runs in GitHub Actions.
 - **Every screener call is saved**, with who made it (Topu), the recording and the transcript.
 - **Confirmed owners move to your pipeline on their own**, by hour block.
 - **The AI checks every call without seeing Topu's pick.** If it disagrees, the lead is held back and tagged
@@ -62,8 +88,7 @@ already live, or two specs asked for opposite things.
 
 ## Order of work
 
-1. **Your database** (Task 4): installed, then the California list loaded (18,413 shops, of which 17,567 new, 487
-   held and 359 disqualified). You get the check queries' results.
+1. ✅ **Your database** (Task 4): installed, and the California list loaded (see "Done so far").
 2. **Call logging** (Task 5): the new call fields, the `calls` view, the productivity numbers, the idle alert and
    the end-of-shift summary.
 3. **Before Topu's first calls:**

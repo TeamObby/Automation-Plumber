@@ -165,7 +165,7 @@ function and the AI check prompt; its `README_MOHIMENUL.txt` says to replace any
   and `job_ads` (Task 2), and targets the project "screener-helper". Our
   [supabase/core_tables.sql](../../supabase/core_tables.sql) defines `shops`, `shop_raw`, `call_log`
   (design in [docs/supabase-design.md](../supabase-design.md)), and the screener logs to
-  [screener_log](../../supabase/screener_log.sql). These need reconciling before Task 4 or Task 8 loads data.
+  [screener_log](../../supabase/screener_log.sql). These needed reconciling before Task 4 or Task 8 loaded data (resolved 2026-09-26: Kevin's schema is live, see `docs/plan-2026-09-26.md`).
 - **Task 5 overlaps the screener we already run.** Kevin's spec is a Supabase `ghl-call` edge function
   plus a `calls` table; ours is n8n workflows writing `screener_log` (see Mohimenul's status reply).
 - **Repo question is open:** Kevin's notes ask `trade-lead-pipeline` or a new repo;

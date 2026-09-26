@@ -20,7 +20,7 @@ There is no application to build. The system runs in **n8n** (`https://n8n.meeto
   `slack-agentic-2026-09-26/README.md`.
 - `docs/plan-2026-09-26.md` — **the current plan of record** (database, call logging, go-live, batch 1; who writes
   what). `docs/kevin-update-2026-09-26.md` — the same plan as told to Kevin.
-- `supabase/*.sql` — Supabase table definitions (`screener_log.sql`, `core_tables.sql` — the latter superseded 2026-09-26 by Kevin's schema, which moves to the `waterline-pipeline` repo; design history in `docs/supabase-design.md`); the screener's
+- `supabase/*.sql` — Supabase table definitions (`waterline_v1.sql` = Kevin's schema + views, live since 2026-09-26; `load_ca_v2.sql` = the California load; `screener_log.sql` + `screener_log_task5.sql` + `screener_log_codex_fixes.sql` (current upsert and `calls` view) = the call log; `core_tables.sql` = superseded, archived; history in `docs/supabase-design.md`); the screener's
   project URL + n8n credential are in `workflows/screener/build/supabase.json` (`build.sh` warns while empty).
 
 ## Commands
@@ -56,7 +56,8 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   `screening` (stage, tags, followers in its own pipeline); `Screener: Graduate` is the one piece that
   creates opportunities in Kevin's pipelines. Its own state lives in n8n data tables (`screener_calls`,
   `screener_attempts`, `screener_graduations`, plus the retry queues `screener_log_pending` and
-  `screener_sweep_pending`); after the 2026-09-24 meeting, Supabase becomes the source of truth: the screener
+  `screener_sweep_pending`); Supabase is the source of truth (Kevin's schema live since 2026-09-26, 18,413 California shops
+  loaded; plan `docs/plan-2026-09-26.md`): the screener
   already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`, written only through
   the versioned function `screener_log_upsert`), and `Screener: Daily Sweep` (item 7b) posts a daily summary
   to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25). Go-live on the n8n side
@@ -98,6 +99,15 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   - GHL `POST /contacts/search` with `{"filters":[{"field":"tags","operator":"contains","value":["<tag>"]}]}`
     finds contacts by tag (used by the Daily Sweep).
   - Slack `not_in_channel` = the bot must be invited to the channel; `channel_not_found` = wrong/no channel.
+  - **Supabase schema changes:** rehearse on the live project first with `execute_sql`:
+    `begin; <migration>; do $$ ... raise exception 'REPORT: %', <checks>; $$; rollback;`. The exception returns the
+    report and guarantees the rollback. Then run `apply_migration` with the unchanged SQL (after the user's OK) and
+    `get_advisors`. Keep the SQL in `supabase/<name>.sql`, named like the migration.
+  - **Big files into Supabase:** the MCP only sends SQL text, so it can't upload a CSV. The user imports it in the
+    dashboard (Table Editor → New table → *Import data from CSV*; RLS on, *Data API access* unticked) as a holding table.
+    Then one SQL transaction copies it into the real tables with count checks, and the holding table moves to schema
+    `archive`. Example: `supabase/load_ca_v2.sql`.
+  - Claude's `git push` and reading tokens out of `.mcp.json` are refused by the permission classifier: the user pushes.
   - Schedule-trigger workflows can be run by hand with `execute_workflow` (manual, no input); a sub-workflow's
     own run appears in `search_executions` for its workflow id (mode `integrated`).
 - **Other MCPs in this project** (`.mcp.json`, git-ignored; approved in `.claude/settings.local.json`):

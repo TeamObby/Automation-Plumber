@@ -180,17 +180,23 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
   on purpose — only the service_role key reads/writes). n8n side **live since 2026-09-25**: both sub-workflows re-published with the write (credential `Supabase [ Waterline
   screener-helper ]` `oUnRFJd1TMI1LmTd`), tested on Dana (execs 123666–123674; after the codex fixes 123685–123693). `screener_accuracy` counts
   answered calls only; `screener_last_24h` feeds the daily Slack summary (`Screener: Daily Sweep` → `#daily-screener-summary`,
-  Obby bot `QcTNBiXBrnH5rFkC`).
+  Obby bot `QcTNBiXBrnH5rFkC`). Since 2026-09-26 it also has Kevin's 7 call columns (`shop_id`, `number_dialed`,
+  `how_he_answered`, `voicemail_greeting`, `first_name`, `best_time`, `background`; n8n doesn't fill them yet) and
+  `fields_ms`; current function: `supabase/screener_log_codex_fixes.sql`. Kevin reads it through the view `calls`.
 
-## Supabase core tables (decided 2026-09-25, live and empty)
-`shops` (id = Kevin's Shop ID ↔ `ghl_contact_id`, `tier`, `call_set`, `data` jsonb), `shop_raw` (raw data per shop ×
-source × tool), `call_log` (a typed copy of the Metrics sheet's `call_log` tab) and view `transcripts`; `screener_log`
-now also allows the `graduated` event. Migration `create_core_tables`, SQL [`supabase/core_tables.sql`](supabase/core_tables.sql),
-rules and rationale [`docs/supabase-design.md`](docs/supabase-design.md). Supabase keeps facts, GHL keeps state — no
-two-way sync; logs join `shops` on `ghl_contact_id` with no FK. Needs Kevin: Free plan (500 MB, no backups), side account.
-⚠️ **Decided 2026-09-26:** these tables are replaced by Kevin's Task 4 schema. Ours move to schema `archive`;
-Kevin's list tables, `score_history` and the views `calls` / `shop_call_state` / `screener_hourly` / `screener_daily`
-arrive via the new `waterline-pipeline` repo. `screener_log` stays the only call log. Plan:
+## Supabase database — Kevin's schema (live since 2026-09-26)
+History: our first design (`shops`/`shop_raw`/`call_log`/`transcripts`, migration `create_core_tables` 2026-09-25,
+[`supabase/core_tables.sql`](supabase/core_tables.sql), [`docs/supabase-design.md`](docs/supabase-design.md)) never held
+data and now sits in schema `archive`. Rules that still hold: Supabase keeps facts, GHL keeps state (no two-way sync);
+logs join `shops` on `ghl_contact_id`; RLS on everywhere, service role only. Free plan (500 MB; ~54 MB used; no backups;
+pauses after 7 idle days): Pro later, weekly backup meanwhile.
+✅ **Applied 2026-09-26** (migrations `waterline_v1`, `screener_log_task5`, `screener_log_codex_fixes`): our first-design tables are in schema
+`archive`; live now are Kevin's `shops` (18,413 California shops, loaded by `supabase/load_ca_v2.sql`), `shop_phones`,
+`raw_pages`, `sets`, `source_records`, `needs_check`, `job_ads`, plus `score_history` and the read-only views `calls`
+(= `screener_log` under Kevin's column names), `shop_call_state`, `screener_hourly`, `screener_daily`.
+`screener_log` stays the only call log; it gained Kevin's 7 call columns and an upsert guard (an undecided write never
+replaces a decided row; the per-call fields carry their own version, `fields_ms`). SQL: `supabase/waterline_v1.sql`,
+`supabase/screener_log_task5.sql`, `supabase/screener_log_codex_fixes.sql` (current function and `calls` view). Plan:
 `docs/plan-2026-09-26.md`; Kevin's version: `docs/kevin-update-2026-09-26.md`.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase

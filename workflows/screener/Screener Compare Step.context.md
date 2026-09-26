@@ -3,8 +3,8 @@
 > **Planned (plan-2026-09-26, Task 5):**
 > - Kevin's call fields (`shop_id`, `number_dialed`, `how_he_answered`, `voicemail_greeting`, `first_name`,
 >   `best_time`, `background`) go into `screener_log`.
-> - `screener_log_upsert` gets a guard: an undecided write never replaces a decided row. Today an unknown mark logs
->   on `wait` and overwrites the previous call's row.
+> - ✅ Live 2026-09-26 (`screener_log_task5`): the columns exist, and `screener_log_upsert` blocks an undecided write
+>   from replacing a decided row (the unknown-mark overwrite). n8n doesn't send the new fields yet.
 > - The apply PUT blanks the per-call fields after logging.
 
 
