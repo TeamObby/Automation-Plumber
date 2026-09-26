@@ -16,7 +16,7 @@ are live** (2026-09-25), and the n8n side is mostly on: `Graduate` published and
 `Mark + Compare`, `Daily Sweep` are still off** (Mohimenul switches them on, or allows `publish_workflow` for Claude).
 After Kevin's 2026-09-24 meeting, **Supabase** is the source of truth (core tables live since 2026-09-25, empty) and
 **Topu** (the screener) is due to start calling. The critical path is: those three switches + Hridoy publishing
-`Screener Outcome Changed` → the five test calls; the GHL intake swap happens later, at batch-1 time. Mohimenul's screener list: only item 8 (accuracy on real calls).
+`Screener Outcome Changed` → the five test calls; the GHL intake split (by List Batch) happens later, at batch-1 time. Mohimenul's screener list: only item 8 (accuracy on real calls).
 
 **Since 2026-09-26 — the final plan:** [`plan-2026-09-26.md`](plan-2026-09-26.md) (three planners, cross-reviewed;
 Mohimenul decides, Kevin is informed through [`kevin-update-2026-09-26.md`](kevin-update-2026-09-26.md)).
@@ -85,7 +85,7 @@ blocks duplicate phone numbers.
 | Where | Name | ID | State |
 |---|---|---|---|
 | GHL | `Screener Outcome Changed` | `29535603-03a9-470c-8d98-0cde44df6c04` | **Draft, fully configured** (Contact Changed on `Screener Outcome` → `/webhook/screener-outcome` with `contact_id`) — publish at go-live |
-| GHL | `Import Contact To Screener` | `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Draft** (2026-09-25): Contact Created + tag `plumber` → add tag `screening` → Create opportunity **Screener — Plumbers / Attempt 1** (renamed "Screener queue"). **To add: the filter "List Batch is not empty"** (plan D). At **batch-1 time** (not go-live): publish this **and unpublish `Import Contact To New`** `475c6d9a-b7a2-43dd-ade0-de610a2f5021` in the same minute |
+| GHL | `Import Contact To Screener` | `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Draft** (2026-09-25): Contact Created + tag `plumber` → add tag `screening` → Create opportunity **Screener — Plumbers / Attempt 1** (renamed "Screener queue"). **To add: the filter "List Batch is not empty"** (plan D). At **batch-1 time** (not go-live): publish this, and give `Import Contact To New` `475c6d9a-b7a2-43dd-ade0-de610a2f5021` the opposite filter **List Batch is empty** in the same minute. It stays on, so every other new `plumber` contact still reaches Kevin (Codex fix) |
 | GHL | Call Recorded Trigger | `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | live **v7, guarded** 2026-09-25 → `screener-call` |
 | GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live **v11, guarded** 2026-09-25 → `screener-disposition` |
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live **v37, guarded** 2026-09-25 → `screener-no-answer` (tested on Dana) |
@@ -193,7 +193,7 @@ risks). This is its priority list, kept in sync:
    - the batch is written to Supabase;
    - Kevin's do-not-call check;
    - a live GHL check;
-   - the intake swap;
+   - the intake split by List Batch (`Import Contact To New` stays on for everything else);
    - 2 rows, then the rest.
    Plan section G.
 10. **Week 1 (the Gatekeeper change must be live before Oct 12):**
@@ -249,8 +249,9 @@ risks). This is its priority list, kept in sync:
   2. **New contact fields:** Shop ID, List Batch, Top Reasons (text; the loader fills them), and **Background**
      (dropdown: Job site / Driving / Home / Office / Quiet), How He Answered, Voicemail Greeting, Best Time (Topu
      fills these). Send Mohimenul the field IDs; they go into the repo.
-  3. **`Import Contact To Screener`: add the filter "List Batch is not empty"**, so only contacts our loader creates
-     enter the screener. Every other `plumber` contact keeps going to Kevin.
+  3. **Split the intake by List Batch:** `Import Contact To Screener` gets the filter "List Batch is not empty" (only
+     contacts our loader creates enter the screener), and `Import Contact To New` gets "List Batch is empty" and stays
+     published (every other `plumber` contact keeps going to Kevin).
   4. **Check `Screener Outcome Changed`:** exactly one action, the webhook to `/webhook/screener-outcome`, with no
      field writes, stage moves or attempt maths.
   5. **Topu's setup:** GHL login, local numbers (from the current list), recording on, silent voicemail, the
@@ -269,8 +270,9 @@ risks). This is its priority list, kept in sync:
   - publish `Screener Outcome Changed` after Mohimenul switches on Mark + Compare;
   - the five Dana test calls;
   - export the GHL contacts (phones) for the batch-1 dedupe;
-  - at batch-1 time, publish `Import Contact To Screener` (with the filter) and unpublish `Import Contact To New`
-    together.
+  - at batch-1 time, publish `Import Contact To Screener` (filter: List Batch is not empty) and add the opposite filter
+    (List Batch is empty) to `Import Contact To New`, together. **Don't unpublish `Import Contact To New`:** other new
+    `plumber` contacts would then reach neither pipeline.
 - **Teach Topu:** pick Screener Outcome only when someone answers; fill Background, How He Answered etc. **before**
   the outcome; never edit "Call Context (do not edit)".
 - **Tell nobody to dial screener contacts from Kevin's seat.** It breaks "who made the call".
@@ -304,8 +306,9 @@ The code references behind each hold (Codex-verified 2026-09-26):
 `Write-back Retry`, `Graduate Sweep`, `Log Retry` active (2026-09-25).
 **Left:** n8n — switch on `Capture Call`, `Mark + Compare`, `Daily Sweep` (Mohimenul in the n8n UI, or Claude once
 `mcp__claude_ai_n8n__publish_workflow` is in `permissions.allow`) · GHL (Hridoy) — publish `Screener Outcome Changed`
-**after** Mark + Compare is on · then the five test calls on Dana (§3 item 8). The intake swap (publish `Import Contact To
-Screener` with the List Batch filter + unpublish `Import Contact To New`, together) waits until batch 1 (plan section G).
+**after** Mark + Compare is on · then the five test calls on Dana (§3 item 8). The intake split (publish `Import Contact To
+Screener` with "List Batch is not empty" + give `Import Contact To New` "List Batch is empty", together; never unpublish it)
+waits until batch 1 (plan section G).
 `SCREENER_USER_ID` in the Daily Sweep is optional now (Topu has normal access): empty leaves re-screened leads unassigned.
 
 **n8n go-live, 2026-09-25 (with Mohimenul's OK):** ✅ published `Graduate` (`aa2394a7`) and activated `No Answer`,

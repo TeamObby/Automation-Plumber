@@ -1,4 +1,4 @@
--- ⚠️ 2026-09-26: the function below is superseded by supabase/screener_log_task5.sql (7 new columns + the
+-- ⚠️ 2026-09-26: the function below is superseded by supabase/screener_log_codex_fixes.sql (after screener_log_task5.sql) (7 new columns + the
 -- "undecided never replaces decided" guard); anon/authenticated grants revoked there. Kevin's views (calls,
 -- shop_call_state, screener_hourly/daily) read this table: supabase/waterline_v1.sql.
 -- Screener log (spec §10.2 item 7a). Applied 2026-09-25 to Supabase project screener-helper

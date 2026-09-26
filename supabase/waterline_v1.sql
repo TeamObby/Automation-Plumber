@@ -1,3 +1,4 @@
+-- ⚠️ The calls view below is superseded by supabase/screener_log_codex_fixes.sql (Codex fix, 2026-09-26).
 -- Waterline v1: Kevin's Task 4 database, adapted to the live screener (docs/plan-2026-09-26.md §A and §B).
 -- Target: Supabase project screener-helper (cifgvpqfodglnhywrofy). Migration name: waterline_v1.
 -- Source: Kevin's waterline_pipeline zip (supabase_v1_schema.sql, task8_tables.sql, job_ads_table.sql,

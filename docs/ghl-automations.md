@@ -43,7 +43,7 @@ That pairing is what makes the `(missed call)` caller-stage variants self-cleari
 
 | GHL workflow (id) | Trigger | Does | State |
 |---|---|---|---|
-| **Import Contact To Screener** `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Contact Created** with tag `plumber` (+ **List Batch is not empty**, to add) | adds tag `screening`, creates the opp in **Screener — Plumbers / Attempt 1** (being renamed "Screener queue") | draft; published **together with unpublishing `Import Contact To New`** at batch-1 time |
+| **Import Contact To Screener** `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Contact Created** with tag `plumber` (+ **List Batch is not empty**, to add) | adds tag `screening`, creates the opp in **Screener — Plumbers / Attempt 1** (being renamed "Screener queue") | draft; published at batch-1 time **together with** adding "List Batch is empty" to `Import Contact To New` (which stays on) |
 | **Screener Outcome Changed** `29535603-03a9-470c-8d98-0cde44df6c04` | **Contact Changed** — `Screener Outcome` | webhook only → `/webhook/screener-outcome` (`contact_id`) | draft; published at go-live, after n8n `Mark + Compare` is on |
 
 `Import Contact To New` is the real front door of the campaign, and it is the no-email

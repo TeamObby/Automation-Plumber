@@ -1,3 +1,4 @@
+-- ⚠️ The function below is superseded by supabase/screener_log_codex_fixes.sql (fields get their own version, fields_ms).
 -- Task 5: Kevin's call fields on screener_log, a safer upsert, and public-key access closed (plan-2026-09-26 §B).
 -- Target: Supabase project screener-helper. Migration name: screener_log_task5. Supersedes the function in
 -- screener_log.sql (the table and the two views there are unchanged apart from the grants below).
