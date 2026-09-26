@@ -5,6 +5,16 @@
 - **Live** in project `screener-helper` (`cifgvpqfodglnhywrofy`) as migration `create_core_tables`.
 - **Source:** [`supabase/core_tables.sql`](../supabase/core_tables.sql).
 
+> **⚠️ Superseded (decided 2026-09-26):** these tables are being replaced by Kevin's design, per
+> [`plan-2026-09-26.md`](plan-2026-09-26.md) section A.
+> - Our empty `shops`, `shop_raw`, `call_log` and view `transcripts` move to schema `archive` (nothing is deleted).
+> - Kevin's list tables, `score_history` and the views `calls` / `shop_call_state` / `screener_hourly` / `screener_daily`
+>   are created in `waterline-pipeline`.
+> - `screener_log` and its upsert stay, and are extended by Task 5.
+>
+> This file is kept as the record of the first design. The rules below still hold where the plan doesn't change them:
+> facts in Supabase and state in GHL, RLS on, service role only, no two-way sync.
+
 ## What exists
 
 | Object | What it is | Writer | Status |

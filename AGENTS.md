@@ -188,6 +188,10 @@ source × tool), `call_log` (a typed copy of the Metrics sheet's `call_log` tab)
 now also allows the `graduated` event. Migration `create_core_tables`, SQL [`supabase/core_tables.sql`](supabase/core_tables.sql),
 rules and rationale [`docs/supabase-design.md`](docs/supabase-design.md). Supabase keeps facts, GHL keeps state — no
 two-way sync; logs join `shops` on `ghl_contact_id` with no FK. Needs Kevin: Free plan (500 MB, no backups), side account.
+⚠️ **Decided 2026-09-26:** these tables are replaced by Kevin's Task 4 schema. Ours move to schema `archive`;
+Kevin's list tables, `score_history` and the views `calls` / `shop_call_state` / `screener_hourly` / `screener_daily`
+arrive via the new `waterline-pipeline` repo. `screener_log` stays the only call log. Plan:
+`docs/plan-2026-09-26.md`; Kevin's version: `docs/kevin-update-2026-09-26.md`.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated

@@ -1,5 +1,13 @@
 # Screener: Compare Step  [spec §4.1 cross-check · §10.2 item 4]
 
+> **Planned (plan-2026-09-26, Task 5):**
+> - Kevin's call fields (`shop_id`, `number_dialed`, `how_he_answered`, `voicemail_greeting`, `first_name`,
+>   `best_time`, `background`) go into `screener_log`.
+> - `screener_log_upsert` gets a guard: an undecided write never replaces a decided row. Today an unknown mark logs
+>   on `wait` and overwrites the previous call's row.
+> - The apply PUT blanks the per-call fields after logging.
+
+
 - **n8n ID:** `3pwiQXC8etTcKf5Z` · **URL:** https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z · **File:** `Screener Compare Step.json`
 - **Folder:** `workflows/screener/` · built from `build/src/decide.js` (+ `split_ops.js`, `report.js`, `log_call_row.js`) by `build/gen_compare.js` (+ `build/log_supabase.js`)
 - **Status:** sub-workflow (no trigger of its own) — built 2026-09-23. **Published** 2026-09-24, last re-published 2026-09-25 (Stamp Read) — re-publish after every `update_workflow`.

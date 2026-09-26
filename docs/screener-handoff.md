@@ -15,8 +15,17 @@ the test contact, Graduate end to end included; six Codex review rounds on them 
 are live** (2026-09-25), and the n8n side is mostly on: `Graduate` published and five workflows active; **`Capture Call`,
 `Mark + Compare`, `Daily Sweep` are still off** (Mohimenul switches them on, or allows `publish_workflow` for Claude).
 After Kevin's 2026-09-24 meeting, **Supabase** is the source of truth (core tables live since 2026-09-25, empty) and
-**Topu** (the screener) is due to start calling. The critical path is: those three switches + Hridoy's GHL intake
-swap and `Screener Outcome Changed` → one real test call. Mohimenul's screener list: only item 8 (accuracy on real calls).
+**Topu** (the screener) is due to start calling. The critical path is: those three switches + Hridoy publishing
+`Screener Outcome Changed` → the five test calls; the GHL intake swap happens later, at batch-1 time. Mohimenul's screener list: only item 8 (accuracy on real calls).
+
+**Since 2026-09-26 — the final plan:** [`plan-2026-09-26.md`](plan-2026-09-26.md) (three planners, cross-reviewed;
+Mohimenul decides, Kevin is informed through [`kevin-update-2026-09-26.md`](kevin-update-2026-09-26.md)).
+- Kevin's database design replaces our empty core tables.
+- `screener_log` stays the only call log, with a `calls` view on top.
+- Kevin's `ghl-call` isn't deployed.
+- Five Task 6 steps are held; Attempt 1 is renamed "Screener queue".
+- **Mohimenul does the database (Task 4) and call logging (Task 5) first**, then go-live, then batch 1.
+- Tausif builds the Task 8 connector and the nightly program.
 
 ---
 
@@ -75,7 +84,7 @@ blocks duplicate phone numbers.
 | Where | Name | ID | State |
 |---|---|---|---|
 | GHL | `Screener Outcome Changed` | `29535603-03a9-470c-8d98-0cde44df6c04` | **Draft, fully configured** (Contact Changed on `Screener Outcome` → `/webhook/screener-outcome` with `contact_id`) — publish at go-live |
-| GHL | `Import Contact To Screener` | `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Draft** (2026-09-25): Contact Created + tag `plumber` → add tag `screening` → Create opportunity **Screener — Plumbers / Attempt 1**. At go-live: publish this **and unpublish `Import Contact To New`** `475c6d9a-b7a2-43dd-ade0-de610a2f5021` in the same minute |
+| GHL | `Import Contact To Screener` | `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Draft** (2026-09-25): Contact Created + tag `plumber` → add tag `screening` → Create opportunity **Screener — Plumbers / Attempt 1** (renamed "Screener queue"). **To add: the filter "List Batch is not empty"** (plan D). At **batch-1 time** (not go-live): publish this **and unpublish `Import Contact To New`** `475c6d9a-b7a2-43dd-ade0-de610a2f5021` in the same minute |
 | GHL | Call Recorded Trigger | `120588ca-915c-4a87-9f7e-ab6ca8b273fc` | live **v7, guarded** 2026-09-25 → `screener-call` |
 | GHL | Capture Wavv Disposition | `d5e8da04-4b4b-4eef-87c3-189cfbba34bd` | live **v11, guarded** 2026-09-25 → `screener-disposition` |
 | GHL | Call No Answer | `0092952f-83d2-44aa-bd9c-829d350c08ce` | live **v37, guarded** 2026-09-25 → `screener-no-answer` (tested on Dana) |
@@ -119,7 +128,7 @@ contract are in [`AGENTS.md`](../AGENTS.md). Separate from Kevin's metrics workb
 
 ---
 
-## 3. What is left — plain priority order (updated 2026-09-25)
+## 3. What is left — plain priority order (updated 2026-09-26)
 
 Kevin's order: **the list first, then the screener**; underneath both, **Supabase becomes the source of
 truth**; rule no. 1 is **simplicity**. No hard dates — work top to bottom. Meeting notes with
@@ -155,54 +164,147 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 5. **Item 8 — accuracy report** on the first real calls. The report can be built now on the `screener_accuracy`
    view and tested with test rows; the real numbers need Topu's calls (after go-live).
 
-### Mohimenul — then the new work from the meeting
-6. ✅ **Supabase core tables decided and live** (2026-09-25, delegated by Mohimenul; two planners argued it out):
-   `shops`, `shop_raw`, `call_log`, view `transcripts`, and `screener_log` now allows `graduated`. Design, rules and
-   the resolved disagreements: [`supabase-design.md`](supabase-design.md); SQL: `supabase/core_tables.sql`.
-   All empty. Next, in order:
-   a. **Graduate writes the `graduated` event** (key `grad:<contact>:<screener_opp>:<close_ms>`, only when `ok`):
-      add `logNodes`/`logChain` from `build/log_supabase.js` to `gen_graduate.js`, test, deploy, re-publish.
-   b. **GHL backfill → `shops`** (existing `plumber` contacts, match on E.164 phone, `source_batch='ghl-backfill'`),
-      a manual n8n workflow; GHL gets a `Shop ID` field (Hridoy creates it).
-   c. **List import → `shops` + `shop_raw`** once Sample Test 2 / the CSV lands (upsert on `google_place_id`).
-   d. **`call_log` backfill** from the Metrics sheet (CSV), then a Supabase leaf node beside each `Sheet: Log Call`
-      in the 4 Kevin handlers (Kevin's live workflows: confirm first; update `tests/metrics-logging.test.js`).
-   Needs Kevin: Free plan = 500 MB and no backups; project sits in the Waterline side account.
-7. **Screener transcripts → Supabase:** ✅ already there (`screener_log.transcript`, shown in view `transcripts`).
-8. **Check the duplicate automations Kevin's Claude reported** — ✅ the GHL connector is set up here
-   (`leadconnector` in `.mcp.json`); the check itself is not done.
-9. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub /
-   MCP connector so Kevin's Claude can read the code.
-10. **Cleanup:** delete the n8n test rows — `screener_calls` `TEST-screener-0001…0011`, the test-rig rows on
+### Mohimenul — the database, call logging, go-live, batch 1 (updated 2026-09-26)
+**The plan of record is [`plan-2026-09-26.md`](plan-2026-09-26.md)** (decisions A–H, build details, the writer map,
+risks). This is its priority list, kept in sync:
+
+6. **Task 4, the database.**
+   - Create the `waterline-pipeline` repo (Kevin's zip as commit 1).
+   - PR 1:
+     - our empty `shops`, `shop_raw`, `call_log` and view `transcripts` move to schema `archive`;
+     - Kevin's list tables, `outcome_group` and `score_history`;
+     - the views `calls` (over `screener_log`, `caller` worked out), `shop_call_state` (worked out from
+       `screener_log`) and `screener_hourly`/`daily`, all with `security_invoker` and anon/authenticated revoked.
+   - Rehearse with `execute_sql` inside `begin … rollback`, then `apply_migration` (with OK).
+   - Then the California load (`load_ca.py`, non-downgrading upsert). Send Kevin the Task 4 step-5 results.
+7. **Task 5, call logging.**
+   - `screener_log` gets Kevin's six columns plus `background`.
+   - `screener_log_upsert` is recreated with them and with the "an undecided write never replaces a decided row"
+     guard.
+   - `log_call_row.js` and `log_attempt_row.js` fill them, once Hridoy sends the field IDs.
+   - The apply PUT blanks the per-call fields after logging.
+   - Then the idle alert and the end-of-shift summary (shift 9am–4pm PT until Kevin says otherwise).
+8. **Before Topu's first calls: go-live** (the switches below) and five Dana test calls with Hridoy: no answer,
+   owner, gatekeeper, a deliberate wrong pick, a voicemail pickup. Stop if an answered call has no transcript.
+9. **Before Topu's first calls: batch 1**, in this order:
+   - dedupe on all phones against a GHL export;
+   - Kevin's Claude scores, and the batch file is committed;
+   - the batch is written to Supabase;
+   - Kevin's do-not-call check;
+   - a live GHL check;
+   - the intake swap;
+   - 2 rows, then the rest.
+   Plan section G.
+10. **Week 1 (the Gatekeeper change must be live before Oct 12):**
+    - `stale_decide.js` stops re-screening Gatekeeper;
+    - the stage labels;
+    - the Not Sure owner list and the DB-size line in the summary;
+    - Graduate writes the `graduated` event (key `grad:<contact>:<screener_opp>:<close_ms>`);
+    - the `loader` DB role with no DELETE;
+    - Kevin's Claude connected read-only;
+    - the protected GitHub Environment for secrets.
+11. **Before batch 2:** review Tausif's Task 8 connector.
+12. **Other asks from Slack** ([list](slack-agentic-2026-09-26/README.md#asked-of-mohimenul-open)):
+    - with Hridoy, the source of each state's list;
+    - hand the meeting-recording automation to Adid;
+    - forward huddle AI notes to #agentic;
+    - the data-accounts canvas.
+13. **Later:** the Not Sure split (one atomic PUT); Task 9 in n8n; `sales_calls`; the `inventory` view; the new
+    pipelines; Pro; job ads.
+14. **Screener transcripts → Supabase:** ✅ already there (`screener_log.transcript`).
+15. **Check the duplicate automations Kevin's Claude reported:** ✅ the GHL connector is set up here
+    (`leadconnector` in `.mcp.json`); the check itself is not done.
+16. **Sales Advisor** (separate repo): staging login for Kevin · Notion as its context source · a GitHub / MCP
+    connector so Kevin's Claude can read the code.
+17. **Cleanup:** delete the n8n test rows — `screener_calls` `TEST-screener-0001…0011`, the test-rig rows on
     Dana (`2Z5mwZe5RT4NQdNW85vj`) in `screener_attempts` (2026-09-24/25) and `screener_graduations` (MCP can't
     delete rows; n8n UI; `TEST-screener-0004` already deleted 2026-09-25); the Supabase test rows are already deleted. Delete the test posts in
     `#daily-screener-summary`. Rotate the exposed Instantly key. Tell the Obby product owner about the Supabase
     RLS warning (AGENTS.md security backlog).
-11. **Git:** PRs #4–#7 (`screener-item-6`) are merged (#7 on 2026-09-25). The branch has more since (5th/6th Codex fixes,
+18. **Git:** PRs #4–#7 (`screener-item-6`) are merged (#7 on 2026-09-25). The branch has more since (5th/6th Codex fixes,
     Graduate owner fix, go-live, Supabase core tables, docs): open a new PR to `main`
     (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here). Hridoy commits
     straight to `main`: merge `origin/main` before trusting local docs.
 
-### Hridoy (GHL side, and the list)
-- **Sample Test 2** (tasks 1–7, the CSV) — Hridoy handles it.
+### Hridoy (GHL side, and the list) — updated 2026-09-26
+- ✅ **Sample Test 2** done (2026-09-24).
 - ✅ **The three guards are live** (2026-09-25, v37 / v11 / v7, verified through the API; Call No Answer
-  tested call-free on Dana). Left: one real Google Voice call on Dana to exercise the call-recorded and
-  disposition guards.
+  tested call-free on Dana). Left: one real call on Dana to exercise the call-recorded and disposition guards (part of
+  the go-live test calls).
 - ✅ `Screener Outcome Changed` configured, ✅ `Import Contact To Screener` built — both drafts until go-live.
 - ✅ Field layout for Topu (see §2). **No Smart Lists** — decided 2026-09-25: Kevin dials from his opportunity
   stages filtered by the hour-block follower (WAVV dials only the filtered cards — confirmed by Hridoy), and
-  Topu dials from the **Screener — Plumbers** Attempt stages, which contain only `screening` leads.
+  Topu dials from the **Screener — Plumbers** stages, which contain only `screening` leads.
   (Five empty lists "Kevin — Owner PT 06-07 … 10-11" were created before this was decided; unused, safe to delete.)
 - **Topu's GHL user — normal access** (not *Only Assigned Data*: with one screener it would only hide his
-  leads, since nothing assigns contacts to him) · Topu's WAVV seat and numbers (Kevin pays).
-- Email-1 timing for screened leads is parked; Graduate sends leads to Kevin exactly as import does today.
+  leads, since nothing assigns contacts to him).
+- ✅ **Email rule decided** (Kevin, huddle 7:53, 2026-09-25): the screener calls regardless of email status, and
+  the email sequence continues once the lead reaches Kevin's pipeline.
+
+**Task 6 — what to build and what to hold** (final plan, section D; Hridoy has been told about the holds):
+- **Build** (before Topu's training):
+  1. **Rename the stages**, keeping their IDs: Attempt 1 → **"Screener queue"**, Attempts 2/3/4 → **"Called 1x /
+     2x / 3x"**. n8n uses only stage IDs, so nothing breaks. Don't add a new stage.
+  2. **New contact fields:** Shop ID, List Batch, Top Reasons (text; the loader fills them), and **Background**
+     (dropdown: Job site / Driving / Home / Office / Quiet), How He Answered, Voicemail Greeting, Best Time (Topu
+     fills these). Send Mohimenul the field IDs; they go into the repo.
+  3. **`Import Contact To Screener`: add the filter "List Batch is not empty"**, so only contacts our loader creates
+     enter the screener. Every other `plumber` contact keeps going to Kevin.
+  4. **Check `Screener Outcome Changed`:** exactly one action, the webhook to `/webhook/screener-outcome`, with no
+     field writes, stage moves or attempt maths.
+  5. **Topu's setup:** GHL login, local numbers (from the current list), recording on, silent voicemail, the
+     callback task. Dialer: two **single** lines (Kevin's and Topu's). WAVV won't add a seat before the Oct 23
+     cycle, so try agent support or the website.
+  6. **Check whether the Call Recorded trigger can send the dialling user** (for "who made the call").
+  7. **A GHL private-integration token** for the `waterline-pipeline` repo secrets (the batch loader).
+- **Hold — each one breaks the live screener:**
+  - the No Answer / Voicemail options in Screener Outcome (an unknown pick overwrites the previous call's log row);
+  - changing **Screen Noise** (n8n writes busy/quiet into it; use Background instead);
+  - GHL adding attempts, moving stages, setting **Date Screened** (`ladder.js:46` would freeze the attempt ladder),
+    moving to Disqualified or Exhausted, or creating Kevin's opportunity;
+  - GHL clearing Screener Outcome or other fields after a call (the Compare Step re-reads the mark);
+  - Kevin's Task 6 step 7 (sending Kevin's own calls) until week 1 is over.
+- **Go-live and batch 1, with Mohimenul:**
+  - publish `Screener Outcome Changed` after Mohimenul switches on Mark + Compare;
+  - the five Dana test calls;
+  - export the GHL contacts (phones) for the batch-1 dedupe;
+  - at batch-1 time, publish `Import Contact To Screener` (with the filter) and unpublish `Import Contact To New`
+    together.
+- **Teach Topu:** pick Screener Outcome only when someone answers; fill Background, How He Answered etc. **before**
+  the outcome; never edit "Call Context (do not edit)".
+- **Tell nobody to dial screener contacts from Kevin's seat.** It breaks "who made the call".
+
+The code references behind each hold (Codex-verified 2026-09-26):
+    1. **New outcomes "No Answer" / "Voicemail".** The Compare Step knows only `MARKS` (`decide.js:33`), so these
+       come out as "unknown … treated as unmarked" and it keeps "waiting for the screener's mark" (`decide.js:76,86`).
+       Picking them does nothing. Attempts today come from the `Call No Answer` / WAVV-voicemail events through
+       the Attempt Counter, which dedupes them. The same dial can raise both kinds of event. If the outcome should
+       count, route it to the Attempt Counter under the **same** dedupe key, so one dial is one attempt. **Decided: hold
+       the options.** The dialer already logs every unanswered dial. Today an unknown pick also overwrites the
+       previous call's `screener_log` row (`log_call_row.js` logs on `wait`), which the day-1 upsert guard fixes.
+    2. **Screen Noise as a dropdown** (Job site / Driving / Home / Office / Quiet).
+       - Its only live writer is the Compare Step: `decide.js:96-97` writes `busy` / `quiet` for an Owner mark and
+         `''` for anything else. It would overwrite or blank Topu's pick. Codex reproduced `Owner - Busy`
+         replacing `Job site`.
+       - The `screen-busy` / `screen-quiet` tags, the Gold list and `log_call_row.js` all depend on busy/quiet.
+       - The field also sits in "Call Context (do not edit)", where Topu can't edit it.
+       - **Decided:** a separate **Background** dropdown for Topu; Screen Noise stays n8n's busy/quiet.
+       - The Daily Sweep blanks the field on a re-screen (`stale_decide.js:71`). That's fine either way.
+    3. **Task 6 step 6 table:** GHL itself adds an attempt and moves the stage for No Answer / Voicemail / Not Sure.
+       That's a second writer next to the Attempt Counter (double counts). It also differs on Not Sure, which n8n
+       sends to the **Not Sure** stage (re-screened by the Daily Sweep). Keep one writer: n8n.
+    4. **Task 6 step 6, "then clear Screener Outcome, Screen Noise…"** The Compare Step re-reads the mark from the
+       contact rather than the webhook (`normalize_mark.js`, `decide.js:73`), and it often has to wait for the AI
+       verdict. Clearing the fields right after the webhook loses the mark, and the call is never compared.
+       Don't clear them, or clear them only after n8n has written the stage.
 
 ### Go-live switches (the guards exist)
 ✅ Read-only pre-flight done (below). ✅ n8n: `Screener: Graduate` published; `No Answer`, `WAVV Disposition`,
 `Write-back Retry`, `Graduate Sweep`, `Log Retry` active (2026-09-25).
 **Left:** n8n — switch on `Capture Call`, `Mark + Compare`, `Daily Sweep` (Mohimenul in the n8n UI, or Claude once
-`mcp__claude_ai_n8n__publish_workflow` is in `permissions.allow`) · GHL (Hridoy) — publish `Import Contact To Screener`
-+ unpublish `Import Contact To New` together, publish `Screener Outcome Changed` · then one real WAVV test call on Dana.
+`mcp__claude_ai_n8n__publish_workflow` is in `permissions.allow`) · GHL (Hridoy) — publish `Screener Outcome Changed`
+**after** Mark + Compare is on · then the five test calls on Dana (§3 item 8). The intake swap (publish `Import Contact To
+Screener` with the List Batch filter + unpublish `Import Contact To New`, together) waits until batch 1 (plan section G).
 `SCREENER_USER_ID` in the Daily Sweep is optional now (Topu has normal access): empty leaves re-screened leads unassigned.
 
 **n8n go-live, 2026-09-25 (with Mohimenul's OK):** ✅ published `Graduate` (`aa2394a7`) and activated `No Answer`,
@@ -224,8 +326,15 @@ the old plan where the screener owned the lead; with normal access it would only
 graduation always has at least one write (Close Gate and the log run only after one).
 
 ### People
-- **Topu** — the **screener** (the caller who makes the screening calls); probably starts soon after the meeting.
-- **Tosif** — third helper if needed.
+- **Topu:** the **screener** (the caller who makes the screening calls). Hridoy onboards him Sunday 2026-09-27, and
+  he starts calling Monday 2026-09-28. Kevin is re-posting the job for a second screener.
+- **Tausif:**
+  - Task 1, the matching kit: done as local scripts, to be moved into the repo.
+  - Task 3, the nightly batch, and the logic that balances Kevin's pipeline against the screener's by time zone.
+  - One-shop enrichment, and the data pulls (DataForSEO, Apify, Twilio).
+  - Turning the meeting context into Claude skills.
+  - The EIN workflow.
+- **Kevin's Claude** reviews the pipeline code: every change to `waterline-pipeline` is a PR it approves.
 
 ## 4. Decisions that must not drift
 
@@ -243,7 +352,8 @@ graduation always has at least one write (Close Gate and the log run only after 
   a lead mid-cadence would silently switch his automations off for it.
 - **Freshness is enforced by the n8n sweep, not a filter** — contact filters on a custom field offer
   only *Is / Is not / Is empty / Is not empty*.
-- **Stages mean the call *due*** (same convention as `Day 1 Call A`), so Attempt 1 = never dialled.
+- **Stages mean the call *due*** (same convention as `Day 1 Call A`), so Attempt 1 = never dialled. Attempt 1 is being
+  renamed "Screener queue" (same ID, same meaning); Attempts 2–4 become "Called 1x/2x/3x".
 - **Mohimenul's entry workflows stay inactive until go-live** (guards live since 2026-09-25; switch on together
   with the GHL intake swap).
 
@@ -291,6 +401,18 @@ graduation always has at least one write (Close Gate and the log run only after 
 
 ## 6. Open questions for Kevin
 
-Recording in CA/WA/NV · whether to screen leads already in his pipelines · team dispositions once
-seats exist · male/female + "sounds like an owner" stay dropped unless week one shows owners being
-faked.
+Recording in CA/WA/NV (and the recording-notice wording) · team dispositions once seats exist · male/female +
+"sounds like an owner" stay dropped unless week one shows owners being faked.
+
+**Decided 2026-09-26 by Mohimenul** ([`plan-2026-09-26.md`](plan-2026-09-26.md); Kevin informed):
+- Kevin's tables replace ours.
+- `screener_log` is the only call log, with a `calls` view on top.
+- No `ghl-call`.
+- The Task 6 holds and the stage rename.
+- Gatekeepers and "not interested" are out.
+- California only, 9am–4pm PT; Florida waits for its 3-calls rule.
+- Tausif owns the nightly program and builds the Task 8 connector.
+- Old leads: "stop / not interested" never go back to Topu.
+
+**Still needed from Kevin himself:** the do-not-call check (before batch 1), the recording-notice line, the shift
+hours, the full column list, and later the Pro plan.

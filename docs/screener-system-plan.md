@@ -152,7 +152,7 @@ n8n refuses an unpublished sub-workflow called from anything but a manual run; `
 (`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
 POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
 
-**Next on this side:** items 1–7 are done (7a = the Supabase `screener_log`, 7b = `Screener: Daily Sweep`); left is item 8 (accuracy on the first real calls, via the `screener_accuracy` view) and filling the Supabase core tables (`shops`, `shop_raw`, `call_log`, view `transcripts` — live and empty since 2026-09-25; design in [`supabase-design.md`](supabase-design.md)). Task list: [`screener-handoff.md`](screener-handoff.md) §3.
+**Next on this side:** items 1–7 are done (7a = the Supabase `screener_log`, 7b = `Screener: Daily Sweep`); left is item 8 (accuracy on the first real calls, via the `screener_accuracy` view) and filling the Supabase core tables (`shops`, `shop_raw`, `call_log`, view `transcripts` — live and empty since 2026-09-25; design in [`supabase-design.md`](supabase-design.md)). ⚠️ Decided 2026-09-26: they're replaced by Kevin's Task 4 schema, and `screener_log` stays; see [`plan-2026-09-26.md`](plan-2026-09-26.md). Task list: [`screener-handoff.md`](screener-handoff.md) §3.
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard

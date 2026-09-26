@@ -15,7 +15,12 @@ There is no application to build. The system runs in **n8n** (`https://n8n.meeto
 - `docs/ghl-automations.md` — the only record of the GHL side (which GHL workflow fires which n8n webhook).
 - `docs/screener-system-plan.md` — build spec for the screener system (work split Hridoy = GHL/WAVV, Mohimenul = n8n/AI).
 - `metrics/metrics-sheet-setup.gs` — Apps Script that builds the "Plumber Campaign Metrics" sheet.
-- `supabase/*.sql` — Supabase table definitions (`screener_log.sql`, `core_tables.sql`; design in `docs/supabase-design.md`); the screener's
+- `docs/slack-agentic-2026-09-2x/` + `docs/meeting-*.md` — Slack and meeting extractions (Kevin's 9 major tasks and
+  their specs, his `waterline_pipeline` zip with its schema and ingest code, meeting transcripts). Newest first:
+  `slack-agentic-2026-09-26/README.md`.
+- `docs/plan-2026-09-26.md` — **the current plan of record** (database, call logging, go-live, batch 1; who writes
+  what). `docs/kevin-update-2026-09-26.md` — the same plan as told to Kevin.
+- `supabase/*.sql` — Supabase table definitions (`screener_log.sql`, `core_tables.sql` — the latter superseded 2026-09-26 by Kevin's schema, which moves to the `waterline-pipeline` repo; design history in `docs/supabase-design.md`); the screener's
   project URL + n8n credential are in `workflows/screener/build/supabase.json` (`build.sh` warns while empty).
 
 ## Commands

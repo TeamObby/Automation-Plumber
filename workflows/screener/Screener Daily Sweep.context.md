@@ -1,5 +1,11 @@
 # Screener: Daily Sweep  [spec §7 freshness · §8 re-screen trap · §10.2 item 7b]
 
+> **Planned (plan-2026-09-26, week 1, live before Oct 12):** stop re-screening **Gatekeeper** (Kevin: gatekeepers are out);
+> the summary gets the new stage labels, a list of owner marks the AI didn't confirm, and a DB-size line (alert at 300 MB).
+> Switch on only after a read-only check of the contacts it would touch (`DRY_RUN=false`, and the owner-confirmed search
+> covers the whole account).
+
+
 - **n8n ID:** `0GtpCj9xFK4xGZrX` · **URL:** https://n8n.meetobby.com/workflow/0GtpCj9xFK4xGZrX · **File:** `Screener Daily Sweep.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_dailysweep.js` (+ `src/daily_settings.js`, `stale_searches.js`,
   `stale_candidates.js`, `stale_decide.js`, `stale_plan.js`, `stale_report.js`, `summary_stage_urls.js`, `summary_build.js`)
