@@ -5,11 +5,13 @@
 - **Live** in project `screener-helper` (`cifgvpqfodglnhywrofy`) as migration `create_core_tables`.
 - **Source:** [`supabase/core_tables.sql`](../supabase/core_tables.sql).
 
-> **⚠️ Superseded (decided 2026-09-26):** these tables are being replaced by Kevin's design, per
+> **⚠️ Superseded (applied 2026-09-26, migration `waterline_v1`):** these tables are replaced by Kevin's design, per
 > [`plan-2026-09-26.md`](plan-2026-09-26.md) section A.
 > - Our empty `shops`, `shop_raw`, `call_log` and view `transcripts` move to schema `archive` (nothing is deleted).
 > - Kevin's list tables, `score_history` and the views `calls` / `shop_call_state` / `screener_hourly` / `screener_daily`
->   are created in `waterline-pipeline`.
+>   are live ([`supabase/waterline_v1.sql`](../supabase/waterline_v1.sql)); the California list is loaded
+>   ([`supabase/load_ca_v2.sql`](../supabase/load_ca_v2.sql): 18,413 shops).
+> - `screener_log` has Kevin's call columns and the safer upsert ([`supabase/screener_log_task5.sql`](../supabase/screener_log_task5.sql)).
 > - `screener_log` and its upsert stay, and are extended by Task 5.
 >
 > This file is kept as the record of the first design. The rules below still hold where the plan doesn't change them:

@@ -20,7 +20,7 @@ There is no application to build. The system runs in **n8n** (`https://n8n.meeto
   `slack-agentic-2026-09-26/README.md`.
 - `docs/plan-2026-09-26.md` — **the current plan of record** (database, call logging, go-live, batch 1; who writes
   what). `docs/kevin-update-2026-09-26.md` — the same plan as told to Kevin.
-- `supabase/*.sql` — Supabase table definitions (`screener_log.sql`, `core_tables.sql` — the latter superseded 2026-09-26 by Kevin's schema, which moves to the `waterline-pipeline` repo; design history in `docs/supabase-design.md`); the screener's
+- `supabase/*.sql` — Supabase table definitions (`waterline_v1.sql` = Kevin's schema + views, live since 2026-09-26; `load_ca_v2.sql` = the California load; `screener_log.sql` + `screener_log_task5.sql` = the call log; `core_tables.sql` = superseded, archived; history in `docs/supabase-design.md`); the screener's
   project URL + n8n credential are in `workflows/screener/build/supabase.json` (`build.sh` warns while empty).
 
 ## Commands

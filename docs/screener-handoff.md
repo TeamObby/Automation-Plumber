@@ -25,6 +25,7 @@ Mohimenul decides, Kevin is informed through [`kevin-update-2026-09-26.md`](kevi
 - Kevin's `ghl-call` isn't deployed.
 - Five Task 6 steps are held; Attempt 1 is renamed "Screener queue".
 - **Mohimenul does the database (Task 4) and call logging (Task 5) first**, then go-live, then batch 1.
+  ✅ **Done 2026-09-26:** Kevin's database live, California loaded (18,413 shops), `screener_log` extended (Task 5 SQL).
 - Tausif builds the Task 8 connector and the nightly program.
 
 ---
@@ -168,7 +169,7 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 **The plan of record is [`plan-2026-09-26.md`](plan-2026-09-26.md)** (decisions A–H, build details, the writer map,
 risks). This is its priority list, kept in sync:
 
-6. **Task 4, the database.**
+6. ✅ **Task 4, the database** — done 2026-09-26 (`waterline_v1` + the California load; results in the Kevin doc).
    - Create the `waterline-pipeline` repo (Kevin's zip as commit 1).
    - PR 1:
      - our empty `shops`, `shop_raw`, `call_log` and view `transcripts` move to schema `archive`;
@@ -177,7 +178,7 @@ risks). This is its priority list, kept in sync:
        `screener_log`) and `screener_hourly`/`daily`, all with `security_invoker` and anon/authenticated revoked.
    - Rehearse with `execute_sql` inside `begin … rollback`, then `apply_migration` (with OK).
    - Then the California load (`load_ca.py`, non-downgrading upsert). Send Kevin the Task 4 step-5 results.
-7. **Task 5, call logging.**
+7. **Task 5, call logging** — ✅ SQL part done 2026-09-26 (`screener_log_task5`: columns + upsert guard); left: the n8n part below, the idle alert and the end-of-shift post.
    - `screener_log` gets Kevin's six columns plus `background`.
    - `screener_log_upsert` is recreated with them and with the "an undecided write never replaces a decided row"
      guard.
