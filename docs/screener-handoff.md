@@ -14,7 +14,7 @@ attempt ladder, graduate, the Supabase screener log, the daily stale sweep + Sla
 the test contact, Graduate end to end included; six Codex review rounds on them are fixed. The **three GHL guards
 are live** (2026-09-25), and the n8n side is mostly on: `Graduate` published and five workflows active; **`Capture Call`,
 `Mark + Compare`, `Daily Sweep` are still off** (Mohimenul switches them on, or allows `publish_workflow` for Claude).
-After Kevin's 2026-09-24 meeting, **Supabase** is the source of truth (core tables live since 2026-09-25, empty) and
+After Kevin's 2026-09-24 meeting, **Supabase** is the source of truth (Kevin's schema live since 2026-09-26, California loaded) and
 **Topu** (the screener) is due to start calling. The critical path is: those three switches + Hridoy publishing
 `Screener Outcome Changed` → the five test calls; the GHL intake split (by List Batch) happens later, at batch-1 time. Mohimenul's screener list: only item 8 (accuracy on real calls).
 
@@ -111,9 +111,11 @@ Webhooks: `/webhook/screener-call` · `/webhook/screener-outcome` · `/webhook/s
 **Supabase** (the screener log, item 7a): project **`screener-helper`** `cifgvpqfodglnhywrofy` · org **Waterline**
 `nzuqwkcyipyergddujfw` (separate Supabase account; the MCP is signed in there) · table `screener_log`, write path
 function `screener_log_upsert` (versioned on `decided_ms`), views `screener_accuracy` + `screener_last_24h` —
-definitions in [`supabase/screener_log.sql`](../supabase/screener_log.sql) · **core tables** (2026-09-25, empty) `shops`,
-`shop_raw`, `call_log`, view `transcripts` — [`supabase/core_tables.sql`](../supabase/core_tables.sql), design in
-[`supabase-design.md`](supabase-design.md) · n8n credential
+definitions in [`supabase/screener_log.sql`](../supabase/screener_log.sql), current function in
+[`supabase/screener_log_codex_fixes.sql`](../supabase/screener_log_codex_fixes.sql) · **Kevin's schema** (live 2026-09-26):
+`shops` (18,413 CA), `shop_phones`, `raw_pages`, `sets`, `source_records`, `needs_check`, `job_ads`, `score_history`, views
+`calls` / `shop_call_state` / `screener_hourly` / `screener_daily` — [`supabase/waterline_v1.sql`](../supabase/waterline_v1.sql),
+[`supabase/load_ca_v2.sql`](../supabase/load_ca_v2.sql); first design archived (schema `archive`) · n8n credential
 `Supabase [ Waterline screener-helper ]` `oUnRFJd1TMI1LmTd`.
 **n8n data tables:** `screener_calls` `3WK4mrEYwvDeDUVO` · `screener_attempts` `9V6VL0XiKeadY9Lc` ·
 `screener_graduations` `1iX0aTvMYawwyH4H` · `screener_log_pending` `qKv7RxgTDsqb1plo` · `screener_sweep_pending` `J61RThPMfxykZt1N`.
@@ -170,8 +172,8 @@ https://claude.ai/artifact/MosBs7RUNqTG7jTgXotum3
 risks). This is its priority list, kept in sync:
 
 6. ✅ **Task 4, the database** — done 2026-09-26 (`waterline_v1` + the California load; results in the Kevin doc).
-   - Create the `waterline-pipeline` repo (Kevin's zip as commit 1).
-   - PR 1:
+   - The repo is deferred: applied directly as migration `waterline_v1` (then `screener_log_task5`,
+     `screener_log_codex_fixes`). What it did:
      - our empty `shops`, `shop_raw`, `call_log` and view `transcripts` move to schema `archive`;
      - Kevin's list tables, `outcome_group` and `score_history`;
      - the views `calls` (over `screener_log`, `caller` worked out), `shop_call_state` (worked out from
@@ -222,10 +224,12 @@ risks). This is its priority list, kept in sync:
     delete rows; n8n UI; `TEST-screener-0004` already deleted 2026-09-25); the Supabase test rows are already deleted. Delete the test posts in
     `#daily-screener-summary`. Rotate the exposed Instantly key. Tell the Obby product owner about the Supabase
     RLS warning (AGENTS.md security backlog).
-18. **Git:** PRs #4–#7 (`screener-item-6`) are merged (#7 on 2026-09-25). The branch has more since (5th/6th Codex fixes,
-    Graduate owner fix, go-live, Supabase core tables, docs): open a new PR to `main`
-    (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here). Hridoy commits
-    straight to `main`: merge `origin/main` before trusting local docs.
+18. **Git:** PRs #4–#7 (`screener-item-6`) are merged (#7 on 2026-09-25). The branch has more since: the 5th/6th Codex
+    fixes, the Graduate owner fix, go-live, the core tables, and on 2026-09-26 the final plan, the Slack/meeting
+    extractions, Kevin's database live, the California load, Task 5's SQL and the Codex fixes. **Not pushed yet** (Claude's
+    push is refused; Mohimenul pushes). Then open a PR to `main`
+    (https://github.com/TeamObby/Automation-Plumber/compare/main...screener-item-6; no `gh` CLI here). **Hridoy needs it
+    on `main`** for his Task 6 instructions. Hridoy commits straight to `main`: merge `origin/main` before trusting local docs.
 
 ### Hridoy (GHL side, and the list) — updated 2026-09-26
 - ✅ **Sample Test 2** done (2026-09-24).
@@ -258,7 +262,7 @@ risks). This is its priority list, kept in sync:
      callback task. Dialer: two **single** lines (Kevin's and Topu's). WAVV won't add a seat before the Oct 23
      cycle, so try agent support or the website.
   6. **Check whether the Call Recorded trigger can send the dialling user** (for "who made the call").
-  7. **A GHL private-integration token** for the `waterline-pipeline` repo secrets (the batch loader).
+  7. **A GHL private-integration token** for the batch loader (kept as a secret, never in the repo).
 - **Hold — each one breaks the live screener:**
   - the No Answer / Voicemail options in Screener Outcome (an unknown pick overwrites the previous call's log row);
   - changing **Screen Noise** (n8n writes busy/quiet into it; use Background instead);
@@ -359,7 +363,7 @@ graduation always has at least one write (Close Gate and the log run only after 
 - **Stages mean the call *due*** (same convention as `Day 1 Call A`), so Attempt 1 = never dialled. Attempt 1 is being
   renamed "Screener queue" (same ID, same meaning); Attempts 2–4 become "Called 1x/2x/3x".
 - **Mohimenul's entry workflows stay inactive until go-live** (guards live since 2026-09-25; switch on together
-  with the GHL intake swap).
+  at go-live, before batch 1).
 
 ---
 

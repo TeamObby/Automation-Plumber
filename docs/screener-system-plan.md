@@ -31,11 +31,13 @@ Companions: [`ghl-automations.md`](ghl-automations.md) · [`AGENTS.md`](../AGENT
    `Screen Attempts`, `Screen Noise`, `Screen AI Verdict` moved to **`Call Context (do not edit)`** (IDs and
    keys unchanged). On a call Topu types **"screener"** in the contact page's *Search fields and folders*
    box → the dropdown is at the top. GHL cannot move a folder or pin a field higher (tried).
-4. **Intake:** every new `plumber` contact goes to the screener first — draft **`Import Contact To Screener`**
-   `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` (add `screening` → Screener — Plumbers / Attempt 1). At go-live
-   publish it and unpublish `Import Contact To New` together.
+4. **Intake (updated 2026-09-26):** contacts our batch loader creates (List Batch filled) go to the screener — draft
+   **`Import Contact To Screener`** `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` (add `screening` → Screener — Plumbers /
+   Attempt 1, being renamed "Screener queue"), filter "List Batch is not empty". `Import Contact To New` stays on with
+   "List Batch is empty" for every other `plumber` contact. Both change together at batch 1 (plan-2026-09-26 §G).
 5. **Hand-off to Kevin is unchanged from today's import:** Graduate sends email leads to Client
-   Acquisition / New and no-email leads to Day 1 Call A, with the hour-block follower. Email-1 timing is parked.
+   Acquisition / New and no-email leads to Day 1 Call A, with the hour-block follower. Email rule (Kevin, 2026-09-25): the
+   screener calls regardless of email status; emails continue once the lead reaches Kevin's pipeline.
 6. **Guards:** three, live since 2026-09-25 (§1). `Screener Outcome Changed` is configured, draft until go-live.
 
 ---
@@ -152,7 +154,7 @@ n8n refuses an unpublished sub-workflow called from anything but a manual run; `
 (`contact_id`) to `/webhook/screener-no-answer`; `Capture Wavv Disposition`'s screener branch (Branch A)
 POSTs the same `note = {{note.body}}` it already sends to `/webhook/screener-disposition`.
 
-**Next on this side:** items 1–7 are done (7a = the Supabase `screener_log`, 7b = `Screener: Daily Sweep`); left is item 8 (accuracy on the first real calls, via the `screener_accuracy` view) and filling the Supabase core tables (`shops`, `shop_raw`, `call_log`, view `transcripts` — live and empty since 2026-09-25; design in [`supabase-design.md`](supabase-design.md)). ⚠️ Decided 2026-09-26: they're replaced by Kevin's Task 4 schema, and `screener_log` stays; see [`plan-2026-09-26.md`](plan-2026-09-26.md). Task list: [`screener-handoff.md`](screener-handoff.md) §3.
+**Next on this side:** items 1–7 are done (7a = the Supabase `screener_log`, 7b = `Screener: Daily Sweep`); left is item 8 (accuracy on the first real calls, via the `screener_accuracy` view) and the database work from Kevin's 9 tasks: Kevin's Task 4 schema is live since 2026-09-26 with the California list loaded, and our first-design core tables are archived; `screener_log` stays the only call log. See [`plan-2026-09-26.md`](plan-2026-09-26.md). Task list: [`screener-handoff.md`](screener-handoff.md) §3.
 
 **For Hridoy — the contract for event 2:** webhook **`POST /webhook/screener-outcome`** from a
 *Contact Changed → `Screener Outcome` has changed* workflow. Body: the contact id (GHL's standard
@@ -248,7 +250,7 @@ Original notes, still valid:
    `Call Recorded Trigger` in [`ghl-automations.md`](ghl-automations.md) and POST it to your
    webhook by hand. Hridoy wires the real GHL triggers when the guards go in.
 3. Build the six workflows in §9. Keep them **inactive** until go-live — the guards are live since 2026-09-25, but the entry
-   workflows switch on together with the GHL intake swap (hand-off §3).
+   workflows switch on at go-live, before batch 1 (hand-off §3).
 4. The compare step (§4.1) is shared by two paths — build it once as a sub-workflow.
 
 ---

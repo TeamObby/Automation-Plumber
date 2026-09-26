@@ -4,6 +4,10 @@ Pulled on 2026-09-26. It continues [`../slack-agentic-2026-09-25/`](../slack-age
 stops at Mohimenul's Task 5 reply (Sep 25, 9:12 AM PT). Sources: `#agentic` (C0ANKT5TR7F),
 `#meeting-recordings` (C0BF2KSB2PL) and the Sep 25 huddle notes. Times are Pacific.
 
+**Status (2026-09-26, end of day):** the plan is final ([`../plan-2026-09-26.md`](../plan-2026-09-26.md)); Kevin's database
+is live and the California list is loaded (Task 4 done); Task 5's SQL is done. The table "Asked of Mohimenul" below
+is the original ask list.
+
 The two new meetings are in `docs/`:
 - [`meeting-2026-09-25.md`](../meeting-2026-09-25.md) + [transcript](../meeting-2026-09-25-transcript.md): Zoom, Sep 24 evening PT.
 - [`meeting-2026-09-26.md`](../meeting-2026-09-26.md) + [transcript](../meeting-2026-09-26-transcript.md): Zoom, Sep 25 evening PT.

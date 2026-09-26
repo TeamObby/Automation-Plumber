@@ -40,8 +40,9 @@ already live, or two specs asked for opposite things.
   - The 1,071 shops with no licence number keep the `OLD-` ID your shop list already uses.
 - **Old leads are never called twice**, and anyone who said stop or not interested never goes back to Topu.
 - **Nothing gets deleted.** My earlier, empty tables are moved to an archive, not deleted.
-- **One repo, `waterline-pipeline`,** with you as owner. Every change is a pull request your Claude can review. Nothing
-  runs from someone's laptop: the code runs in GitHub Actions.
+- **One repo, `waterline-pipeline`,** with you as owner, set up when Tausif's merge program starts (the database SQL is
+  in our Automation-Plumber repo for now). Every change is a pull request your Claude can review. Nothing runs from
+  someone's laptop: the code runs in GitHub Actions.
 - **Every screener call is saved**, with who made it (Topu), the recording and the transcript.
 - **Confirmed owners move to your pipeline on their own**, by hour block.
 - **The AI checks every call without seeing Topu's pick.** If it disagrees, the lead is held back and tagged
