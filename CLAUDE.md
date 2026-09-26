@@ -15,7 +15,12 @@ There is no application to build. The system runs in **n8n** (`https://n8n.meeto
 - `docs/ghl-automations.md` — the only record of the GHL side (which GHL workflow fires which n8n webhook).
 - `docs/screener-system-plan.md` — build spec for the screener system (work split Hridoy = GHL/WAVV, Mohimenul = n8n/AI).
 - `metrics/metrics-sheet-setup.gs` — Apps Script that builds the "Plumber Campaign Metrics" sheet.
-- `supabase/*.sql` — Supabase table definitions (run once in the project's SQL editor); the screener's
+- `docs/slack-agentic-2026-09-2x/` + `docs/meeting-*.md` — Slack and meeting extractions (Kevin's 9 major tasks and
+  their specs, his `waterline_pipeline` zip with its schema and ingest code, meeting transcripts). Newest first:
+  `slack-agentic-2026-09-26/README.md`.
+- `docs/plan-2026-09-26.md` — **the current plan of record** (database, call logging, go-live, batch 1; who writes
+  what). `docs/kevin-update-2026-09-26.md` — the same plan as told to Kevin.
+- `supabase/*.sql` — Supabase table definitions (`screener_log.sql`, `core_tables.sql` — the latter superseded 2026-09-26 by Kevin's schema, which moves to the `waterline-pipeline` repo; design history in `docs/supabase-design.md`); the screener's
   project URL + n8n credential are in `workflows/screener/build/supabase.json` (`build.sh` warns while empty).
 
 ## Commands
@@ -54,10 +59,11 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
   `screener_sweep_pending`); after the 2026-09-24 meeting, Supabase becomes the source of truth: the screener
   already logs every event to Supabase `screener_log` (item 7a, project `screener-helper`, written only through
   the versioned function `screener_log_upsert`), and `Screener: Daily Sweep` (item 7b) posts a daily summary
-  to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25); keep the entry workflows inactive until go-live:
-  `Capture Call`, `Mark + Compare`, `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`,
-  `Log Retry`, `Daily Sweep`. Published sub-workflows: Classify Transcript, Compare Step, Attempt Counter
-  (last re-published 2026-09-25); `Graduate` still to publish.
+  to Slack `#daily-screener-summary`. The three GHL guards are live (2026-09-25). Go-live on the n8n side
+  (2026-09-25): active `No Answer`, `WAVV Disposition`, `Write-back Retry`, `Graduate Sweep`, `Log Retry`; still off
+  (the user switches them on in the n8n UI) `Capture Call`, `Mark + Compare`, `Daily Sweep`. Published sub-workflows:
+  Classify Transcript, Compare Step, Attempt Counter, Graduate (all 2026-09-25). Claude Code's permission guard may
+  refuse `publish_workflow` as a production deploy even after the user's OK: then stop and hand it to the user.
   `Screener: Test Rig` (manual only) plays the screener on the test contact Dana Happy and resets her;
   `ungraduate` undoes a Graduate test (deletes the Kevin opportunity Graduate logged for her).
   GHL never re-sends a webhook, so recovery is the retry sweep reading `writeback_ok = false` rows.
@@ -97,8 +103,8 @@ output field breaks a test. Run the matching suite after any edit to a workflow 
 - **Other MCPs in this project** (`.mcp.json`, git-ignored; approved in `.claude/settings.local.json`):
   `leadconnector` = GoHighLevel (read/update contacts, tags, opportunities — handy to stage or verify a test on
   Dana; `get-contact` output is large, read it from the saved file) and `supabase` (signed in to the **Waterline**
-  Supabase account: `list_tables`, `execute_sql`, `apply_migration`, `get_advisors`). MCP servers attach only at
-  session start.
+  Supabase account: `list_tables`, `execute_sql`, `apply_migration`, `get_advisors`) and `slack` (read channels / history /
+  search, e.g. `#daily-screener-summary`). MCP servers attach only at session start.
 - **Don't run `update_workflow` and `execute_workflow` in parallel.** The execution can race the
   update and run the old version.
 - Test a webhook workflow with `execute_workflow` in `manual` mode and a `webhook` input whose

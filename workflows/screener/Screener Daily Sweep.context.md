@@ -1,9 +1,15 @@
 # Screener: Daily Sweep  [spec §7 freshness · §8 re-screen trap · §10.2 item 7b]
 
+> **Planned (plan-2026-09-26, week 1, live before Oct 12):** stop re-screening **Gatekeeper** (Kevin: gatekeepers are out);
+> the summary gets the new stage labels, a list of owner marks the AI didn't confirm, and a DB-size line (alert at 300 MB).
+> Switch on only after a read-only check of the contacts it would touch (`DRY_RUN=false`, and the owner-confirmed search
+> covers the whole account).
+
+
 - **n8n ID:** `0GtpCj9xFK4xGZrX` · **URL:** https://n8n.meetobby.com/workflow/0GtpCj9xFK4xGZrX · **File:** `Screener Daily Sweep.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_dailysweep.js` (+ `src/daily_settings.js`, `stale_searches.js`,
   `stale_candidates.js`, `stale_decide.js`, `stale_plan.js`, `stale_report.js`, `summary_stage_urls.js`, `summary_build.js`)
-- **Status:** created 2026-09-25, **inactive** — activate at go-live. Runs every day at **05:00 America/Los_Angeles**
+- **Status:** created 2026-09-25, **still off** ❌ — switched on at go-live by Mohimenul (n8n UI), or by Claude once `publish_workflow` is allowed. Runs every day at **05:00 America/Los_Angeles**
   (the n8n instance timezone, confirmed from the trigger output), before the screeners' 08:00 PT shift.
 - **Slack:** `#daily-screener-summary`, posted by **Slack [ Obby bot account ]** `QcTNBiXBrnH5rFkC`
   (`build/slack.json`). The node continues on error, so a Slack problem never fails the sweep. First post
@@ -45,6 +51,16 @@ nothing is replayed. The lead counts as blocked (reason kept: "not re-screened: 
 stopped)"), is listed under *Needs a human* ("half-done re-screens stopped — check by hand"), and its pending row is
 cleared (the saved writes are dropped, so the summary says it once). Expire-only replays (hour tags and block
 followers off) still run: expiry applies whatever the guards say.
+**Write kinds (5th codex review, 2026-09-25).** Expiry and re-screen share the label `remove block followers
+(screener opp)`, so the label cannot tell them apart: a blocked replay of a half-failed *expiry* was being dropped,
+leaving the lead on Kevin's hour board. Decide now tags every write `kind: 'expire' | 'rescreen'`, Sweep Report keeps
+the kind in `ops_json`, and a blocked replay drops only the `rescreen` writes and still replays the `expire` ones
+(reason "… | expiry writes replayed"). A saved row without kinds counts as re-screen only by the writes a re-screen
+alone makes (clear fields, result tags, `screening`, Attempt 1).
+**Deferred stopped replays (6th codex review, 2026-09-25).** A stopped contact whose expiry writes are still replayed
+is marked `replayed: true`; Sweep Report clears its pending row only through the normal "done" path, i.e. after those
+writes succeeded. If the 50-contact cap defers it (nothing sent), the row stays for the next run; if they fail, it is
+saved again with just the expiry writes. Only a stopped contact with nothing left to replay is cleared at once.
 
 ## What a re-screen writes
 Clear Screener Outcome, Screen AI Verdict, Screen Attempts, Date Screened, Screen Noise (+ `assignedTo` = the
@@ -68,6 +84,11 @@ tags → add `screening` → screener opportunity open in **Attempt 1** → bloc
 - Replay guards: offline only (§14: DND stopped, open Kevin opp stopped with the reason kept, expire-only replay
   still allowed, stopped clears the pending row, summary line; mutation-checked). Deployed 2026-09-25 and re-pulled;
   not run live because a real run (DRY_RUN off) would also sweep any real stale leads.
+- Write kinds: offline (§14: the codex repro — expiry with a failed screener-opp follower removal is replayed with an
+  open Kevin opp; a mixed plan keeps its expiry writes; an old row without kinds; saved rows keep kinds;
+  mutation-checked). Deployed 2026-09-25 and re-pulled.
+- Deferred stopped replays: offline (§14: the codex repro — deferred, nothing sent, row kept; replayed + succeeded →
+  cleared; replayed + failed → saved with only the expiry writes; mutation-checked). Deployed 2026-09-25, re-pulled.
 
 ## TODOs
 - `SCREENER_USER_ID` optional (Topu has normal access). While empty, the summary still warns "no screener

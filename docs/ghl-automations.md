@@ -39,6 +39,13 @@ That pairing is what makes the `(missed call)` caller-stage variants self-cleari
 | **Import Contact To New** `475c6d9a-b7a2-43dd-ade0-de610a2f5021` ✅ | **Contact Created** with tag `plumber` | **no email** → creates opp in **Cold Outbound Call Pipeline → Day 1 Call A** (`060f44a8`, call-first). **has email** → creates opp in **Client Acquisition → New** (`f6aa7e0f`) |
 | **Hawaii Temp** `c335f0fb-386d-4467-85a0-c9461285bc97` ✅ | **no trigger** — manual/bulk add only | sets **Stop Emails = True**, removes tag `plumber_new` |
 
+**Screener intake (drafts, 2026-09-26 — see `docs/screener-handoff.md` §2 and `docs/plan-2026-09-26.md` §D/G):**
+
+| GHL workflow (id) | Trigger | Does | State |
+|---|---|---|---|
+| **Import Contact To Screener** `6cd0ccf5-87d4-4ac2-a62a-e19c723377f4` | **Contact Created** with tag `plumber` (+ **List Batch is not empty**, to add) | adds tag `screening`, creates the opp in **Screener — Plumbers / Attempt 1** (being renamed "Screener queue") | draft; published **together with unpublishing `Import Contact To New`** at batch-1 time |
+| **Screener Outcome Changed** `29535603-03a9-470c-8d98-0cde44df6c04` | **Contact Changed** — `Screener Outcome` | webhook only → `/webhook/screener-outcome` (`contact_id`) | draft; published at go-live, after n8n `Mark + Compare` is on |
+
 `Import Contact To New` is the real front door of the campaign, and it is the no-email
 path the Cold Handler's `stop_emails` guard was written for: a no-email lead lands
 **straight in `Day 1 Call A`**, skipping the `No Email Cold Call 1` stage that would

@@ -5,9 +5,11 @@
 // opportunity moved after the failure, i.e. a newer call or dial happened: then replaying would undo
 // that, so the saved writes are dropped and the lead is reported for a human. The re-screen guards are
 // checked again (codex review): saved re-screen writes are never replayed onto a lead that now has an open
-// Kevin opportunity or is DND — it is counted as blocked, listed for a human, and its saved writes dropped.
-// Expire-only writes (tags and followers off) are still replayed: expiry applies either way.
-const RESCREEN_OP = /clear screener fields|remove result tags|add screening tag|Attempt 1|\(screener opp\)/;
+// Kevin opportunity or is DND — they are dropped, the lead is counted as blocked and listed for a human.
+// Its saved expiry writes (hour tags and block followers off) are still replayed: expiry applies either way
+// (5th codex review: expiry and re-screen share a follower label, so each write carries its kind).
+// A row saved before writes had a kind: re-screen = the writes only a re-screen makes.
+const isRescreen = o => o.kind ? o.kind === 'rescreen' : /clear screener fields|remove result tags|add screening tag|Attempt 1/.test(o.label || '');
 const set = $('Settings').first().json;
 const pending = new Map((() => { try { return $('Pending sweeps').all().map(i => i.json); } catch (e) { return []; } })()
   .filter(r => r && r.contact_id).map(r => [r.contact_id, r]));
@@ -22,9 +24,14 @@ const all = $input.all().map(i => i.json).map(d => {
   let ops = [];
   try { ops = JSON.parse(p.ops_json) || []; } catch (e) { ops = []; }
   const guard = d.open_kevin ? 'open opportunity in Kevin pipeline (re-screen trap)' : d.dnd ? 'contact is DND' : '';
-  if (guard && ops.some(o => RESCREEN_OP.test(o.label || ''))) {
-    stopped.push({ contact_id: d.contact_id, company: d.company, why: guard });
-    return Object.assign({}, d, { reason: [d.reason, 'not re-screened: ' + guard + ' (earlier half-done re-screen stopped)'].filter(Boolean).join(' | ') });
+  if (guard && ops.some(isRescreen)) {
+    const keep = ops.filter(o => !isRescreen(o));
+    // replayed: its expiry writes still have to run, so its pending row may only be cleared once they succeed
+    // (Sweep Report clears it through "done"; if the cap defers it, the row stays) — 6th codex review.
+    stopped.push({ contact_id: d.contact_id, company: d.company, why: guard, replayed: keep.length > 0 });
+    const reason = [d.reason, 'not re-screened: ' + guard + ' (earlier half-done re-screen stopped)'].filter(Boolean).join(' | ');
+    return keep.length ? Object.assign({}, d, { action: 'retry', reason: reason + ' | expiry writes replayed', ops: keep })
+      : Object.assign({}, d, { reason });
   }
   return Object.assign({}, d, { action: 'retry', reason: 'finishing an earlier sweep that half failed (' + String(p.error || '').slice(0, 80) + ')', ops });
 });

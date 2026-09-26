@@ -2,7 +2,7 @@
 
 - **n8n ID:** `M2LD6njhVMO9Ol7w` · **URL:** https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w · **File:** `Screener Graduate.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_graduate.js` (+ `src/graduate_decide.js`, `graduate_ops.js`, `graduate_gate.js`, `graduate_log.js`); 17 nodes
-- **Status:** sub-workflow — **publish before go-live** (not published yet). Called only by
+- **Status:** sub-workflow — **published ✅ 2026-09-25** (version `aa2394a7`; re-publish after every `update_workflow`). Called only by
   **`Screener: Graduate Sweep`** (`jZAgBUQvffv1NCMC`).
 - **Data table:** `screener_graduations` `1iX0aTvMYawwyH4H` — one row per lead, upserted on every attempt (key `contact_id:screener_opp_id`).
 
@@ -29,7 +29,10 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
   it is a task for a human, not a sales or call queue, so a lead whose only open opportunity is there
   still gets a real one (Codex review, 2026-09-24).
 - **Writes:** PT block follower on Kevin's opportunity → remove `screening` + any `wavv-*` tags (keeps
-  `owner-confirmed` and the block tag for Kevin's lists) → clear the screener as the contact's owner.
+  `owner-confirmed` and the block tag for Kevin's lists). The tag removal always goes out (with `screening` even
+  when it is already gone; GHL answers 200 for an absent tag), because Close Gate and the log run only after at
+  least one write. **The contact owner is not touched** (decided 2026-09-25): Topu has normal access and nothing
+  assigns leads to him, so the old "clear the screener as owner" write would only have wiped a real owner.
 - **The close is gated.** `GHL: Graduation Apply` continues on error, so on its own it would still send
   the close after a failed write, and a closed opportunity is never swept again (Codex review,
   2026-09-24). So the close is its own node: **Close Gate** lets it run only if every write came back
@@ -42,7 +45,7 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
 - **`first_failed_at`** (codex review, 2026-09-25): `at` is refreshed by every retry, so a graduation failing every
   10 minutes never looked a day old. **Previous graduation** reads the row first; Log Graduation keeps the first
   failure time until the graduation succeeds (then it is cleared). The daily summary flags `ok = false` rows whose
-  `first_failed_at` is older than a day. Pushed as a draft (Graduate is not published yet).
+  `first_failed_at` is older than a day. (Graduate was published on 2026-09-25.)
 
 ## Tested
 - Offline: `tests/screener.test.js` §11 (routing, reuse incl. Manual Review excluded, guards, Close Gate,
@@ -53,8 +56,8 @@ GHL: Graduation Apply → **Close Gate** → *All writes OK?* → (GHL: Close Sc
   (`rvKNBwtZPXQY1ICQLPJf`), PT 10-11 follower on it, `screening` + `wavv-none` removed (the other two
   kept), owner PUT accepted, Close Gate `close: true`, screener opp `won`, row `ok: true`. Checked in GHL
   directly, not only in the log. Kevin's automations added nothing (Dana has no TZ).
-- Create response shape confirmed: `{ opportunity: { id } }`. `assignedTo: null` was accepted, but Dana
-  had no owner before, so clearing a real owner is still unproven until a screener user owns a lead.
+- Create response shape confirmed: `{ opportunity: { id } }`. (The owner-clearing write tested
+  here was removed on 2026-09-25, see Writes.)
 - Undone with the Test Rig `ungraduate` (123635): the Kevin opp is deleted (404) and Dana is back to
   open / Attempt 1 / `screening`.
 

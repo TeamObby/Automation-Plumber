@@ -1,0 +1,150 @@
+MATCHING KIT (WaterLine, Sep 24, 2026)
+
+=== PART 1. STEPS FOR THE TEAM (read this) ===
+
+HOW THE TEAM USES THE MATCHING FILES (step by step)
+
+WHERE IT FITS
+Every time we get data from ANY source (Google, Yelp, Facebook, Angi, websites), it goes through matching BEFORE anyone uses it:
+   1. Scrape or download  ->  2. MATCH (this guide)  ->  3. Upload to Supabase / send to Kevin
+Nobody uses a source's data (reviews, phone, website, review count) until it has passed matching.
+
+THE FILES (only 3)
+- MATCHING_KIT.txt  : this file. Part 1 = these steps (for you). Part 2 = the prompt you paste into Claude. Part 3 = the rulebook.
+- match_rules.py    : the program that does the checking. Claude runs it; you don't need to open it.
+- our_shops_CA.csv  : our California shops. Every result gets matched against this file.
+
+ONE-TIME SETUP (about 15 minutes)
+1. In Google Drive, make a folder "Matching" with 4 subfolders:
+   1_raw      (downloads exactly as they came; never edit)
+   2_ready    (files with our column names)
+   3_matched  (the program's output)
+   4_checked  (after the second look and the spot check; this is the final file)
+2. Put the 3 files above in the "Matching" folder.
+3. Use a Claude that can run code (Claude Code, or a Claude chat that can run Python on uploaded files). No extra software is needed.
+
+THE RULE WHEN SCRAPING (important)
+Every search you send to a tool must carry OUR shop_id, so each result comes back tied to the shop we searched for. Example: the Google lookup file already has licence_number in every row, so keep that column in the output. A result without our shop_id can't be matched.
+
+EVERY TIME YOU GET A NEW SOURCE FILE (about 30-60 minutes per file)
+Step 1. Save the raw download in 1_raw, named source_state_date, for example google_CA_2026-09-26.csv. Don't edit it.
+Step 2. Open a NEW Claude chat. Paste PART 2 and PART 3 of this file. Attach: the raw file, our_shops_CA.csv and match_rules.py. Then type:
+        "Source: Google Maps (DataForSEO). Map the columns and show me the mapping."
+Step 3. Check Claude's column mapping against the cheat sheet below. If it's right, type "OK, run it".
+        Claude runs the program and shows the counts: MATCH / NEEDS CHECK / NO MATCH / CONFLICT. Save matched.csv in 3_matched.
+Step 4. Second look, part 1 (same chat): type "Do step 3a for the NEEDS CHECK rows." Claude looks for one more proof in our own files.
+Step 5. Second look, part 2 (web check): open a SECOND new chat. Paste only STEP 3b from PART 3, then give it the NEEDS CHECK rows that are still left, at most 50 per chat. It answers SAME / DIFFERENT / CAN'T TELL with evidence. Paste its answers back into the first chat and type "Update the verdicts."
+Step 6. Spot check: open a THIRD new chat. Give it 20 random MATCH rows and the "SAFETY CHECKS" section from PART 3. It checks each one online. If more than 2% of MATCH rows are wrong, STOP and tell Kevin.
+Step 7. Save the final file in 4_checked, named source_state_date_checked.csv.
+Step 8. Send Kevin one line: source, rows, MATCH / NEEDS CHECK / NO MATCH counts, the spot check result (for example 20 of 20 right), and the Drive link. Mohimenul uploads the MATCH rows to Supabase once it's live.
+
+WHY 3 SEPARATE CHATS
+The web check and the spot check must be done by an AI that didn't do the matching and doesn't see its answers. Otherwise it just agrees with itself.
+
+COLUMN CHEAT SHEET (our name <- the source's name)
+shop_id      <- the column we searched with (licence_number in our lookup files)
+source       <- type it: google / yelp / facebook / angi / website
+candidate_id <- DataForSEO: place_id | Apify Google: placeId | Yelp: yelp_id (or yelp_url) | Facebook: page URL
+name         <- DataForSEO: title | Apify: title | Yelp: name (yelp_name) | Facebook: page name
+phone        <- DataForSEO: phone | Apify: phoneUnformatted | Yelp: phone | Facebook: phone
+address      <- DataForSEO: address | Apify: address (or street) | Yelp: address | Facebook: address
+city         <- DataForSEO: address_info city | Apify: city | Yelp: city
+state        <- DataForSEO: address_info region | Apify: state | Yelp: state
+zip          <- DataForSEO: address_info zip | Apify: postalCode | Yelp: zip
+website      <- DataForSEO: url (or domain) | Apify: website | Yelp: website | Facebook: website
+category     <- DataForSEO: category | Apify: categoryName | Yelp: categories | Facebook: category
+If a source has a different column name, pick the closest one and ask Kevin if you're not sure.
+
+THE FIRST FILE TO PUT THROUGH
+The Google lookup results (ca_google_lookup_results.csv) from the lookup task.
+
+NEVER
+- Never delete rows. NO MATCH and NEEDS CHECK rows stay in the file.
+- Never "fix" a match by hand without proof (phone, address, website, licence number).
+- Never use data from NEEDS CHECK or NO MATCH rows.
+
+
+=== PART 2. PASTE INTO CLAUDE (chat 1) ===
+
+You are helping Kevin's team at WaterLine connect data from outside sources (Google, Yelp, Facebook, Angi, websites) to our list of plumbing shops, WITHOUT mixing up businesses. Keep answers short and step by step. If you're not sure, ask Kevin.
+
+FILES (Kevin has them)
+- match_rules.py: the matching rules as a Python script. It does the checking. It is tested: 0 confirmed wrong matches on 50 hard cases checked independently online (vs 14% wrong when you take whatever a tool returns).
+- The rulebook: PART 3 below (the same rules in words, plus the second pass and the spot checks).
+
+IMPORTANT: DON'T MATCH BY READING ROWS IN CHAT
+An AI reading thousands of rows in a chat will skip rows and make mistakes. The script does the matching. The AI only handles the NEEDS CHECK rows (step 3 below).
+
+STEPS FOR EACH SOURCE RESULT FILE
+1. Make 2 CSV files:
+   - our_shops.csv: shop_id, business_name, other_name, phone_1, phone_2, address, city, state, zip, website
+   - candidates.csv: shop_id (the shop you searched for), source, candidate_id (place ID, Yelp ID or URL), name, phone, address, city, state, zip, website, category
+   Map each source's own column names to these names (for example Apify "title" = name, "phoneUnformatted" = phone). Show me the column mapping before running.
+2. Run: python match_rules.py our_shops.csv candidates.csv matched.csv
+   It prints the count of each verdict: MATCH / NEEDS CHECK / NO MATCH / CONFLICT.
+3. SECOND PASS, for NEEDS CHECK rows only: for each one, follow "STEP 3b" in the rulebook (PART 3).
+   a) Look for one more proof in our own files: the shop's website text, the licence file, the owner's name. If found, re-decide.
+   b) If still unsure: a SEPARATE AI chat (one that didn't do steps 1-3 and doesn't see our verdicts) looks the business up with web search and answers SAME / DIFFERENT / CAN'T TELL, with the evidence. SAME with hard evidence (the same phone or address on the business's own site or listings, the licence number, the owner name) = MATCH. Give it batches of about 50 cases at a time.
+   c) Never loosen the rules. Same name + same city alone is NOT enough. Anything still unsure stays NEEDS CHECK, and the screener settles it.
+4. SPOT CHECK: a separate AI chat (not the one that did steps 1-3) opens 20 random MATCH rows and checks each against the source (same business? phone, address, name). If more than 2% of MATCH rows are wrong, stop and tell Kevin.
+5. Use only MATCH rows (HIGH or MEDIUM) for scoring. Keep NEEDS CHECK and NO MATCH rows in the file; never delete them.
+
+SEND KEVIN
+matched.csv, the verdict counts, the spot-check result (how many of 20 were right), and the 3 most common reasons for NEEDS CHECK.
+
+
+=== PART 3. THE RULEBOOK (paste into Claude together with PART 2) ===
+
+WATERLINE MATCHING RULEBOOK v1.2 (Sep 24, 2026)
+Tested on 316 candidate matches from the 100-shop test: 3 of 262 accepted matches were wrong (about 1%), 14 of 273 true matches were held as NEEDS CHECK (5%), and 40 of 43 wrong candidates were caught. A looser version (same name + same city = match) let in a wrong business, so the stricter rule stays.
+Paste this into any AI or script step that connects data from a source (Google, Yelp, Facebook, Angi, websites, PPP, etc.) to one of our shops. Follow every rule. When unsure, answer NEEDS CHECK. Never guess and never invent data.
+
+WHAT YOU GET
+- OUR SHOP: shop_id, business names (legal name and any other name), licence number, phone numbers, street, city, state, zip, website, owner name.
+- CANDIDATE: one record from a source (name, phone, address, website, category, and anything else it has).
+
+STEP 1. AUTOMATIC REJECTS (verdict NO MATCH)
+- The candidate's state is different from our shop's state.
+- (A non-plumbing Google category, like Electrician or Garage door supplier, is NOT a reject. Multi-trade shops are real: the test had 2 true matches listed that way. Flag it as "category not plumbing" instead.)
+- The candidate is already matched to another of our shops with more proofs (verdict CONFLICT, list both shop_ids).
+
+STEP 2. COUNT THE PROOFS (each one counts once)
+1. PHONE: any of our phone numbers equals any of theirs (compare the last 10 digits only).
+2. ADDRESS: the same street address (ignore Suite/Unit/St vs Street), OR the same city AND the same zip.
+3. WEBSITE: the same website domain (ignore www, http/https, and anything after the first /).
+4. LICENCE: our licence number appears on their page or listing.
+5. NAME: the names are very close after removing Inc, LLC, Co, Corp, "Plumbing", "Plumber", "Rooter", "Services", "&", "and", and punctuation. The legal name and the other name (DBA) both count. The owner's full name inside the business name counts ("Takanashi Shigehiro" = "Shigehiro Plumbing" only if the owner name matches).
+
+STEP 3. DECIDE
+- 2 or more proofs, and one of them is PHONE or ADDRESS: MATCH, confidence HIGH.
+- 2 or more proofs, but neither is PHONE nor ADDRESS (for example NAME + WEBSITE): MATCH, confidence MEDIUM.
+- Only 1 proof: NEEDS CHECK. Don't use the data yet.
+- PHONE matches but the names are completely different: NEEDS CHECK (the number may have moved to a new business, or be a shared or call-tracking number).
+- 0 proofs: NO MATCH.
+
+STEP 3b. SECOND PASS FOR NEEDS CHECK
+- Don't loosen the rules. Instead, look for one more proof: another source's listing (Yelp, website, licence file), the owner's name, or the street address on the shop's website.
+- If still no extra proof: an INDEPENDENT AI check with web search (an AI that didn't do the matching) looks the business up online and answers SAME / DIFFERENT / CAN'T TELL, with the evidence. SAME with hard evidence (the same phone or address on the business's own site or listings, the licence number, the owner name) = MATCH. Tested on 50 hard cases: 16 of the 21 held results were confirmed DIFFERENT, 4 SAME and 1 CAN'T TELL.
+- If still not settled, the shop stays NEEDS CHECK, and the screener's call settles it.
+- Proven by the test: the same name + the same city ALONE is NOT enough (a different business with the same name was in the same city).
+
+STEP 4. SPECIAL CASES
+- The same shop has several listings: keep the one with the matching phone as the main one. List the others as extra listings; never dial their numbers.
+- A franchise location (a brand name plus our owner or address): MATCH, and set franchise = yes.
+- The shop moved (same phone, different address in the same state): MATCH, confidence MEDIUM, note "moved".
+- Permanently closed: MATCH if the proofs pass, and set closed = yes. Don't reject it; closed is a fact we need.
+
+STEP 5. OUTPUT (one row per candidate)
+shop_id | source | candidate_id (place ID, Yelp ID, URL...) | verdict (MATCH / NEEDS CHECK / NO MATCH / CONFLICT) | confidence (HIGH / MEDIUM / blank) | proofs (for example "PHONE, NAME") | reason (one short line) | flags (closed, franchise, moved, extra listing)
+
+RULES FOR READING REVIEWS AND WEBSITES (after a MATCH only)
+- Only use text that belongs to a MATCH with HIGH or MEDIUM confidence.
+- For every yes answer (office staff answers, owner answers, home jobs, hiring a receptionist, 24/7, commercial work), quote the exact words that prove it (max 20 words) and give the review date or page address.
+- No quote = the answer is "no evidence", not "no".
+- Don't judge from the business name alone.
+
+SAFETY CHECKS FOR EVERY BATCH
+- Before using a batch, a separate AI (one that didn't do the matching) checks 20 random MATCH rows against the source.
+- If more than 2 of 100 (2%) are wrong, stop, find the cause, fix the rule, and rerun the batch.
+- Report per batch: the count of each verdict, the spot-check result, and the top 3 reasons for NEEDS CHECK.
+- The screener's "Wrong Number" and "Not A Plumber" results are sent back to fix the shop's record.

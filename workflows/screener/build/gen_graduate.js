@@ -59,7 +59,7 @@ const create = node({
 const ops = node({
   type: 'n8n-nodes-base.code', version: 2,
   config: { name: 'Graduation Ops', position: [1568, 208], parameters: { mode: 'runOnceForAllItems', jsCode: ${c('graduate_ops.js')} } },
-  output: [{ label: 'clear screener as owner', method: 'PUT', url: 'https://services.leadconnectorhq.com/contacts/C1', body: { assignedTo: null }, kevin_opp_id: 'K1' }]
+  output: [{ label: 'remove screening + wavv tags', method: 'DELETE', url: 'https://services.leadconnectorhq.com/contacts/C1/tags', body: { tags: ['screening'] }, kevin_opp_id: 'K1' }]
 });
 
 const haveKevin = ifElse({ version: 2.2, config: { name: 'Kevin opp exists?', position: [1792, 208], parameters: { conditions: ${cond(`{ leftValue: expr('{{ $json.method }}'), rightValue: 'SKIP', operator: { type: 'string', operation: 'notEquals' } }`)} } } });
@@ -103,7 +103,7 @@ const store = node({
   output: [{ id: 1, grad_key: 'C1:O1' }]
 });
 
-const note = sticky('## Screener: Graduate  (spec §8 · §10.2 item 6)\\nOne Owner Verified lead into Kevin\\u2019s machine: create his opportunity by the Import Contact To New rule (email -> Client Acquisition / New, else Cold Call / Day 1 Call A) or reuse an open one, copy the PT block follower, remove screening + wavv tags, clear the screener as owner. Close Gate closes the screener opportunity only if every one of those writes succeeded; any failure leaves it in Owner Verified for the next sweep. Called only by Screener: Graduate Sweep.', [plan, create, apply, gate, closeOpp], { color: 5 });
+const note = sticky('## Screener: Graduate  (spec §8 · §10.2 item 6)\\nOne Owner Verified lead into Kevin\\u2019s machine: create his opportunity by the Import Contact To New rule (email -> Client Acquisition / New, else Cold Call / Day 1 Call A) or reuse an open one, copy the PT block follower, remove screening + wavv tags. Close Gate closes the screener opportunity only if every one of those writes succeeded; any failure leaves it in Owner Verified for the next sweep. Called only by Screener: Graduate Sweep.', [plan, create, apply, gate, closeOpp], { color: 5 });
 
 export default workflow('screener-graduate', 'Screener: Graduate')
   .add(whenCalled).to(prevRow).to(getContact).to(allOpps).to(plan)

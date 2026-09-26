@@ -20,8 +20,9 @@ that captures intent/why/gotchas the code alone can't.
 - The **n8n MCP is the live link** — it's configured at the Claude connector level, NOT
   in any single chat, so it stays connected across sessions. Nothing about the "link"
   is stored in this repo; this repo stores **which workflows to point it at**.
-- Also in this project (`.mcp.json`, git-ignored): the **GoHighLevel** MCP (`leadconnector`) and the **Supabase**
-  MCP (signed in to the Waterline account — project `screener-helper`). They attach at session start.
+- Also in this project (`.mcp.json`, git-ignored): the **GoHighLevel** MCP (`leadconnector`), the **Supabase**
+  MCP (signed in to the Waterline account — project `screener-helper`) and a **Slack** MCP (`slack`, read-only use:
+  channels, history, search). They attach at session start.
 - To re-orient in a fresh chat: read this file → open the relevant `context.md` → use the
   **workflow ID** with the MCP (`get_workflow_details`, `update_workflow`, …).
 - **Editing live workflows is real.** Validate first; confirm destructive/outward-facing
@@ -63,20 +64,20 @@ Credentials are not compared — the MCP omits them.
 | Missed Call - Cold Handler | `MKj1ck6WAwvPZWFz` | [open](https://n8n.meetobby.com/workflow/MKj1ck6WAwvPZWFz) | ✅ | ✓ [json+ctx](workflows/missed-call/) |
 | Missed Call - Gatekeeper Handler (gk twin) | `rcrCVXDZp8ix9pKp` | [open](https://n8n.meetobby.com/workflow/rcrCVXDZp8ix9pKp) | ✅ | ✓ [json+ctx](workflows/missed-call/) — copy of Cold Handler, gatekeeper `CALL_PIPELINE` + maps |
 | Send Cold Email 1 (3:30AM) | `6wdNiXnexS3zT5b2` | [open](https://n8n.meetobby.com/workflow/6wdNiXnexS3zT5b2) | ❌ | ✓ [json+ctx](workflows/scheduled-automations/) |
-| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **keep inactive until go-live** (guards live 2026-09-25) | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3(+4); data table `screener_calls`, then hands the verdict to Compare Step |
+| Screener: Capture Call | `jQaCWO08lddHg9fN` | [open](https://n8n.meetobby.com/workflow/jQaCWO08lddHg9fN) | ❌ **inactive — Mohimenul switches it on in the n8n UI** (go-live) | ✓ [json+ctx](workflows/screener/) — spec §10.2 items 1+3(+4); data table `screener_calls`, then hands the verdict to Compare Step |
 | Screener: Classify Transcript | `LbGY5ptzldJjnTZJ` | [open](https://n8n.meetobby.com/workflow/LbGY5ptzldJjnTZJ) | ✅ published sub-workflow (re-publish after edits) | ✓ [json+ctx](workflows/screener/) — spec item 2; who answered, `gpt-4.1-mini`, strict schema |
 | Screener: Classifier Eval | `FMUXvDBXsigHA4vb` | [open](https://n8n.meetobby.com/workflow/FMUXvDBXsigHA4vb) | — (manual test harness) | ✓ [json+ctx](workflows/screener/) — 8 transcripts × 3 runs; last run 8/8 stable + correct |
 | Screener: Compare Step | `3pwiQXC8etTcKf5Z` | [open](https://n8n.meetobby.com/workflow/3pwiQXC8etTcKf5Z) | ✅ published sub-workflow (re-publish after edits) | ✓ [json+ctx](workflows/screener/) — item 4; mark vs AI → stage, tags, block follower. Writes GHL, only for contacts tagged `screening` |
-| Screener: Write-back Retry | `IvxTYaChixQOiNzt` | [open](https://n8n.meetobby.com/workflow/IvxTYaChixQOiNzt) | ❌ **keep inactive until go-live** (guards live 2026-09-25) | ✓ [json+ctx](workflows/screener/) — item 4 recovery; every 15 min re-runs the Compare Step for `writeback_ok = false` rows |
+| Screener: Write-back Retry | `IvxTYaChixQOiNzt` | [open](https://n8n.meetobby.com/workflow/IvxTYaChixQOiNzt) | ✅ **active since 2026-09-25** | ✓ [json+ctx](workflows/screener/) — item 4 recovery; every 15 min re-runs the Compare Step for `writeback_ok = false` rows |
 | Screener: Attempt Counter | `Wwx2R76IrhLMYU7K` | [open](https://n8n.meetobby.com/workflow/Wwx2R76IrhLMYU7K) | ✅ published sub-workflow (re-publish after edits) | ✓ [json+ctx](workflows/screener/) — item 5; the Attempt ladder, table `screener_attempts` `9V6VL0XiKeadY9Lc` |
-| Screener: No Answer | `aZyzUwwNdDWvaCAk` | [open](https://n8n.meetobby.com/workflow/aZyzUwwNdDWvaCAk) | ❌ **keep inactive until go-live** (guards live 2026-09-25) | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-no-answer` |
-| Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | [open](https://n8n.meetobby.com/workflow/QOYHMP5ZGQcnG3ED) | ❌ **keep inactive until go-live** (guards live 2026-09-25) | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-disposition` (Voicemail / Bad Number) |
-| Screener: Graduate | `M2LD6njhVMO9Ol7w` | [open](https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w) | — (sub-workflow; **publish before go-live**) | ✓ [json+ctx](workflows/screener/) — item 6; Owner Verified → Kevin's pipeline, table `screener_graduations` `1iX0aTvMYawwyH4H` |
-| Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | [open](https://n8n.meetobby.com/workflow/jZAgBUQvffv1NCMC) | ❌ **keep inactive until go-live** (guards live 2026-09-25) | ✓ [json+ctx](workflows/screener/) — item 6; every 10 min, 10-min grace window |
-| Screener: Log Retry | `y2oXfZtH4y1mhWQG` | [open](https://n8n.meetobby.com/workflow/y2oXfZtH4y1mhWQG) | ❌ **keep inactive until go-live** | ✓ [json+ctx](workflows/screener/) — item 7a; every 15 min, replays failed screener_log writes into Supabase |
-| Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | [open](https://n8n.meetobby.com/workflow/0GtpCj9xFK4xGZrX) | ❌ **keep inactive until go-live** | ✓ [json+ctx](workflows/screener/) — item 7b; 05:00 PT: 14-day expiry + re-screen, then the Slack summary |
+| Screener: No Answer | `aZyzUwwNdDWvaCAk` | [open](https://n8n.meetobby.com/workflow/aZyzUwwNdDWvaCAk) | ✅ **active since 2026-09-25** | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-no-answer` |
+| Screener: WAVV Disposition | `QOYHMP5ZGQcnG3ED` | [open](https://n8n.meetobby.com/workflow/QOYHMP5ZGQcnG3ED) | ✅ **active since 2026-09-25** | ✓ [json+ctx](workflows/screener/) — item 5; `POST /webhook/screener-disposition` (Voicemail / Bad Number) |
+| Screener: Graduate | `M2LD6njhVMO9Ol7w` | [open](https://n8n.meetobby.com/workflow/M2LD6njhVMO9Ol7w) | ✅ published 2026-09-25 (sub-workflow) | ✓ [json+ctx](workflows/screener/) — item 6; Owner Verified → Kevin's pipeline, table `screener_graduations` `1iX0aTvMYawwyH4H` |
+| Screener: Graduate Sweep | `jZAgBUQvffv1NCMC` | [open](https://n8n.meetobby.com/workflow/jZAgBUQvffv1NCMC) | ✅ **active since 2026-09-25** | ✓ [json+ctx](workflows/screener/) — item 6; every 10 min, 10-min grace window |
+| Screener: Log Retry | `y2oXfZtH4y1mhWQG` | [open](https://n8n.meetobby.com/workflow/y2oXfZtH4y1mhWQG) | ✅ **active since 2026-09-25** | ✓ [json+ctx](workflows/screener/) — item 7a; every 15 min, replays failed screener_log writes into Supabase |
+| Screener: Daily Sweep | `0GtpCj9xFK4xGZrX` | [open](https://n8n.meetobby.com/workflow/0GtpCj9xFK4xGZrX) | ❌ **inactive — Mohimenul switches it on in the n8n UI** (go-live) | ✓ [json+ctx](workflows/screener/) — item 7b; 05:00 PT: 14-day expiry + re-screen, then the Slack summary |
 | Screener: Test Rig | `UvApCCNACHD0uwTu` | [open](https://n8n.meetobby.com/workflow/UvApCCNACHD0uwTu) | — (manual only, never activate) | ✓ [json+ctx](workflows/screener/) — hard-wired to test contact Dana Happy: `read` / `mark` (plays the screener) / `reset` / `ungraduate` (deletes only the Kevin opp Graduate logged for her) |
-| Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **keep inactive until go-live** (guards live 2026-09-25) | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
+| Screener: Mark + Compare | `zVCzfADKZqPWV6hk` | [open](https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk) | ❌ **inactive — Mohimenul switches it on in the n8n UI** (go-live) | ✓ [json+ctx](workflows/screener/) — item 4; `POST /webhook/screener-outcome` (Screener Outcome changed) |
 
 ---
 
@@ -180,6 +181,17 @@ reference). Table definition + the `screener_accuracy` view (per-screener match 
   screener-helper ]` `oUnRFJd1TMI1LmTd`), tested on Dana (execs 123666–123674; after the codex fixes 123685–123693). `screener_accuracy` counts
   answered calls only; `screener_last_24h` feeds the daily Slack summary (`Screener: Daily Sweep` → `#daily-screener-summary`,
   Obby bot `QcTNBiXBrnH5rFkC`).
+
+## Supabase core tables (decided 2026-09-25, live and empty)
+`shops` (id = Kevin's Shop ID ↔ `ghl_contact_id`, `tier`, `call_set`, `data` jsonb), `shop_raw` (raw data per shop ×
+source × tool), `call_log` (a typed copy of the Metrics sheet's `call_log` tab) and view `transcripts`; `screener_log`
+now also allows the `graduated` event. Migration `create_core_tables`, SQL [`supabase/core_tables.sql`](supabase/core_tables.sql),
+rules and rationale [`docs/supabase-design.md`](docs/supabase-design.md). Supabase keeps facts, GHL keeps state — no
+two-way sync; logs join `shops` on `ghl_contact_id` with no FK. Needs Kevin: Free plan (500 MB, no backups), side account.
+⚠️ **Decided 2026-09-26:** these tables are replaced by Kevin's Task 4 schema. Ours move to schema `archive`;
+Kevin's list tables, `score_history` and the views `calls` / `shop_call_state` / `screener_hourly` / `screener_daily`
+arrive via the new `waterline-pipeline` repo. `screener_log` stays the only call log. Plan:
+`docs/plan-2026-09-26.md`; Kevin's version: `docs/kevin-update-2026-09-26.md`.
 
 ## Screener log workbook (Google Sheets) — superseded by Supabase
 Deliberately a **separate** spreadsheet from the campaign metrics workbook — the screener is isolated

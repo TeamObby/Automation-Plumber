@@ -2,8 +2,9 @@
 
 - **n8n ID:** `zVCzfADKZqPWV6hk` · **URL:** https://n8n.meetobby.com/workflow/zVCzfADKZqPWV6hk · **File:** `Screener Mark + Compare.json`
 - **Folder:** `workflows/screener/` · built by `build/gen_mark.js`
-- **Status:** Inactive ❌ — built 2026-09-23. **Keep inactive until go-live**: the three GHL guards are live (2026-09-25); the switches are in
-  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3.
+- **Status:** **Still off** ❌ — the three GHL guards are live (2026-09-25) and the rest of the n8n side is on; this one is
+  switched on at go-live by Mohimenul (n8n UI), or by Claude once `publish_workflow` is allowed. Switches:
+  [`docs/screener-handoff.md`](../../docs/screener-handoff.md) §3. GHL `Screener Outcome Changed` (its trigger) is also still a draft.
 - **Trigger:** Webhook POST **`/webhook/screener-outcome`**, fired by a GHL workflow Hridoy builds:
   *Contact Changed → `Screener Outcome` has changed → webhook* (same pattern as `Manual Review Items Changed`).
 
